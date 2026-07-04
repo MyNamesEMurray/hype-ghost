@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hype Ghost — Setup</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0f0f14; --panel: #1a1a23; --border: #2c2c3a;
+    --text: #e8e8f0; --dim: #8a8a9e; --accent: #9b6dff; --good: #7ee49a; --bad: #ff8b8b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: var(--bg); color: var(--text);
+    font: 15px/1.5 "Segoe UI", system-ui, sans-serif;
+  }
+  #card {
+    width: 640px; max-width: 94vw; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 16px; padding: 28px 32px;
+    margin: 24px 0;
+  }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h1 .ghost { font-size: 26px; }
+  .sub { color: var(--dim); margin: 0 0 20px; font-size: 14px; }
+  #dots { display: flex; gap: 8px; margin-bottom: 22px; }
+  #dots span { width: 34px; height: 5px; border-radius: 3px; background: var(--border); }
+  #dots span.on { background: var(--accent); }
+  .step { display: none; }
+  .step.active { display: block; }
+  label { display: block; font-size: 13px; color: var(--dim); margin: 14px 0 5px; }
+  input[type=text], input[type=password], input[type=number], textarea, select {
+    width: 100%; background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font: inherit;
+  }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 64px; }
+  .choices { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+  .choice {
+    border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; cursor: pointer;
+  }
+  .choice:hover { border-color: var(--accent); }
+  .choice.selected { border-color: var(--accent); background: #241a3355; }
+  .choice b { display: block; margin-bottom: 2px; }
+  .choice small { color: var(--dim); }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .chip {
+    font-size: 13px; padding: 5px 12px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--border); color: var(--dim);
+  }
+  .chip:hover { border-color: var(--accent); color: var(--text); }
+  .row { display: flex; gap: 12px; }
+  .row > div { flex: 1; }
+  .test { margin-top: 10px; display: flex; align-items: center; gap: 10px; }
+  .result { font-size: 13px; }
+  .result.ok { color: var(--good); }
+  .result.err { color: var(--bad); }
+  button {
+    background: transparent; color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 9px 18px; font: inherit; font-size: 14px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #14081f; font-weight: 600; }
+  button:disabled { opacity: .5; cursor: default; }
+  nav { display: flex; justify-content: space-between; margin-top: 26px; }
+  details { margin-top: 14px; border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
+  summary { cursor: pointer; color: var(--dim); }
+  a { color: var(--accent); }
+  .hint { font-size: 12.5px; color: var(--dim); margin-top: 5px; }
+  #done { text-align: center; padding: 30px 0; display: none; }
+  #done .ghost { font-size: 52px; }
+</style>
+</head>
+<body>
+<div id="card">
+  <h1><span class="ghost">👻</span> Hype Ghost setup</h1>
+  <p class="sub">Your practice chat, configured in a minute. Everything can be changed later (tray → Edit Config).</p>
+  <div id="dots"></div>
+
+  <!-- Step 1: goal -->
+  <div class="step" data-step="0">
+    <b>What are you hoping to get out of Hype Ghost?</b>
+    <div class="choices" id="goal">
+      <div class="choice" data-goal="practice"><b>Practice talking to chat</b><small>Build the habit of narrating and answering chat out loud, so you're sharp when real viewers show up.</small></div>
+      <div class="choice" data-goal="company"><b>Company on quiet streams</b><small>A chattier companion so streaming to zero never feels like streaming to zero.</small></div>
+      <div class="choice" data-goal="vod"><b>Better VODs</b><small>Occasional prompts that give your VODs conversational structure — a bit more hands-off.</small></div>
+    </div>
+    <p class="hint" id="goalHint"></p>
+  </div>
+
+  <!-- Step 2: identity -->
+  <div class="step" data-step="1">
+    <b>Give your ghost a name and a personality.</b>
+    <label>Chat name</label>
+    <input type="text" id="botName" maxlength="24" placeholder="Beacon">
+    <label>Personality</label>
+    <textarea id="personality" placeholder="friendly, curious, a little goofy"></textarea>
+    <div class="chips">
+      <span class="chip" data-p="friendly, curious, a little goofy; loves asking questions about whatever is on screen">Friendly &amp; curious</span>
+      <span class="chip" data-p="high-energy hype friend; celebrates every small win, big on encouragement, never negative">Hype &amp; energetic</span>
+      <span class="chip" data-p="dry, deadpan, lightly sarcastic; roasts gently but is secretly very supportive">Dry &amp; sarcastic</span>
+      <span class="chip" data-p="chill lurker energy; short laid-back messages, vibes along with the stream">Chill lurker</span>
+    </div>
+  </div>
+
+  <!-- Step 3: API key -->
+  <div class="step" data-step="2">
+    <b>Connect the brain.</b>
+    <p class="hint">Hype Ghost generates messages with the Claude API. Get a key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> — typical cost is about $0.20/hour of streaming.</p>
+    <label>Anthropic API key</label>
+    <input type="password" id="apiKey" placeholder="sk-ant-…">
+    <label>Model</label>
+    <select id="model">
+      <option value="claude-sonnet-5">Sonnet — recommended balance of banter &amp; cost (~$0.20/hr)</option>
+      <option value="claude-haiku-4-5">Haiku — budget (~$0.07/hr), simpler messages</option>
+      <option value="claude-opus-4-8">Opus — premium (~$0.60/hr), sharpest banter</option>
+    </select>
+    <div class="test">
+      <button id="testKey">Test key</button>
+      <span class="result" id="keyResult"></span>
+    </div>
+  </div>
+
+  <!-- Step 4: OBS -->
+  <div class="step" data-step="3">
+    <b>Let the ghost see your stream.</b>
+    <p class="hint">In OBS: <b>Tools → WebSocket Server Settings</b> → enable the server, then copy the password here. This is how Hype Ghost screenshots your live scene to react to it.</p>
+    <div class="row">
+      <div>
+        <label>OBS WebSocket URL</label>
+        <input type="text" id="obsUrl" placeholder="ws://127.0.0.1:4455">
+      </div>
+      <div>
+        <label>Password</label>
+        <input type="password" id="obsPassword">
+      </div>
+    </div>
+    <div class="test">
+      <button id="testObs">Test connection</button>
+      <span class="result" id="obsResult"></span>
+    </div>
+    <p class="hint">OBS not running right now? You can skip this — it reconnects automatically.</p>
+  </div>
+
+  <!-- Step 5: cadence -->
+  <div class="step" data-step="4">
+    <b>How chatty should the ghost be?</b>
+    <div class="choices" id="cadence">
+      <div class="choice" data-solo="60"><b>Chatty</b><small>Averages about a message a minute — with natural bursts and lulls either side.</small></div>
+      <div class="choice" data-solo="90"><b>Balanced</b><small>Averages about every 90 seconds. Good default.</small></div>
+      <div class="choice" data-solo="150"><b>Relaxed</b><small>Every 2–3 minutes — present, but leaves you room.</small></div>
+    </div>
+    <label>Or custom (seconds between messages)</label>
+    <input type="number" id="soloSeconds" min="20" max="900">
+    <p class="hint">When real viewers are present the ghost automatically slows to ~4x this gap and shifts to prompts that help you engage the room.</p>
+  </div>
+
+  <!-- Step 6: extras -->
+  <div class="step" data-step="5">
+    <b>Optional extras</b>
+    <details>
+      <summary>🎙 Voice awareness — the ghost hears what you say (recommended)</summary>
+      <p class="hint">Install the free <a href="https://obsproject.com/forum/resources/localvocal-local-live-captions-translation-on-the-go.1769/" target="_blank">LocalVocal</a> OBS plugin (speech-to-text runs 100% locally), add its filter to your mic, and point it at a file or text source:</p>
+      <label>Mode</label>
+      <select id="trMode">
+        <option value="off">Off</option>
+        <option value="file">File — tail LocalVocal's .txt/.srt output</option>
+        <option value="textSource">Text source — read via OBS WebSocket</option>
+      </select>
+      <label>File path or text source name</label>
+      <input type="text" id="trTarget" placeholder="C:/Users/you/captions.srt   or   LocalVocal Captions">
+    </details>
+    <details>
+      <summary>📺 Twitch viewer detection — auto-quiet when real people arrive</summary>
+      <p class="hint">Read-only viewer count check (never touches chat). Create app credentials at <a href="https://dev.twitch.tv/console" target="_blank">dev.twitch.tv/console</a>. Skip this and use the dashboard's manual toggle instead.</p>
+      <label>Channel name</label>
+      <input type="text" id="twChannel">
+      <div class="row">
+        <div><label>Client ID</label><input type="text" id="twId"></div>
+        <div><label>Client secret</label><input type="password" id="twSecret"></div>
+      </div>
+    </details>
+    <p class="hint" style="margin-top:14px">After setup: add a <b>Browser Source</b> in OBS pointing at <b>http://localhost:3777/overlay</b> (~460×600) so the chat shows on your stream and VODs.</p>
+  </div>
+
+  <div id="done">
+    <div class="ghost">👻</div>
+    <h2>You're all set!</h2>
+    <p class="sub">Saving and restarting Hype Ghost…</p>
+  </div>
+
+  <nav>
+    <button id="back">Back</button>
+    <button id="next" class="primary">Next</button>
+  </nav>
+</div>
+
+<script>
+  const STEPS = 6;
+  let step = 0;
+  let cfg = null;
+
+  const $ = (id) => document.getElementById(id);
+  const dots = $('dots');
+  for (let i = 0; i < STEPS; i++) dots.appendChild(document.createElement('span'));
+
+  function show() {
+    document.querySelectorAll('.step').forEach((el) => el.classList.toggle('active', Number(el.dataset.step) === step));
+    [...dots.children].forEach((d, i) => d.classList.toggle('on', i <= step));
+    $('back').style.visibility = step === 0 ? 'hidden' : 'visible';
+    $('next').textContent = step === STEPS - 1 ? 'Finish setup' : 'Next';
+  }
+
+  // ---- prefill from current config ----
+  fetch('/api/config').then((r) => r.json()).then(({ config }) => {
+    cfg = config;
+    $('botName').value = cfg.bot?.name ?? 'Beacon';
+    $('personality').value = cfg.bot?.personality ?? '';
+    $('apiKey').value = cfg.anthropic?.apiKey ?? '';
+    $('model').value = cfg.anthropic?.model ?? 'claude-sonnet-5';
+    $('obsUrl').value = cfg.obs?.url ?? 'ws://127.0.0.1:4455';
+    $('obsPassword').value = cfg.obs?.password ?? '';
+    $('soloSeconds').value = cfg.cadence?.soloSeconds ?? 90;
+    markCadence();
+    $('trMode').value = cfg.transcript?.mode ?? 'off';
+    $('trTarget').value = cfg.transcript?.mode === 'textSource' ? (cfg.transcript?.textSource ?? '') : (cfg.transcript?.file ?? '');
+    $('twChannel').value = cfg.twitch?.channel ?? '';
+    $('twId').value = cfg.twitch?.clientId ?? '';
+    $('twSecret').value = cfg.twitch?.clientSecret ?? '';
+  });
+
+  // ---- goal step ----
+  const GOAL_PRESETS = {
+    practice: { solo: 90, hint: 'Good pick — the ghost will keep a steady conversational pace and ask the occasional question you can answer out loud.' },
+    company: { solo: 60, hint: 'The ghost will lean chattier. You can tune exactly how chatty in a later step.' },
+    vod: { solo: 150, hint: 'The ghost will hang back a bit and prioritize messages that give segments structure.' },
+  };
+  $('goal').addEventListener('click', (e) => {
+    const c = e.target.closest('.choice');
+    if (!c) return;
+    document.querySelectorAll('#goal .choice').forEach((x) => x.classList.remove('selected'));
+    c.classList.add('selected');
+    const preset = GOAL_PRESETS[c.dataset.goal];
+    $('soloSeconds').value = preset.solo;
+    $('goalHint').textContent = preset.hint;
+    markCadence();
+  });
+
+  // ---- personality chips ----
+  document.querySelectorAll('.chip').forEach((chip) =>
+    chip.addEventListener('click', () => { $('personality').value = chip.dataset.p; })
+  );
+
+  // ---- cadence choices <-> custom input ----
+  function markCadence() {
+    const v = String($('soloSeconds').value);
+    document.querySelectorAll('#cadence .choice').forEach((c) => c.classList.toggle('selected', c.dataset.solo === v));
+  }
+  $('cadence').addEventListener('click', (e) => {
+    const c = e.target.closest('.choice');
+    if (!c) return;
+    $('soloSeconds').value = c.dataset.solo;
+    markCadence();
+  });
+  $('soloSeconds').addEventListener('input', markCadence);
+
+  // ---- live tests ----
+  $('testKey').onclick = async () => {
+    const el = $('keyResult');
+    el.className = 'result'; el.textContent = 'testing…';
+    const r = await fetch('/api/test-key', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey: $('apiKey').value.trim(), model: $('model').value }),
+    }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
+    el.className = 'result ' + (r.ok ? 'ok' : 'err');
+    el.textContent = r.ok ? '✓ key works' : '✗ ' + (r.error || 'failed');
+  };
+
+  $('testObs').onclick = async () => {
+    const el = $('obsResult');
+    el.className = 'result'; el.textContent = 'testing…';
+    const r = await fetch('/api/test-obs', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: $('obsUrl').value.trim(), password: $('obsPassword').value }),
+    }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
+    el.className = 'result ' + (r.ok ? 'ok' : 'err');
+    el.textContent = r.ok ? `✓ connected — current scene: "${r.scene}"` : '✗ ' + (r.error || 'failed');
+  };
+
+  // ---- navigation + save ----
+  $('back').onclick = () => { if (step > 0) { step--; show(); } };
+  $('next').onclick = async () => {
+    if (step === 2 && !$('apiKey').value.trim()) {
+      $('keyResult').className = 'result err';
+      $('keyResult').textContent = 'an API key is required — the ghost has no brain without it';
+      return;
+    }
+    if (step < STEPS - 1) { step++; show(); return; }
+
+    // Finish: merge wizard fields into the existing config and save.
+    cfg.bot = { ...cfg.bot, name: $('botName').value.trim() || 'Beacon', personality: $('personality').value.trim() || 'friendly and curious' };
+    cfg.anthropic = { ...cfg.anthropic, apiKey: $('apiKey').value.trim(), model: $('model').value };
+    cfg.obs = { ...cfg.obs, url: $('obsUrl').value.trim() || 'ws://127.0.0.1:4455', password: $('obsPassword').value };
+    cfg.cadence = { ...cfg.cadence, soloSeconds: Math.max(20, Number($('soloSeconds').value) || 90) };
+    const mode = $('trMode').value;
+    const target = $('trTarget').value.trim();
+    cfg.transcript = {
+      ...cfg.transcript,
+      mode: mode !== 'off' && !target ? 'off' : mode,
+      ...(mode === 'file' ? { file: target } : {}),
+      ...(mode === 'textSource' ? { textSource: target } : {}),
+    };
+    cfg.twitch = { ...cfg.twitch, channel: $('twChannel').value.trim(), clientId: $('twId').value.trim(), clientSecret: $('twSecret').value.trim() };
+
+    $('next').disabled = true;
+    const r = await fetch('/api/config', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cfg),
+    }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
+    if (!r.ok) {
+      $('next').disabled = false;
+      alert('Saving failed: ' + (r.error || 'unknown error'));
+      return;
+    }
+    document.querySelectorAll('.step').forEach((el) => el.classList.remove('active'));
+    document.querySelector('nav').style.display = 'none';
+    dots.style.display = 'none';
+    $('done').style.display = 'block';
+    // Desktop app relaunches itself; if it doesn't (headless mode), go to the dashboard.
+    setTimeout(() => { location.href = '/'; }, 4000);
+  };
+
+  show();
+</script>
+</body>
+</html>

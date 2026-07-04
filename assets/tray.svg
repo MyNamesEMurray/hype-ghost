@@ -1,0 +1,7 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- ghost only, transparent background: tray icons sit on the taskbar -->
+  <path d="M116 262 a140 140 0 0 1 280 0 V430 L349 405 302 435 256 405 210 435 163 405 116 430 Z"
+        fill="#ffffff"/>
+  <ellipse cx="211" cy="245" rx="22" ry="30" fill="#3b2a63"/>
+  <ellipse cx="301" cy="245" rx="22" ry="30" fill="#3b2a63"/>
+</svg>

@@ -1,0 +1,42 @@
+{
+  "port": 3777,
+  "bot": {
+    "name": "Beacon",
+    "personality": "friendly, curious, a little goofy; loves asking questions about whatever is on screen"
+  },
+  "anthropic": {
+    "apiKey": "",
+    "model": "claude-opus-4-8"
+  },
+  "obs": {
+    "url": "ws://127.0.0.1:4455",
+    "password": "",
+    "screenshotWidth": 800
+  },
+  "memory": {
+    "enabled": true,
+    "updateEvery": 4
+  },
+  "twitch": {
+    "clientId": "",
+    "clientSecret": "",
+    "channel": ""
+  },
+  "transcript": {
+    "mode": "off",
+    "file": "",
+    "textSource": "LocalVocal Captions",
+    "pollSeconds": 2
+  },
+  "cadence": {
+    "soloSeconds": 120,
+    "quietSeconds": 480,
+    "jitter": 0.35,
+    "burstChance": 0.15,
+    "lullChance": 0.15,
+    "replyDelaySeconds": 6,
+    "viewerPollSeconds": 60,
+    "transcriptWindowSeconds": 120,
+    "minScreenshotGapSeconds": 25
+  }
+}
