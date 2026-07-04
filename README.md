@@ -13,7 +13,12 @@ even when nobody is watching.
 
 ## Install
 
-Run the installer (`dist/Hype Ghost Setup 1.1.0.exe`). On first launch, a **setup wizard**
+**[⬇ Download the latest installer](https://github.com/MyNamesEMurray/hype-ghost/releases/latest)** — grab
+`Hype Ghost Setup <version>.exe`. Windows SmartScreen will warn because the installer is
+unsigned; click **More info → Run anyway**. You'll need your own
+[Anthropic API key](https://console.anthropic.com) (~$0.20/hour of streaming) and OBS 28+.
+
+(Building from source instead? Run the installer out of `dist/` after `npm run dist`.) On first launch, a **setup wizard**
 walks you through everything: what you want out of Hype Ghost, the ghost's name and
 personality, your Anthropic API key (with a live "test key" button), the OBS connection
 (with a live connection test), message cadence, and optional extras (voice awareness,
