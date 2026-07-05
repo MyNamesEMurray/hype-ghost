@@ -3,8 +3,17 @@ import electronUpdater from 'electron-updater';
 import { existsSync, copyFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import os from 'node:os';
 import { startServer } from '../src/server.js';
 import { loadConfig } from '../src/config.js';
+
+// Resource posture: this app shares a machine with OBS and a game. Software
+// rendering is plenty for our simple UI and keeps VRAM/GPU cycles for the
+// stream; below-normal CPU priority means we never steal from the encoder.
+app.disableHardwareAcceleration();
+try {
+  os.setPriority(os.constants.priority.PRIORITY_BELOW_NORMAL);
+} catch {}
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(here, '..');
@@ -18,12 +27,7 @@ const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
-    if (win) {
-      win.show();
-      win.focus();
-    }
-  });
+  app.on('second-instance', () => showWindow());
 }
 
 // Installed app: config lives in %APPDATA%/Hype Ghost (writable, survives updates).
@@ -37,6 +41,7 @@ let tray = null;
 let server = null;
 let quitting = false;
 let updateReady = null; // version string once an update is downloaded
+let keepRendererAlive = false; // TTS speaks from the renderer, so it must survive close
 
 function installUpdateNow() {
   quitting = true;
@@ -49,16 +54,16 @@ function ensureConfig() {
   copyFileSync(path.join(packageRoot, 'config.example.json'), configPath);
 }
 
-function createWindow() {
+function createWindow(page = '/') {
   win = new BrowserWindow({
-    width: 900,
+    width: 980,
     height: 720,
     icon: path.join(packageRoot, 'assets', 'icon.png'),
     title: 'Hype Ghost',
     autoHideMenuBar: true,
     show: false,
   });
-  win.loadURL(`http://127.0.0.1:${server.port}/`);
+  win.loadURL(`http://127.0.0.1:${server.port}${page}`);
   // External links (console.anthropic.com, dev.twitch.tv, …) open in the
   // user's real browser — never in a chrome-less Electron window where they
   // can't verify the URL they're typing credentials into.
@@ -75,13 +80,29 @@ function createWindow() {
   win.once('ready-to-show', () => {
     if (!SMOKE) win.show();
   });
-  // Closing the window hides to tray; the ghost keeps chatting.
+  // Closing goes to the tray; the ghost keeps chatting either way. Unless the
+  // renderer must stay alive (TTS), destroy it — a hidden Chromium renderer
+  // is ~100MB of RAM this app doesn't need while you're mid-game.
   win.on('close', (e) => {
-    if (!quitting) {
-      e.preventDefault();
+    if (quitting) return;
+    e.preventDefault();
+    if (keepRendererAlive) {
       win.hide();
+    } else {
+      win.destroy();
+      win = null;
     }
   });
+}
+
+function showWindow(page) {
+  if (win && !win.isDestroyed()) {
+    if (page) win.loadURL(`http://127.0.0.1:${server.port}${page}`);
+    win.show();
+    win.focus();
+  } else if (server) {
+    createWindow(page || '/');
+  }
 }
 
 function trayMenu() {
@@ -92,7 +113,7 @@ function trayMenu() {
           { type: 'separator' },
         ]
       : []),
-    { label: 'Open Dashboard', click: () => { win.show(); win.focus(); } },
+    { label: 'Open Dashboard', click: () => showWindow('/') },
     {
       label: 'Copy Overlay URL (for OBS)',
       click: () => clipboard.writeText(`http://localhost:${server.port}/overlay`),
@@ -109,22 +130,8 @@ function trayMenu() {
       },
     },
     { type: 'separator' },
-    {
-      label: 'Settings',
-      click: () => {
-        win.loadURL(`http://127.0.0.1:${server.port}/settings`);
-        win.show();
-        win.focus();
-      },
-    },
-    {
-      label: 'Run Setup Wizard',
-      click: () => {
-        win.loadURL(`http://127.0.0.1:${server.port}/setup`);
-        win.show();
-        win.focus();
-      },
-    },
+    { label: 'Settings', click: () => showWindow('/settings') },
+    { label: 'Run Setup Wizard', click: () => showWindow('/setup') },
     { label: 'Edit Config (raw JSON)', click: () => shell.openPath(configPath) },
     { label: 'Open Config Folder', click: () => shell.showItemInFolder(configPath) },
     {
@@ -143,7 +150,7 @@ function createTray() {
   tray = new Tray(icon);
   tray.setToolTip('Hype Ghost — AI practice chat (simulated viewer)');
   tray.setContextMenu(trayMenu());
-  tray.on('double-click', () => { win.show(); win.focus(); });
+  tray.on('double-click', () => showWindow());
 }
 
 app.whenReady().then(() => {
@@ -174,7 +181,8 @@ app.whenReady().then(() => {
       // Settings page "Browse…" → native file dialog (full path, which the
       // browser's own <input type=file> can't provide).
       pickFile: async () => {
-        const r = await dialog.showOpenDialog(win, {
+        const parent = win && !win.isDestroyed() ? win : undefined;
+        const r = await dialog.showOpenDialog(parent, {
           title: 'Choose the LocalVocal transcript file',
           properties: ['openFile'],
           filters: [
@@ -193,16 +201,19 @@ app.whenReady().then(() => {
   createWindow();
   createTray();
 
+  const appCfg = loadConfig(configPath).config.app;
+  keepRendererAlive = appCfg.tts === true; // TTS speaks from the renderer
+
   // Auto-update from GitHub Releases (configurable: app.autoUpdate in config.json).
   // A tray-resident app rarely quits, so a downloaded update must be actionable:
   // a real dialog (toasts are unreliable) + a tray menu item, not just install-on-quit.
-  const autoUpdateEnabled = loadConfig(configPath).config.app.autoUpdate !== false;
+  const autoUpdateEnabled = appCfg.autoUpdate !== false;
   if (app.isPackaged && !SMOKE && autoUpdateEnabled) {
     const { autoUpdater } = electronUpdater;
     autoUpdater.on('update-downloaded', (info) => {
       updateReady = info.version;
       if (tray) tray.setContextMenu(trayMenu());
-      const visible = win && win.isVisible();
+      const visible = win && !win.isDestroyed() && win.isVisible();
       const choice = dialog.showMessageBoxSync(visible ? win : undefined, {
         type: 'info',
         buttons: ['Restart now', 'Later'],

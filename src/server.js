@@ -11,6 +11,7 @@ import { MODELS, messageCost } from './models.js';
 import { ObsCapture } from './obs.js';
 import { Brain } from './brain.js';
 import { TwitchViewers } from './twitch.js';
+import { TwitchChat } from './twitchchat.js';
 import { TranscriptFeed } from './transcript.js';
 import { GhostLoop } from './loop.js';
 
@@ -40,14 +41,22 @@ export function startServer(opts = {}) {
   if (warning) console.warn(`[config] ${warning}`);
   const apiKey = config.anthropic.apiKey || process.env.ANTHROPIC_API_KEY || '';
   const port = config.port;
+  const usingAnthropic = config.brain.provider !== 'openai';
+  // "Brain is configured" gates the wizard redirect: Anthropic needs a key,
+  // an OpenAI-compatible endpoint just needs a model name.
+  const brainReady = usingAnthropic ? Boolean(apiKey) : Boolean(config.brain.openaiModel);
+
+  const personas = [
+    { name: config.bot.name, personality: config.bot.personality },
+    ...(config.bot2.enabled ? [{ name: config.bot2.name, personality: config.bot2.personality }] : []),
+  ];
 
   const obs = new ObsCapture(config.obs.url, config.obs.password, config.obs.screenshotWidth);
   const twitch = new TwitchViewers(config.twitch);
   const brain = new Brain({
-    apiKey,
-    model: config.anthropic.model,
-    botName: config.bot.name,
-    personality: config.bot.personality,
+    brain: config.brain,
+    anthropic: config.anthropic,
+    personas,
     language: config.bot.language,
   });
 
@@ -59,16 +68,21 @@ export function startServer(opts = {}) {
     realViewers: null,
     mode: 'solo',
     obsConnected: false,
-    apiKeySet: Boolean(apiKey),
+    apiKeySet: brainReady,
     twitchConfigured: twitch.configured(),
     botName: config.bot.name,
+    personas: personas.map((p) => p.name),
+    chatPerMin: null, // real Twitch chat messages/min (null = not listening)
     nextMessageAt: null,
     busy: false,
     transcriptMode: config.transcript.mode,
     lastHeard: null,
     costMeter: config.app.costMeter !== false,
+    tts: { enabled: config.app.tts === true, voice: config.app.ttsVoice, rate: config.app.ttsRate },
+    uiLanguage: config.app.uiLanguage || 'en',
     usage: { messages: 0, inputTokens: 0, outputTokens: 0, cost: 0, costKnown: true },
   };
+  const startedAt = Date.now();
 
   const history = []; // {id, author, role: 'bot'|'streamer', text, ts}
   const MAX_HISTORY = 40;
@@ -76,15 +90,28 @@ export function startServer(opts = {}) {
   function resolveMode() {
     if (state.viewerOverride === 'solo') return 'solo';
     if (state.viewerOverride === 'viewers') return 'viewers';
+    // Active real chat is a stronger "hang back" signal than raw viewer
+    // count — lurker-heavy streams keep their ghost.
+    if (chatMonitor && chatMonitor.isActive()) return 'viewers';
     return state.realViewers && state.realViewers > 0 ? 'viewers' : 'solo';
   }
 
-  // ---------- rolling session memory ----------
+  // ---------- rolling session memory + long-term profile ----------
   let sessionNotes = '';
   try {
     if (existsSync(notesPath) && Date.now() - statSync(notesPath).mtimeMs < 6 * 3600_000) {
       sessionNotes = readFileSync(notesPath, 'utf8').trim();
       if (sessionNotes) console.log('[memory] restored session notes from a recent run.');
+    }
+  } catch {}
+  // Cross-stream memory: never goes stale — "did you ever beat that boss
+  // from Tuesday?" is the whole point.
+  const profilePath = opts.profilePath ?? path.join(path.dirname(notesPath), 'profile.md');
+  let profile = '';
+  try {
+    if (existsSync(profilePath)) {
+      profile = readFileSync(profilePath, 'utf8').trim();
+      if (profile) console.log('[memory] loaded cross-stream profile.');
     }
   } catch {}
 
@@ -146,6 +173,23 @@ export function startServer(opts = {}) {
 
   app.post('/api/test-key', async (req, res) => {
     try {
+      if (req.body.provider === 'openai') {
+        // Cheap reachability + model-list check for Ollama/LM Studio/etc.
+        const base = String(req.body.baseUrl || config.brain.openaiBaseUrl).replace(/\/+$/, '');
+        const key = String(req.body.apiKey || '') || config.brain.openaiApiKey;
+        const r = await fetch(`${base}/models`, {
+          headers: key ? { Authorization: `Bearer ${key}` } : {},
+        });
+        if (!r.ok) throw new Error(`${base} returned ${r.status}`);
+        const data = await r.json().catch(() => null);
+        const wanted = String(req.body.model || config.brain.openaiModel);
+        const ids = data?.data?.map((m) => m.id) ?? [];
+        const found = !ids.length || ids.some((id) => id === wanted || id.startsWith(wanted));
+        return res.json({
+          ok: true,
+          note: found ? undefined : `endpoint reachable, but model "${wanted}" was not in its list`,
+        });
+      }
       // Blank key tests the saved one (Settings shows the key only as "saved").
       const key = String(req.body.apiKey || '') || config.anthropic.apiKey;
       const client = new Anthropic({ apiKey: key });
@@ -158,6 +202,40 @@ export function startServer(opts = {}) {
     } catch (err) {
       res.json({ ok: false, error: err.message });
     }
+  });
+
+  // Overlay reads only what it needs — never the full config (which holds secrets).
+  app.get('/api/overlay-config', (_req, res) => {
+    res.json({ overlay: config.overlay, personas: state.personas });
+  });
+
+  // Post-stream recap: session notes + timestamped chat log as markdown.
+  app.get('/api/recap', (_req, res) => {
+    const started = new Date(startedAt);
+    const mins = Math.round((Date.now() - startedAt) / 60000);
+    const fmt = (ts) => {
+      const m = Math.floor((ts - startedAt) / 60000);
+      return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    };
+    const lines = [
+      `# Stream recap — ${started.toLocaleDateString()} ${started.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+      '',
+      `Session: ${mins} min · ${state.usage.messages} ghost messages` +
+        (state.costMeter && state.usage.costKnown ? ` · $${state.usage.cost.toFixed(3)}` : ''),
+      '',
+      '## Session notes',
+      '',
+      sessionNotes || '_(none yet)_',
+      '',
+      '## Chat log',
+      '',
+      ...history.map((m) => `- \`${fmt(m.ts)}\` **${m.author}**: ${m.text}`),
+      '',
+      '_Generated by Hype Ghost — all "viewer" messages are simulated AI._',
+    ];
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="hype-ghost-recap-${started.toISOString().slice(0, 10)}.md"`);
+    res.send(lines.join('\n'));
   });
 
   app.post('/api/test-obs', async (req, res) => {
@@ -212,6 +290,7 @@ export function startServer(opts = {}) {
 
   function pushMessage(role, author, text) {
     const msg = { id: Date.now() + '-' + Math.random().toString(36).slice(2, 7), role, author, text, ts: Date.now() };
+    if (role === 'bot') msg.p = Math.max(0, state.personas.indexOf(author)); // persona index for coloring
     history.push(msg);
     if (history.length > MAX_HISTORY) history.shift();
     broadcast({ type: 'chat', msg });
@@ -246,7 +325,7 @@ export function startServer(opts = {}) {
     hooks: {
       getMode: resolveMode,
       getHistory: () => history,
-      onMessage: (text) => pushMessage('bot', state.botName, text),
+      onMessage: (speaker, text) => pushMessage('bot', speaker || state.botName, text),
       onSystem: (text) => broadcast({ type: 'system', text }),
       onState: () => {
         broadcastState();
@@ -259,6 +338,14 @@ export function startServer(opts = {}) {
           writeFileSync(notesPath, sessionNotes + '\n');
         } catch {}
         console.log('[memory] session notes updated:', sessionNotes.replace(/\s+/g, ' ').slice(0, 100) + '…');
+      },
+      getProfile: () => profile,
+      setProfile: (next) => {
+        profile = next;
+        try {
+          writeFileSync(profilePath, profile + '\n');
+        } catch {}
+        console.log('[memory] cross-stream profile updated.');
       },
       addUsage: (usage) => {
         const cost = messageCost(config.anthropic.model, usage);
@@ -317,6 +404,21 @@ export function startServer(opts = {}) {
       }
     });
   });
+
+  // ---------- twitch chat awareness (read-only, anonymous) ----------
+  let chatMonitor = null;
+  if (config.twitch.channel && config.twitch.chatAwareness !== false) {
+    chatMonitor = new TwitchChat({
+      channel: config.twitch.channel,
+      onActivity: (perMin) => {
+        const prevMode = state.mode;
+        state.chatPerMin = Math.round(perMin * 10) / 10;
+        if (resolveMode() !== prevMode) loop.scheduleNext();
+        else broadcastState();
+      },
+    });
+    chatMonitor.start();
+  }
 
   // ---------- twitch viewer polling ----------
   if (twitch.configured()) {

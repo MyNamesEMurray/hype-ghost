@@ -42,6 +42,11 @@ export class GhostLoop {
     this.lastVoiceReplyAt = 0;
     this.voiceBusyRetries = 0;
 
+    // Banter cap: a two-message persona exchange is allowed at most once per
+    // stretch of streamer activity — the streamer is the show.
+    this.lastStreamerActivityAt = Date.now();
+    this.lastExchangeAt = 0;
+
     this.obsFailSince = null; // start of the current OBS-unreachable streak
     this.resumeWatcher = null;
   }
@@ -85,6 +90,7 @@ export class GhostLoop {
 
   /** The streamer typed a message — answer it soon, with the reply prompt. */
   onStreamerMessage() {
+    this.lastStreamerActivityAt = Date.now();
     this.scheduleNext((this.config.cadence.replyDelaySeconds ?? 6) * 1000, 'reply');
   }
 
@@ -96,6 +102,7 @@ export class GhostLoop {
    * reply isn't silently dropped (and marked answered) mid-generation.
    */
   onSpeech() {
+    this.lastStreamerActivityAt = Date.now();
     const minGapMs = (this.config.cadence.minVoiceReplyGapSeconds ?? 35) * 1000;
     const last = this.hooks.getHistory().at(-1);
     const answerable =
@@ -196,6 +203,9 @@ export class GhostLoop {
 
       const memory = this.config.memory;
       const updateNotes = memory.enabled && (this.botMessageCount + 1) % memory.updateEvery === 0;
+      const updateProfile =
+        memory.enabled && (this.botMessageCount + 1) % (memory.profileEvery ?? 12) === 0;
+      const allowExchange = this.lastStreamerActivityAt > this.lastExchangeAt;
 
       // Only speech the model hasn't seen yet (15s overlap for continuity).
       const transcript = this.feed.getWindow(this.lastGenAt ? this.lastGenAt - 15_000 : 0);
@@ -209,18 +219,33 @@ export class GhostLoop {
         trigger,
         transcript: transcript || undefined,
         notes: this.hooks.getNotes() || undefined,
+        profile: this.hooks.getProfile() || undefined,
         updateNotes,
+        updateProfile,
         sceneName: this.lastSceneName || undefined,
         streamContext: this.config.stream?.context || undefined,
         talkingPoint,
+        allowExchange,
       });
 
       if (result.usage) this.hooks.addUsage(result.usage);
-      if (result.text) {
-        this.hooks.onMessage(result.text);
+      const [first, second] = result.messages || [];
+      if (first?.text) {
+        this.hooks.onMessage(first.speaker, first.text);
         this.botMessageCount++;
       }
+      if (second?.text) {
+        // A persona exchange: release the riff after a human-ish beat, and
+        // spend the banter allowance until the streamer engages again.
+        this.lastExchangeAt = Date.now();
+        setTimeout(() => {
+          if (this.paused) return;
+          this.hooks.onMessage(second.speaker, second.text);
+          this.botMessageCount++;
+        }, 4000 + Math.random() * 5000);
+      }
       if (result.notes) this.hooks.setNotes(result.notes);
+      if (result.profile) this.hooks.setProfile(result.profile);
     } catch (err) {
       console.error('[ghost] generation failed:', err.message);
       this.hooks.onSystem(`Message generation failed: ${err.message}`);

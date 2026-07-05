@@ -14,6 +14,27 @@ Planning document for the 2.0 release and beyond. Order within a phase ≠ commi
 - ✅ **Security hardening** (1.5.0) — WebSocket origin allowlist, Host-header check, API key never leaves the server, external links open in the real browser.
 - ✅ **Design system** (1.5.0) — shared theme.css + written design language (DESIGN.md).
 
+## Shipped in 2.0 (v2 branch)
+
+- ✅ **Dual AI chatters** — second persona (Settings → Ghost), single-call generation with a
+  chosen speaker or a staggered 2-message exchange; banter cap: one exchange per stretch of
+  streamer activity. Persona colors on dashboard + overlay (blue/pink).
+- ✅ **Local & free brains** — provider setting (Settings → Brain, wizard step): Claude API,
+  or any OpenAI-compatible endpoint (Ollama/LM Studio local, free cloud tiers).
+- ✅ **Cross-stream memory** — model-maintained `profile.md` (per-game progress, running
+  jokes), refreshed every ~12 messages, never goes stale.
+- ✅ **Real Twitch chat awareness** — anonymous read-only IRC listener; ghost hangs back when
+  real chat is active (≥2 msgs/min), not merely when viewers exist.
+- ✅ **TTS co-host** — ghost messages spoken via local Windows voices (Settings → App).
+- ✅ **Post-stream recap** — markdown export (dashboard → Export recap).
+- ✅ **Overlay customization** — alignment, text size, fade-out, density. *(Emote images
+  excluded: third-party emote sets carry licensing baggage.)*
+- ✅ **UI translation, part 1** — dashboard in English/Spanish (Settings → App); framework in
+  place for more languages.
+- ✅ **Resource posture** — software rendering (GPU stays with the game/OBS), below-normal
+  process priority, renderer destroyed when closed to tray (unless TTS), visibility-gated
+  UI timers.
+
 ## 2.0 — "The room gets real"
 
 ### 1. Dual AI chatters

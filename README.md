@@ -1,9 +1,17 @@
 # Hype Ghost 👻
 
-A **local-only simulated AI viewer** for streamers. It watches your OBS output like a real
-viewer would — screenshots of your live scene, plus a local transcription of your mic — and
-chats with you through a desktop app + an on-stream overlay, so you practice talking to chat
-even when nobody is watching.
+**Local-only simulated AI viewers** for streamers. One or two "ghosts" watch your OBS output
+like real viewers — screenshots of your live scene, plus a local transcription of your mic —
+and chat with you through a desktop app + an on-stream overlay, so you practice talking to
+chat even when nobody is watching.
+
+2.0 highlights: a second ghost persona (they riff on each other, capped so you stay the
+show), **local/free brains** (Ollama, LM Studio, or any OpenAI-compatible endpoint — no API
+key required), cross-stream memory ("did you ever beat that boss from Tuesday?"), read-only
+Twitch chat awareness, spoken messages (local TTS), post-stream recap export, overlay
+customization, and a Spanish dashboard. Resource posture: software rendering, below-normal
+process priority, and the UI unloads entirely when closed to tray — OBS and your game come
+first.
 
 **What it is NOT:**
 - It never connects to your Twitch chat (nothing is posted anywhere).

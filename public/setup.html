@@ -65,13 +65,29 @@
   <!-- Step 3: API key -->
   <div class="step" data-step="2">
     <b>Connect the brain.</b>
-    <p class="hint">Hype Ghost generates messages with the Claude API. Get a key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> — typical cost is about $0.20/hour of streaming.</p>
-    <label>Anthropic API key</label>
-    <input type="password" id="apiKey" placeholder="sk-ant-…">
-    <label>Model</label>
-    <select id="model"></select>
+    <label>How should the ghost think?</label>
+    <select id="provider">
+      <option value="anthropic">Claude API — best banter (paid, ~$0.20/hr)</option>
+      <option value="openai">Local / free — Ollama, LM Studio, or any OpenAI-compatible endpoint ($0)</option>
+    </select>
+    <div id="anthFields">
+      <p class="hint">Get a key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> — typical cost is about $0.20/hour of streaming.</p>
+      <label>Anthropic API key</label>
+      <input type="password" id="apiKey" placeholder="sk-ant-…">
+      <label>Model</label>
+      <select id="model"></select>
+    </div>
+    <div id="oaiFields" style="display:none">
+      <p class="hint">The private/$0 route: install <a href="https://ollama.com" target="_blank">Ollama</a>, run <code>ollama pull qwen2.5vl:7b</code>, done — nothing leaves your PC. (Free cloud tiers work too via their OpenAI-compatible URLs, but they may train on your data — free ≠ private.) Use a <b>vision-capable</b> model so the ghost can see your stream.</p>
+      <label>Endpoint URL</label>
+      <input type="text" id="oaiBase" placeholder="http://localhost:11434/v1">
+      <label>Model</label>
+      <input type="text" id="oaiModel" placeholder="qwen2.5vl:7b">
+      <label>API key (only if the endpoint needs one)</label>
+      <input type="password" id="oaiKey">
+    </div>
     <div class="test">
-      <button id="testKey">Test key</button>
+      <button id="testKey">Test brain</button>
       <span class="result" id="keyResult"></span>
     </div>
   </div>
@@ -181,6 +197,11 @@
     $('personality').value = cfg.bot.personality;
     if (apiKeySaved) $('apiKey').placeholder = 'saved ✓ — leave blank to keep the current key';
     $('model').value = cfg.anthropic.model;
+    $('provider').value = cfg.brain.provider;
+    $('oaiBase').value = cfg.brain.openaiBaseUrl;
+    $('oaiModel').value = cfg.brain.openaiModel;
+    $('oaiKey').value = cfg.brain.openaiApiKey;
+    toggleProvider();
     $('obsUrl').value = cfg.obs.url;
     $('obsPassword').value = cfg.obs.password;
     $('soloSeconds').value = cfg.cadence.soloSeconds;
@@ -236,16 +257,26 @@
   });
   $('soloSeconds').addEventListener('input', markCadence);
 
-  // ---- live tests ----
+  // ---- brain provider toggle + live tests ----
+  function toggleProvider() {
+    const oai = $('provider').value === 'openai';
+    $('anthFields').style.display = oai ? 'none' : '';
+    $('oaiFields').style.display = oai ? '' : 'none';
+  }
+  $('provider').onchange = toggleProvider;
+
   $('testKey').onclick = async () => {
     const el = $('keyResult');
     el.className = 'result'; el.textContent = 'testing…';
+    const body = $('provider').value === 'openai'
+      ? { provider: 'openai', baseUrl: $('oaiBase').value.trim(), model: $('oaiModel').value.trim(), apiKey: $('oaiKey').value.trim() }
+      : { apiKey: $('apiKey').value.trim(), model: $('model').value };
     const r = await fetch('/api/test-key', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ apiKey: $('apiKey').value.trim(), model: $('model').value }),
+      body: JSON.stringify(body),
     }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
     el.className = 'result ' + (r.ok ? 'ok' : 'err');
-    el.textContent = r.ok ? '✓ key works' : '✗ ' + (r.error || 'failed');
+    el.textContent = r.ok ? '✓ works' + (r.note ? ' — ' + r.note : '') : '✗ ' + (r.error || 'failed');
   };
 
   $('testObs').onclick = async () => {
@@ -262,10 +293,18 @@
   // ---- navigation + save ----
   $('back').onclick = () => { if (step > 0) { step--; show(); } };
   $('next').onclick = async () => {
-    if (step === 2 && !$('apiKey').value.trim() && !apiKeySaved) {
-      $('keyResult').className = 'result err';
-      $('keyResult').textContent = 'an API key is required — the ghost has no brain without it';
-      return;
+    if (step === 2) {
+      const oai = $('provider').value === 'openai';
+      if (!oai && !$('apiKey').value.trim() && !apiKeySaved) {
+        $('keyResult').className = 'result err';
+        $('keyResult').textContent = 'an API key is required — the ghost has no brain without it';
+        return;
+      }
+      if (oai && !$('oaiModel').value.trim()) {
+        $('keyResult').className = 'result err';
+        $('keyResult').textContent = 'a model name is required (e.g. qwen2.5vl:7b)';
+        return;
+      }
     }
     if (step < STEPS - 1) { step++; show(); return; }
 
@@ -273,6 +312,13 @@
     // A blank key field means "keep the saved key" — the server preserves it.
     cfg.bot = { ...cfg.bot, name: $('botName').value.trim() || 'Beacon', personality: $('personality').value.trim() || 'friendly and curious' };
     cfg.anthropic = { ...cfg.anthropic, apiKey: $('apiKey').value.trim(), model: $('model').value };
+    cfg.brain = {
+      ...cfg.brain,
+      provider: $('provider').value,
+      openaiBaseUrl: $('oaiBase').value.trim() || 'http://localhost:11434/v1',
+      openaiModel: $('oaiModel').value.trim(),
+      openaiApiKey: $('oaiKey').value.trim(),
+    };
     cfg.obs = { ...cfg.obs, url: $('obsUrl').value.trim() || 'ws://127.0.0.1:4455', password: $('obsPassword').value };
     cfg.cadence = { ...cfg.cadence, soloSeconds: Math.max(20, Number($('soloSeconds').value) || 90) };
     const mode = $('trMode').value;

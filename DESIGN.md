@@ -10,8 +10,9 @@ principles, the change is wrong — or this document needs a deliberate update f
 2. **One purple.** `--accent` (#9b6dff) is the only action color. Primary buttons,
    selected states, links, and the streamer's identity all use it. If two things on one
    screen are purple, one of them is wrong.
-3. **The ghost is blue.** `--ghost` (#6dc2ff) marks everything the AI says or is:
-   its name, its badge, its messages. Blue = machine, purple = human. Never mix.
+3. **The ghosts are blue and pink.** `--ghost` (#6dc2ff) marks the first AI persona,
+   `--ghost2` (#f9a8d4) the second; purple stays human. Machine colors never touch
+   the streamer's, and vice versa.
 4. **AI is always labeled.** Every bot message carries the `.badge-ai` component ("🤖 AI"),
    identical on dashboard and overlay, and the overlay carries a permanent watermark.
    This is the product's ethic rendered visually — it is never restyled per-surface,

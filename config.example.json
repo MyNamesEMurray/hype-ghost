@@ -5,16 +5,31 @@
     "personality": "friendly, curious, a little goofy; loves asking questions about whatever is on screen",
     "language": "English"
   },
+  "bot2": {
+    "enabled": false,
+    "name": "Wisp",
+    "personality": "chill half-lurker; dry one-liners; pretends not to care but clearly does"
+  },
   "app": {
     "autoUpdate": true,
     "costMeter": true,
     "autoPause": true,
-    "autoPauseMinutes": 10
+    "autoPauseMinutes": 10,
+    "tts": false,
+    "ttsVoice": "",
+    "ttsRate": 1,
+    "uiLanguage": "en"
   },
   "stream": {
     "context": ""
   },
   "talkingPoints": [],
+  "brain": {
+    "provider": "anthropic",
+    "openaiBaseUrl": "http://localhost:11434/v1",
+    "openaiModel": "qwen2.5vl:7b",
+    "openaiApiKey": ""
+  },
   "anthropic": {
     "apiKey": "",
     "model": "claude-sonnet-5"
@@ -24,14 +39,22 @@
     "password": "",
     "screenshotWidth": 800
   },
+  "overlay": {
+    "align": "left",
+    "fontScale": 1,
+    "fadeSeconds": 0,
+    "maxVisible": 6
+  },
   "memory": {
     "enabled": true,
-    "updateEvery": 4
+    "updateEvery": 4,
+    "profileEvery": 12
   },
   "twitch": {
     "clientId": "",
     "clientSecret": "",
-    "channel": ""
+    "channel": "",
+    "chatAwareness": true
   },
   "transcript": {
     "mode": "off",

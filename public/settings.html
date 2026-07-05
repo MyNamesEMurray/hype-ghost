@@ -63,6 +63,15 @@
       <option>French</option><option>German</option><option>Japanese</option><option>Korean</option>
     </datalist>
     <p class="hint">The ghost writes all messages in this language.</p>
+    <div class="check">
+      <input type="checkbox" id="bot2on" data-path="bot2.enabled" data-type="bool">
+      <label for="bot2on">Second ghost — two viewers who react to the stream and to each other</label>
+    </div>
+    <label>Second ghost name</label>
+    <input type="text" data-path="bot2.name" maxlength="24">
+    <label>Second ghost personality</label>
+    <textarea data-path="bot2.personality"></textarea>
+    <p class="hint">Kept in check by design: at most one quick exchange between them until you chime back in — you're the show.</p>
     <label>About your stream (optional)</label>
     <textarea data-path="stream.context" placeholder="e.g. Variety streamer, mostly roguelikes; chill vibes; currently doing a Hades 100% run"></textarea>
     <p class="hint">Standing context the ghost always knows — game, format, vibe. It also sees your current OBS scene name automatically.</p>
@@ -74,12 +83,30 @@
   <!-- ============ BRAIN ============ -->
   <section class="card" data-tab="brain">
     <h2>🧠 Brain</h2>
-    <p class="desc">Messages are generated with the Claude API — keys at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>.</p>
-    <label>Anthropic API key</label>
-    <input type="password" data-path="anthropic.apiKey" id="apiKeyField">
-    <label>Model</label>
-    <select data-path="anthropic.model" id="modelSelect"></select>
-    <div class="test"><button id="testKey">Test key</button><span class="result" id="keyResult"></span></div>
+    <p class="desc">What generates the ghost's messages.</p>
+    <label>Provider</label>
+    <select data-path="brain.provider" id="providerSel">
+      <option value="anthropic">Claude API — best quality (paid, ~$0.20/hr)</option>
+      <option value="openai">Local / OpenAI-compatible — Ollama, LM Studio, free tiers ($0)</option>
+    </select>
+    <p class="hint">Local (Ollama) is the <b>private</b> and $0 option — nothing leaves your PC, but small models banter simpler and share your GPU with the game. Free cloud tiers are the <b>budget</b> option — they may train on your data; free ≠ private.</p>
+    <div id="anthFields">
+      <label>Anthropic API key</label>
+      <input type="password" data-path="anthropic.apiKey" id="apiKeyField">
+      <p class="hint">Keys at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>.</p>
+      <label>Model</label>
+      <select data-path="anthropic.model" id="modelSelect"></select>
+    </div>
+    <div id="oaiFields">
+      <label>Endpoint URL</label>
+      <input type="text" data-path="brain.openaiBaseUrl" placeholder="http://localhost:11434/v1">
+      <div class="row">
+        <div><label>Model</label><input type="text" data-path="brain.openaiModel" placeholder="qwen2.5vl:7b"></div>
+        <div><label>API key (only if the endpoint needs one)</label><input type="password" data-path="brain.openaiApiKey"></div>
+      </div>
+      <p class="hint">Use a <b>vision-capable</b> model (qwen2.5vl, gemma3, llama3.2-vision) so the ghost can see your stream. For Ollama: <code>ollama pull qwen2.5vl:7b</code>.</p>
+    </div>
+    <div class="test"><button id="testKey">Test brain</button><span class="result" id="keyResult"></span></div>
     <div class="check adv">
       <input type="checkbox" id="costMeter" data-path="app.costMeter" data-type="bool">
       <label for="costMeter">Show the session cost meter on the dashboard</label>
@@ -98,6 +125,21 @@
     <label style="margin-top:18px">On-stream overlay</label>
     <div class="test" style="margin-top:2px"><button id="installOverlay">Add overlay to OBS</button><span class="result" id="overlayResult"></span></div>
     <p class="hint">Creates a "Hype Ghost Overlay" browser source in your current scene (position/resize it in OBS, copy it to other scenes as needed). Manual URL: <b><span id="overlayUrl"></span></b>, ~460×600.</p>
+    <div class="row">
+      <div>
+        <label>Overlay alignment</label>
+        <select data-path="overlay.align">
+          <option value="left">Left</option>
+          <option value="right">Right</option>
+        </select>
+      </div>
+      <div><label>Text size (0.5–2)</label><input type="number" data-path="overlay.fontScale" min="0.5" max="2" step="0.1"></div>
+    </div>
+    <div class="row">
+      <div><label>Fade messages after (seconds, 0 = never)</label><input type="number" data-path="overlay.fadeSeconds" min="0" max="300"></div>
+      <div><label>Max messages shown</label><input type="number" data-path="overlay.maxVisible" min="2" max="12"></div>
+    </div>
+    <p class="hint">Overlay changes apply after Save &amp; restart (refresh the browser source in OBS if needed).</p>
     <label class="adv">Screenshot width (px)</label>
     <input class="adv" type="number" data-path="obs.screenshotWidth" min="320" max="1920">
     <p class="hint adv">Bigger = the ghost reads finer on-screen detail but costs more (image tokens scale with pixels). 800 is the sweet spot.</p>
@@ -174,11 +216,31 @@
     <label class="adv">Auto-pause after OBS unreachable for (minutes)</label>
     <input class="adv" type="number" data-path="app.autoPauseMinutes" min="2" max="120">
     <p class="hint adv">The ghost resumes automatically when OBS comes back. Practicing with OBS open never pauses — only OBS being closed counts.</p>
+    <div class="check">
+      <input type="checkbox" id="tts" data-path="app.tts" data-type="bool">
+      <label for="tts">🔊 Speak ghost messages aloud (Windows voices, fully local)</label>
+    </div>
+    <div class="row">
+      <div><label>Voice</label><select data-path="app.ttsVoice" id="ttsVoice"><option value="">(system default)</option></select></div>
+      <div><label>Speed (0.5–2)</label><input type="number" data-path="app.ttsRate" min="0.5" max="2" step="0.1"></div>
+    </div>
+    <p class="hint">Speech plays from the dashboard window, which stays loaded in the background while TTS is on. Route it to your headphones — not your stream mix — unless you want chat audible on the VOD.</p>
+    <label>Interface language</label>
+    <select data-path="app.uiLanguage">
+      <option value="en">English</option>
+      <option value="es">Español</option>
+    </select>
+    <p class="hint">Applies to the dashboard. The ghost's chat language is separate (Ghost tab).</p>
     <div class="adv" style="margin-top:20px">
       <h2>📺 Twitch viewer detection</h2>
-      <p class="desc">Optional, read-only viewer count check so the ghost auto-quiets when real people arrive. App credentials at <a href="https://dev.twitch.tv/console" target="_blank">dev.twitch.tv/console</a>.</p>
+      <p class="desc">Read-only awareness of your real audience — never posts, never affects metrics.</p>
       <label>Channel name</label>
       <input type="text" data-path="twitch.channel">
+      <div class="check">
+        <input type="checkbox" id="chatAware" data-path="twitch.chatAwareness" data-type="bool">
+        <label for="chatAware">Chat awareness — hang back when real chat is active (anonymous read-only listener, needs only the channel name)</label>
+      </div>
+      <p class="hint">Viewer-count detection additionally needs app credentials from <a href="https://dev.twitch.tv/console" target="_blank">dev.twitch.tv/console</a>:</p>
       <div class="row">
         <div><label>Client ID</label><input type="text" data-path="twitch.clientId"></div>
         <div><label>Client secret</label><input type="password" data-path="twitch.clientSecret"></div>
@@ -253,7 +315,32 @@
     }
     if (apiKeySaved) $('apiKeyField').placeholder = 'saved ✓ — leave blank to keep the current key';
     $('talkingPoints').value = (cfg.talkingPoints || []).join('\n');
+    toggleProvider();
   });
+
+  // ---- brain provider: show only the fields that apply ----
+  function toggleProvider() {
+    const oai = $('providerSel').value === 'openai';
+    $('anthFields').style.display = oai ? 'none' : '';
+    $('oaiFields').style.display = oai ? '' : 'none';
+  }
+  $('providerSel').onchange = toggleProvider;
+
+  // ---- TTS voices (local Windows voices via the browser speech API) ----
+  function fillVoices() {
+    const sel = $('ttsVoice');
+    const current = sel.value || (cfg && cfg.app.ttsVoice) || '';
+    const voices = speechSynthesis.getVoices();
+    if (!voices.length) return;
+    sel.innerHTML =
+      '<option value="">(system default)</option>' +
+      voices.map((v) => `<option value="${v.name.replace(/"/g, '&quot;')}">${v.name}</option>`).join('');
+    sel.value = current;
+  }
+  if ('speechSynthesis' in window) {
+    fillVoices();
+    speechSynthesis.onvoiceschanged = fillVoices;
+  }
 
   // ---- action buttons ----
   const val = (path) => fields.find((f) => f.dataset.path === path).value;
@@ -261,13 +348,17 @@
   $('testKey').onclick = async () => {
     const el = $('keyResult');
     el.className = 'result'; el.textContent = 'testing…';
-    // blank field = test the saved key (the server never sends it to us)
+    const oai = $('providerSel').value === 'openai';
+    // blank Anthropic key field = test the saved key (the server never sends it to us)
+    const body = oai
+      ? { provider: 'openai', baseUrl: val('brain.openaiBaseUrl').trim(), model: val('brain.openaiModel').trim(), apiKey: val('brain.openaiApiKey').trim() }
+      : { apiKey: val('anthropic.apiKey').trim(), model: val('anthropic.model') };
     const r = await fetch('/api/test-key', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ apiKey: val('anthropic.apiKey').trim(), model: val('anthropic.model') }),
+      body: JSON.stringify(body),
     }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
     el.className = 'result ' + (r.ok ? 'ok' : 'err');
-    el.textContent = r.ok ? '✓ key works' : '✗ ' + (r.error || 'failed');
+    el.textContent = r.ok ? '✓ works' + (r.note ? ' — ' + r.note : '') : '✗ ' + (r.error || 'failed');
   };
 
   $('testObs').onclick = async () => {
@@ -316,9 +407,14 @@
       setPath(cfg, f.dataset.path, v);
     }
     cfg.talkingPoints = $('talkingPoints').value.split('\n').map((s) => s.trim()).filter(Boolean);
-    if (!cfg.anthropic.apiKey && !apiKeySaved) {
+    if (cfg.brain.provider === 'anthropic' && !cfg.anthropic.apiKey && !apiKeySaved) {
       $('saveResult').className = 'result err';
       $('saveResult').textContent = 'an API key is required (Brain tab)';
+      return;
+    }
+    if (cfg.brain.provider === 'openai' && !cfg.brain.openaiModel) {
+      $('saveResult').className = 'result err';
+      $('saveResult').textContent = 'a model name is required for local/OpenAI-compatible brains (Brain tab)';
       return;
     }
     $('save').disabled = true;

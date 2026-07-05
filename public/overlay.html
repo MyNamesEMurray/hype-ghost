@@ -7,28 +7,36 @@
 <style>
   /* Transparent overlay for OBS Browser Source. Recommended size: 460x600.
      A guest on someone's stream: shares the color tokens, keeps its own
-     bolder text-shadowed typography for legibility over video. */
+     bolder text-shadowed typography for legibility over video.
+     Customization (align, scale, fade, density) comes from /api/overlay-config. */
   body {
+    --scale: 1;
     background: transparent; overflow: hidden;
-    font: 600 17px/1.4 "Segoe UI", system-ui, sans-serif;
+    font: 600 calc(17px * var(--scale))/1.4 "Segoe UI", system-ui, sans-serif;
     display: flex; flex-direction: column; justify-content: flex-end;
     height: 100vh; padding: 12px;
   }
-  #stack { display: flex; flex-direction: column; gap: 8px; }
+  #stack { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+  body.align-right #stack { align-items: flex-end; }
+  body.align-right { text-align: right; }
+  body.align-right #watermark { align-self: flex-end; }
   .msg {
     background: rgba(12, 12, 18, 0.82);
     border-radius: var(--r-md); padding: 8px 12px;
     color: #f0f0f6; text-shadow: 0 1px 2px rgba(0,0,0,.6);
     animation: slidein .25s ease-out;
-    word-wrap: break-word;
+    word-wrap: break-word; max-width: 100%;
+    transition: opacity .8s;
   }
+  .msg.faded { opacity: 0; }
   @keyframes slidein { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
   .msg .name { font-weight: 800; margin-right: 6px; }
   .msg.bot .name { color: var(--ghost); }
+  .msg.bot[data-p="1"] .name { color: var(--ghost2); }
   .msg.streamer .name { color: var(--accent-bright); }
   .badge-ai { font-weight: 800; margin-right: 6px; vertical-align: 2px; }
   #watermark {
-    margin-top: 8px; font-size: var(--fs-xs); font-weight: 600;
+    margin-top: 8px; font-size: calc(12px * var(--scale)); font-weight: 600;
     color: rgba(255,255,255,.75); text-shadow: 0 1px 2px rgba(0,0,0,.7);
     background: rgba(12,12,18,.6); border-radius: var(--r-sm); padding: 3px 8px;
     align-self: flex-start;
@@ -37,20 +45,34 @@
 </head>
 <body>
   <div id="stack"></div>
-  <div id="watermark">🤖 AI practice chat — simulated viewer, not a real person</div>
+  <div id="watermark">🤖 AI practice chat — simulated viewers, not real people</div>
 
 <script>
-  const MAX_VISIBLE = 6;
+  let cfg = { align: 'left', fontScale: 1, fadeSeconds: 0, maxVisible: 6 };
   const stack = document.getElementById('stack');
+
+  fetch('/api/overlay-config')
+    .then((r) => r.json())
+    .then((d) => {
+      cfg = { ...cfg, ...d.overlay };
+      document.body.style.setProperty('--scale', cfg.fontScale || 1);
+      document.body.classList.toggle('align-right', cfg.align === 'right');
+    })
+    .catch(() => {});
 
   function addMessage(m) {
     const div = document.createElement('div');
     div.className = 'msg ' + m.role;
+    if (m.role === 'bot') div.dataset.p = m.p ?? 0;
     div.innerHTML = `${m.role === 'bot' ? '<span class="badge-ai">🤖 AI</span>' : ''}<span class="name"></span><span class="text"></span>`;
     div.querySelector('.name').textContent = m.author + ':';
     div.querySelector('.text').textContent = ' ' + m.text;
     stack.appendChild(div);
-    while (stack.children.length > MAX_VISIBLE) stack.removeChild(stack.firstChild);
+    while (stack.children.length > (cfg.maxVisible || 6)) stack.removeChild(stack.firstChild);
+    if (cfg.fadeSeconds > 0) {
+      setTimeout(() => div.classList.add('faded'), cfg.fadeSeconds * 1000);
+      setTimeout(() => div.remove(), cfg.fadeSeconds * 1000 + 900);
+    }
   }
 
   function connect() {
@@ -59,7 +81,7 @@
       const msg = JSON.parse(ev.data);
       if (msg.type === 'init') {
         stack.innerHTML = '';
-        msg.history.slice(-MAX_VISIBLE).forEach(addMessage);
+        msg.history.slice(-(cfg.maxVisible || 6)).forEach(addMessage);
       } else if (msg.type === 'chat') {
         addMessage(msg.msg);
       }

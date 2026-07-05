@@ -7,24 +7,29 @@
 <link rel="stylesheet" href="/theme.css">
 <style>
   /* layout only — tokens & components come from theme.css */
-  body { height: 100vh; display: flex; flex-direction: column; }
-  header {
-    padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  body { height: 100vh; display: flex; }
+  /* ---- sidebar ---- */
+  aside {
+    width: 232px; flex: none; display: flex; flex-direction: column; gap: 4px;
+    background: var(--panel); border-right: 1px solid var(--border); padding: 16px 14px;
   }
-  header .app-title span { color: var(--accent); }
-  .spacer { flex: 1; }
-  /* dense toolbar: compact controls are a deliberate density override */
-  header button, header select { padding: 6px 12px; font-size: var(--fs-sm); }
-  header select { width: auto; }
-  /* mic pill is fixed-width so live transcript updates never reflow the header */
-  #pill-mic { flex: none; width: 190px; overflow: hidden; text-overflow: ellipsis; text-align: left; }
-  #countdown { font-variant-numeric: tabular-nums; }
-  #messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
-  .msg { max-width: 720px; }
+  aside .app-title { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+  #personas { font-size: var(--fs-sm); margin-bottom: 8px; }
+  #personas .p0 { color: var(--ghost); font-weight: 600; }
+  #personas .p1 { color: var(--ghost2); font-weight: 600; }
+  #countdown { font-size: var(--fs-xs); color: var(--dim); font-variant-numeric: tabular-nums; min-height: 18px; margin-bottom: 8px; }
+  #statuses { border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 6px 0; margin-bottom: 10px; }
+  aside label.side { margin: 4px 0 4px; }
+  aside select, aside button { width: 100%; margin-bottom: 8px; }
+  #cost { margin-top: auto; font-size: var(--fs-xs); color: var(--dim); border-top: 1px solid var(--border); padding-top: 10px; display: none; }
+  /* ---- chat ---- */
+  main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  #messages { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { max-width: 680px; }
   .msg .meta { font-size: var(--fs-xs); color: var(--dim); margin-bottom: 2px; display: flex; gap: 6px; align-items: center; }
   .msg .name { font-weight: 600; font-size: var(--fs-sm); }
   .msg.bot .name { color: var(--ghost); }
+  .msg.bot[data-p="1"] .name { color: var(--ghost2); }
   .msg.streamer .name { color: var(--accent); }
   .msg .text {
     background: var(--panel); border: 1px solid var(--border);
@@ -39,44 +44,90 @@
 </style>
 </head>
 <body>
-  <header>
-    <h1 class="app-title">👻 Hype Ghost <span id="botname"></span></h1>
-    <span class="pill" id="pill-obs">OBS: …</span>
-    <span class="pill" id="pill-key">API key: …</span>
-    <span class="pill" id="pill-viewers">Viewers: …</span>
-    <span class="pill" id="pill-mic" title="Mic transcription via the LocalVocal OBS plugin">Mic: …</span>
-    <span class="pill" id="pill-cost" style="display:none"></span>
-    <span class="pill" id="countdown"></span>
-    <div class="spacer"></div>
-    <label class="pill" style="display:flex;align-items:center;gap:6px;">
-      Mode
-      <select id="mode">
-        <option value="auto">Auto (Twitch)</option>
-        <option value="solo">Solo (chatty)</option>
-        <option value="viewers">Viewers present (quiet)</option>
-      </select>
-    </label>
-    <button id="nudge">Say something</button>
-    <button id="pause" class="primary">Pause</button>
-    <button id="settings" aria-label="Settings" title="Settings" onclick="location.href='/settings'">⚙</button>
-  </header>
+  <aside>
+    <h1 class="app-title">👻 Hype Ghost</h1>
+    <div id="personas"></div>
+    <div id="countdown"></div>
+    <div id="statuses">
+      <div class="status" id="st-obs"><span class="dot"></span><span>OBS</span></div>
+      <div class="status" id="st-brain"><span class="dot"></span><span data-i18n="brain">Brain</span></div>
+      <div class="status" id="st-viewers"><span class="dot"></span><span data-i18n="viewers">Viewers</span></div>
+      <div class="status" id="st-mic"><span class="dot"></span><span data-i18n="mic">Mic</span></div>
+      <div class="status" id="st-chat" style="display:none"><span class="dot"></span><span data-i18n="chat">Chat</span></div>
+    </div>
+    <label class="side" data-i18n="mode">Mode</label>
+    <select id="mode">
+      <option value="auto" data-i18n="modeAuto">Auto</option>
+      <option value="solo" data-i18n="modeSolo">Solo (chatty)</option>
+      <option value="viewers" data-i18n="modeViewers">Viewers present (quiet)</option>
+    </select>
+    <button id="nudge" data-i18n="say">Say something</button>
+    <button id="pause" class="primary" data-i18n="pause">Pause</button>
+    <button onclick="location.href='/api/recap'" data-i18n="recap">Export recap</button>
+    <button onclick="location.href='/settings'" data-i18n="settings">Settings</button>
+    <div id="cost"></div>
+  </aside>
 
-  <div id="messages"></div>
-
-  <footer>
-    <input id="input" placeholder="Reply to your practice chat… (the ghost will answer)" autocomplete="off">
-    <button id="send" class="primary">Send</button>
-  </footer>
+  <main>
+    <div id="messages"></div>
+    <footer>
+      <input id="input" autocomplete="off">
+      <button id="send" class="primary" data-i18n="send">Send</button>
+    </footer>
+  </main>
 
 <script>
+  // ---- i18n (UI language set in Settings → App; the ghost's chat language is separate) ----
+  const STR = {
+    en: {
+      brain: 'Brain', viewers: 'Viewers', mic: 'Mic', chat: 'Chat', mode: 'Mode',
+      modeAuto: 'Auto', modeSolo: 'Solo (chatty)', modeViewers: 'Viewers present (quiet)',
+      say: 'Say something', pause: 'Pause', resume: 'Resume', recap: 'Export recap',
+      settings: 'Settings', send: 'Send', you: 'You',
+      placeholder: 'Reply to your practice chat… (the ghost will answer)',
+      paused: 'paused', autoPaused: 'auto-paused (OBS gone)', typing: 'typing…', next: 'next message in',
+      obsOk: 'OBS connected', obsNo: 'OBS not connected', brainOk: 'Brain ready', brainNo: 'Brain not configured',
+      viewersManual: 'Viewers: manual only', micOff: 'Mic off', micQuiet: 'Mic quiet', micWait: 'Mic waiting…',
+      chatQuiet: 'Chat quiet', chatActive: 'Chat active', lost: 'Connection lost — reconnecting…', msgs: 'msgs',
+    },
+    es: {
+      brain: 'Cerebro', viewers: 'Espectadores', mic: 'Micro', chat: 'Chat', mode: 'Modo',
+      modeAuto: 'Auto', modeSolo: 'Solo (hablador)', modeViewers: 'Con espectadores (discreto)',
+      say: 'Di algo', pause: 'Pausar', resume: 'Reanudar', recap: 'Exportar resumen',
+      settings: 'Ajustes', send: 'Enviar', you: 'Tú',
+      placeholder: 'Responde a tu chat de práctica… (el fantasma contestará)',
+      paused: 'en pausa', autoPaused: 'pausa automática (sin OBS)', typing: 'escribiendo…', next: 'próximo mensaje en',
+      obsOk: 'OBS conectado', obsNo: 'OBS desconectado', brainOk: 'Cerebro listo', brainNo: 'Cerebro sin configurar',
+      viewersManual: 'Espectadores: manual', micOff: 'Micro apagado', micQuiet: 'Micro en silencio', micWait: 'Micro esperando…',
+      chatQuiet: 'Chat tranquilo', chatActive: 'Chat activo', lost: 'Conexión perdida — reconectando…', msgs: 'msjs',
+    },
+  };
+  let L = STR.en;
+  const T = (k) => L[k] ?? STR.en[k] ?? k;
+  function applyI18n() {
+    document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = T(el.dataset.i18n); });
+    $('input').placeholder = T('placeholder');
+  }
+
   const $ = (id) => document.getElementById(id);
   const messagesEl = $('messages');
   let state = {};
   let ws = null;
+  let booted = false;
 
-  function addMessage(m) {
+  function speak(text) {
+    if (!state.tts || !state.tts.enabled || !('speechSynthesis' in window)) return;
+    const u = new SpeechSynthesisUtterance(text);
+    const v = speechSynthesis.getVoices().find((v) => v.name === state.tts.voice);
+    if (v) u.voice = v;
+    u.rate = state.tts.rate || 1;
+    speechSynthesis.speak(u);
+  }
+
+  function addMessage(m, live) {
     const div = document.createElement('div');
     div.className = 'msg ' + m.role;
+    if (m.role === 'bot') div.dataset.p = m.p ?? 0;
     const time = new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     div.innerHTML = `
       <div class="meta">
@@ -85,11 +136,11 @@
         <span>${time}</span>
       </div>
       <div class="text"></div>`;
-    // your own messages read "You" here; the overlay keeps "Streamer" for viewers
-    div.querySelector('.name').textContent = m.role === 'streamer' ? 'You' : m.author;
+    div.querySelector('.name').textContent = m.role === 'streamer' ? T('you') : m.author;
     div.querySelector('.text').textContent = m.text;
     messagesEl.appendChild(div);
     messagesEl.scrollTop = messagesEl.scrollHeight;
+    if (live && m.role === 'bot') speak(m.text);
   }
 
   function addSystem(text) {
@@ -100,70 +151,66 @@
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
+  function setStatus(id, cls, text) {
+    const el = $(id);
+    el.className = 'status ' + cls;
+    el.lastElementChild.textContent = text;
+  }
+
   function renderState() {
-    $('botname').textContent = '· ' + (state.botName || '');
-    const obsPill = $('pill-obs');
-    obsPill.textContent = 'OBS: ' + (state.obsConnected ? 'connected' : 'not connected');
-    obsPill.className = 'pill ' + (state.obsConnected ? 'good' : 'bad');
-    const keyPill = $('pill-key');
-    keyPill.textContent = 'API key: ' + (state.apiKeySet ? 'set' : 'missing');
-    keyPill.className = 'pill ' + (state.apiKeySet ? 'good' : 'bad');
-    const vPill = $('pill-viewers');
-    if (!state.twitchConfigured && state.viewerOverride === 'auto') {
-      vPill.textContent = 'Viewers: manual only';
-      vPill.className = 'pill';
+    L = STR[state.uiLanguage] ?? STR.en;
+    applyI18n();
+    $('personas').innerHTML = (state.personas || [])
+      .map((n, i) => `<span class="p${i}"></span>`).join(' · ');
+    document.querySelectorAll('#personas span').forEach((el, i) => { el.textContent = state.personas[i]; });
+
+    setStatus('st-obs', state.obsConnected ? 'good' : 'bad', state.obsConnected ? T('obsOk') : T('obsNo'));
+    setStatus('st-brain', state.apiKeySet ? 'good' : 'bad', state.apiKeySet ? T('brainOk') : T('brainNo'));
+    if (!state.twitchConfigured && state.viewerOverride === 'auto' && state.chatPerMin === null) {
+      setStatus('st-viewers', '', T('viewersManual'));
     } else {
-      vPill.textContent = `Viewers: ${state.realViewers ?? '?'} · mode: ${state.mode}`;
-      vPill.className = 'pill ' + (state.mode === 'viewers' ? 'good' : '');
+      setStatus('st-viewers', state.mode === 'viewers' ? 'good' : '', `${T('viewers')}: ${state.realViewers ?? '?'} · ${state.mode}`);
     }
+    const heard = state.lastHeard && Date.now() - state.lastHeard.ts < 15000;
+    if (!state.transcriptMode || state.transcriptMode === 'off') setStatus('st-mic', '', T('micOff'));
+    else if (heard) { setStatus('st-mic', 'good', '🎙 ' + state.lastHeard.text); $('st-mic').title = state.lastHeard.text; }
+    else setStatus('st-mic', '', state.lastHeard ? T('micQuiet') : T('micWait'));
+    if (state.chatPerMin !== null) {
+      $('st-chat').style.display = '';
+      const active = state.chatPerMin >= 2;
+      setStatus('st-chat', active ? 'good' : '', `${active ? T('chatActive') : T('chatQuiet')} · ${state.chatPerMin}/min`);
+    }
+
     $('mode').value = state.viewerOverride;
-    $('pause').textContent = state.paused ? 'Resume' : 'Pause';
+    $('pause').textContent = state.paused ? T('resume') : T('pause');
     $('pause').className = state.paused ? '' : 'primary';
-    renderMic();
     renderCost();
   }
 
-  function renderMic() {
-    const pill = $('pill-mic');
-    if (!state.transcriptMode || state.transcriptMode === 'off') {
-      pill.textContent = 'Mic: off';
-      pill.className = 'pill';
-      return;
-    }
-    const heardRecently = state.lastHeard && Date.now() - state.lastHeard.ts < 15000;
-    if (heardRecently) {
-      // fixed-width pill + CSS ellipsis truncates; title shows the full line
-      pill.textContent = '🎙 ' + state.lastHeard.text;
-      pill.title = state.lastHeard.text;
-      pill.className = 'pill good';
-    } else {
-      pill.textContent = state.lastHeard ? 'Mic: quiet' : 'Mic: waiting…';
-      pill.className = 'pill';
-    }
-  }
-
   function renderCost() {
-    const pill = $('pill-cost');
+    const el = $('cost');
     const u = state.usage;
-    if (!state.costMeter || !u || u.messages === 0) { pill.style.display = 'none'; return; }
-    pill.style.display = '';
-    pill.textContent = u.costKnown
-      ? `$${u.cost.toFixed(3)} · ${u.messages} msgs`
-      : `${u.messages} msgs · ${Math.round((u.inputTokens + u.outputTokens) / 1000)}k tokens`;
-    pill.title = `This session: ${u.messages} messages, ${u.inputTokens.toLocaleString()} input + ${u.outputTokens.toLocaleString()} output tokens`;
+    if (!state.costMeter || !u || u.messages === 0) { el.style.display = 'none'; return; }
+    el.style.display = '';
+    el.textContent = u.costKnown
+      ? `$${u.cost.toFixed(3)} · ${u.messages} ${T('msgs')}`
+      : `${u.messages} ${T('msgs')} · ${Math.round((u.inputTokens + u.outputTokens) / 1000)}k tokens`;
+    el.title = `${u.inputTokens.toLocaleString()} in + ${u.outputTokens.toLocaleString()} out tokens`;
   }
 
+  // Countdown ticks only while the tab is visible — zero idle work when
+  // the window is hidden or destroyed (resource posture: OBS and the game come first).
   setInterval(() => {
+    if (document.hidden) return;
     const el = $('countdown');
-    if (state.paused) { el.textContent = state.autoPaused ? 'auto-paused (OBS gone)' : 'paused'; return; }
-    if (state.busy) { el.textContent = 'typing…'; return; }
+    if (state.paused) { el.textContent = state.autoPaused ? T('autoPaused') : T('paused'); return; }
+    if (state.busy) { el.textContent = T('typing'); return; }
     if (!state.nextMessageAt) { el.textContent = ''; return; }
     const s = Math.max(0, Math.round((state.nextMessageAt - Date.now()) / 1000));
-    el.textContent = `next message in ~${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-  }, 500);
-  setInterval(renderMic, 2000); // "hearing you" indicator is time-based
+    el.textContent = `${T('next')} ~${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  }, 1000);
+  setInterval(() => { if (!document.hidden) renderState(); }, 3000); // mic/chat freshness
 
-  // auto-reconnect: the dashboard survives server restarts and sleep/wake
   let announcedDrop = false;
   function connect() {
     ws = new WebSocket(`ws://${location.host}`);
@@ -173,10 +220,11 @@
       if (msg.type === 'init') {
         state = msg.state;
         messagesEl.innerHTML = '';
-        msg.history.forEach(addMessage);
+        msg.history.forEach((m) => addMessage(m, false));
+        booted = true;
         renderState();
       } else if (msg.type === 'chat') {
-        addMessage(msg.msg);
+        addMessage(msg.msg, booted);
       } else if (msg.type === 'state') {
         state = msg.state;
         renderState();
@@ -185,18 +233,13 @@
       }
     };
     ws.onclose = () => {
-      if (!announcedDrop) {
-        announcedDrop = true;
-        addSystem('Connection lost — reconnecting…');
-      }
+      if (!announcedDrop) { announcedDrop = true; addSystem(T('lost')); }
       setTimeout(connect, 3000);
     };
   }
   connect();
 
-  function sendCmd(cmd) {
-    if (ws && ws.readyState === 1) ws.send(JSON.stringify(cmd));
-  }
+  const sendCmd = (cmd) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(cmd)); };
   function send() {
     const text = $('input').value.trim();
     if (!text) return;

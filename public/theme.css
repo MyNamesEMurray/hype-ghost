@@ -20,6 +20,7 @@
   --accent-bright: #b78aff; /* accent lifted for legibility over video (overlay) */
   --ghost: #6dc2ff;         /* the blue: the ghost's identity & AI labeling */
   --on-ghost: #06121c;      /* text on ghost-blue fills */
+  --ghost2: #f9a8d4;        /* the pink: the second persona's identity */
   --good: #7ee49a;          /* success text */
   --good-border: #2e5c3d;
   --bad: #ff8b8b;           /* error text */
@@ -152,6 +153,17 @@ input:focus:not(:focus-visible), textarea:focus:not(:focus-visible), select:focu
   background: var(--ghost);
   color: var(--on-ghost);
 }
+
+/* quiet status row: colored dot + label, layout never shifts */
+.status {
+  display: flex; align-items: center; gap: 8px;
+  font-size: var(--fs-sm); color: var(--dim);
+  padding: 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.status .dot { flex: none; width: 8px; height: 8px; border-radius: var(--r-full); background: var(--border); }
+.status.good .dot { background: var(--good); }
+.status.bad .dot { background: var(--bad); }
+.status.warn .dot { background: var(--warn); }
 
 /* ---------- layout helpers ---------- */
 .row { display: flex; gap: 12px; }
