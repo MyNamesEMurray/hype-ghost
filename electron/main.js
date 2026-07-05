@@ -80,6 +80,14 @@ function trayMenu() {
     },
     { type: 'separator' },
     {
+      label: 'Settings',
+      click: () => {
+        win.loadURL(`http://127.0.0.1:${server.port}/settings`);
+        win.show();
+        win.focus();
+      },
+    },
+    {
       label: 'Run Setup Wizard',
       click: () => {
         win.loadURL(`http://127.0.0.1:${server.port}/setup`);
@@ -87,7 +95,7 @@ function trayMenu() {
         win.focus();
       },
     },
-    { label: 'Edit Config', click: () => shell.openPath(configPath) },
+    { label: 'Edit Config (raw JSON)', click: () => shell.openPath(configPath) },
     { label: 'Open Config Folder', click: () => shell.showItemInFolder(configPath) },
     {
       label: 'Start with Windows',

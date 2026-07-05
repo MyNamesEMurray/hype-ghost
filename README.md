@@ -27,13 +27,14 @@ Twitch viewer detection). Re-run it anytime from the tray → **Run Setup Wizard
 Closing the window **minimizes to the system tray** — the ghost keeps chatting until you
 Quit from the tray menu.
 
-**Tray menu:** Open Dashboard · Copy Overlay URL (for OBS) · Pause Ghost · Run Setup Wizard ·
-Edit Config · Start with Windows · Quit.
+**Tray menu:** Open Dashboard · Copy Overlay URL (for OBS) · Pause Ghost · Settings ·
+Run Setup Wizard · Edit Config (raw JSON) · Start with Windows · Quit.
 
 ## Setup notes
 
-- The wizard covers the essentials; every setting lives in `%APPDATA%\Hype Ghost\config.json`
-  (tray → **Edit Config**) — full reference below.
+- The wizard covers the essentials; for everything else there's a full **Settings** page
+  (⚙ in the dashboard, or tray → **Settings**) with live API-key and OBS connection tests.
+  Under the hood it's all `%APPDATA%\Hype Ghost\config.json` — full reference below.
 - **Overlay:** in OBS, add a **Browser Source** with URL `http://localhost:3777/overlay`,
   ~460×600, transparent background. This puts the chat on your stream/VOD.
 - **Voice awareness:** install the

@@ -94,6 +94,7 @@ export function startServer(opts = {}) {
   });
   app.get('/overlay', (_req, res) => res.sendFile(path.join(publicDir, 'overlay.html')));
   app.get('/setup', (_req, res) => res.sendFile(path.join(publicDir, 'setup.html')));
+  app.get('/settings', (_req, res) => res.sendFile(path.join(publicDir, 'settings.html')));
 
   // ---------- setup wizard API (localhost only — server binds 127.0.0.1) ----------
   app.get('/api/config', (_req, res) => {

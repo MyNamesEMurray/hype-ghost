@@ -1,6 +1,6 @@
 {
   "name": "hype-ghost",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "AI practice chat for streamers",
   "type": "module",
   "main": "electron/main.js",

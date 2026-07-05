@@ -8,6 +8,7 @@
   :root {
     --bg: #0f0f14; --panel: #1a1a23; --border: #2c2c3a;
     --text: #e8e8f0; --dim: #8a8a9e; --accent: #9b6dff; --bot: #6dc2ff;
+    color-scheme: dark; /* native controls (dropdown lists, scrollbars) render dark */
   }
   * { box-sizing: border-box; }
   body {
@@ -33,6 +34,13 @@
     border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer;
   }
   button:hover, select:hover { border-color: var(--accent); }
+  select { background: var(--panel); }
+  select option { background: var(--panel); color: var(--text); }
+  /* Mic pill gets a fixed width so live transcript updates never reflow the header */
+  #pill-mic {
+    flex: none; width: 190px; overflow: hidden;
+    text-overflow: ellipsis; text-align: left;
+  }
   button.primary { background: var(--accent); border-color: var(--accent); color: #14081f; font-weight: 600; }
   #messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
   .msg { max-width: 720px; }
@@ -80,6 +88,7 @@
     </label>
     <button id="nudge">Say something</button>
     <button id="pause" class="primary">Pause</button>
+    <button id="settings" title="Settings" onclick="location.href='/settings'">⚙</button>
   </header>
 
   <div id="messages"></div>
@@ -152,10 +161,9 @@
     }
     const heardRecently = state.lastHeard && Date.now() - state.lastHeard.ts < 15000;
     if (heardRecently) {
-      const snippet = state.lastHeard.text.length > 40
-        ? state.lastHeard.text.slice(0, 40) + '…'
-        : state.lastHeard.text;
-      pill.textContent = '🎙 ' + snippet;
+      // Fixed-width pill + CSS ellipsis handles truncation; title shows the full line.
+      pill.textContent = '🎙 ' + state.lastHeard.text;
+      pill.title = state.lastHeard.text;
       pill.className = 'pill good';
     } else {
       pill.textContent = state.lastHeard ? 'Mic: quiet' : 'Mic: waiting…';

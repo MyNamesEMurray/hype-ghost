@@ -8,6 +8,7 @@
   :root {
     --bg: #0f0f14; --panel: #1a1a23; --border: #2c2c3a;
     --text: #e8e8f0; --dim: #8a8a9e; --accent: #9b6dff; --good: #7ee49a; --bad: #ff8b8b;
+    color-scheme: dark; /* native controls (dropdown lists, scrollbars) render dark */
   }
   * { box-sizing: border-box; }
   body {
@@ -34,6 +35,7 @@
     border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font: inherit;
   }
   input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
+  select option { background: var(--panel); color: var(--text); }
   textarea { resize: vertical; min-height: 64px; }
   .choices { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
   .choice {

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hype Ghost — Settings</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0f0f14; --panel: #1a1a23; --border: #2c2c3a;
+    --text: #e8e8f0; --dim: #8a8a9e; --accent: #9b6dff; --good: #7ee49a; --bad: #ff8b8b;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--text);
+    font: 15px/1.5 "Segoe UI", system-ui, sans-serif;
+    display: flex; justify-content: center;
+  }
+  #page { width: 680px; max-width: 94vw; padding: 24px 0 60px; }
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+  h1 { font-size: 21px; margin: 0; flex: 1; }
+  a.back { color: var(--dim); text-decoration: none; font-size: 14px; }
+  a.back:hover { color: var(--accent); }
+  section {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+    padding: 18px 22px; margin-bottom: 14px;
+  }
+  section h2 { font-size: 15px; margin: 0 0 4px; }
+  section .desc { font-size: 13px; color: var(--dim); margin: 0 0 8px; }
+  label { display: block; font-size: 13px; color: var(--dim); margin: 12px 0 4px; }
+  input[type=text], input[type=password], input[type=number], textarea, select {
+    width: 100%; background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; font: inherit;
+  }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
+  select option { background: var(--panel); color: var(--text); }
+  textarea { resize: vertical; min-height: 60px; }
+  .row { display: flex; gap: 12px; }
+  .row > div { flex: 1; }
+  .check { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 14px; }
+  .check input { width: auto; }
+  .hint { font-size: 12px; color: var(--dim); margin-top: 4px; }
+  .test { margin-top: 10px; display: flex; align-items: center; gap: 10px; }
+  .result { font-size: 13px; }
+  .result.ok { color: var(--good); }
+  .result.err { color: var(--bad); }
+  button {
+    background: transparent; color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 16px; font: inherit; font-size: 14px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #14081f; font-weight: 600; }
+  button:disabled { opacity: .5; cursor: default; }
+  #savebar {
+    position: sticky; bottom: 0; background: linear-gradient(transparent, var(--bg) 30%);
+    padding: 18px 0 14px; display: flex; gap: 12px; align-items: center;
+  }
+  #saveResult { font-size: 13px; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div id="page">
+  <header>
+    <h1>⚙ Settings</h1>
+    <a class="back" href="/">← Back to dashboard</a>
+  </header>
+
+  <section>
+    <h2>👻 Ghost</h2>
+    <p class="desc">Who shows up in your chat.</p>
+    <div class="row">
+      <div><label>Chat name</label><input type="text" data-path="bot.name" maxlength="24"></div>
+    </div>
+    <label>Personality</label>
+    <textarea data-path="bot.personality"></textarea>
+  </section>
+
+  <section>
+    <h2>🧠 Brain</h2>
+    <p class="desc">Messages are generated with the Claude API — keys at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>.</p>
+    <label>Anthropic API key</label>
+    <input type="password" data-path="anthropic.apiKey">
+    <label>Model</label>
+    <select data-path="anthropic.model">
+      <option value="claude-sonnet-5">Sonnet — recommended (~$0.20/hr)</option>
+      <option value="claude-haiku-4-5">Haiku — budget (~$0.07/hr)</option>
+      <option value="claude-opus-4-8">Opus — premium (~$0.60/hr)</option>
+    </select>
+    <div class="test"><button id="testKey">Test key</button><span class="result" id="keyResult"></span></div>
+  </section>
+
+  <section>
+    <h2>📷 OBS</h2>
+    <p class="desc">How the ghost sees your stream. OBS → Tools → WebSocket Server Settings.</p>
+    <div class="row">
+      <div><label>WebSocket URL</label><input type="text" data-path="obs.url"></div>
+      <div><label>Password</label><input type="password" data-path="obs.password"></div>
+    </div>
+    <label>Screenshot width (px)</label>
+    <input type="number" data-path="obs.screenshotWidth" min="320" max="1920">
+    <p class="hint">Bigger = the ghost reads finer on-screen detail but costs more (image tokens scale with pixels). 800 is the sweet spot.</p>
+    <div class="test"><button id="testObs">Test connection</button><span class="result" id="obsResult"></span></div>
+  </section>
+
+  <section>
+    <h2>🎙 Voice awareness</h2>
+    <p class="desc">Local mic transcription via the <a href="https://obsproject.com/forum/resources/localvocal-local-live-captions-translation-on-the-go.1769/" target="_blank">LocalVocal</a> OBS plugin, so answering out loud is replying.</p>
+    <label>Mode</label>
+    <select data-path="transcript.mode">
+      <option value="off">Off</option>
+      <option value="file">File — tail LocalVocal's .txt/.srt output</option>
+      <option value="textSource">Text source — read via OBS WebSocket</option>
+    </select>
+    <div class="row">
+      <div><label>File path (file mode)</label><input type="text" data-path="transcript.file" placeholder="C:/Users/you/captions.srt"></div>
+      <div><label>Text source name (text source mode)</label><input type="text" data-path="transcript.textSource"></div>
+    </div>
+    <label>How much recent speech the ghost hears (seconds)</label>
+    <input type="number" data-path="cadence.transcriptWindowSeconds" min="30" max="600">
+  </section>
+
+  <section>
+    <h2>💬 Cadence</h2>
+    <p class="desc">How often the ghost talks. Real rhythm: normal gaps ± jitter, occasional quick bursts and long lulls.</p>
+    <div class="row">
+      <div><label>Solo — avg seconds between messages</label><input type="number" data-path="cadence.soloSeconds" min="20" max="900"></div>
+      <div><label>With real viewers — avg seconds</label><input type="number" data-path="cadence.quietSeconds" min="60" max="3600"></div>
+    </div>
+    <div class="row">
+      <div><label>Jitter (0–1)</label><input type="number" data-path="cadence.jitter" min="0" max="1" step="0.05"></div>
+      <div><label>Burst chance (0–1)</label><input type="number" data-path="cadence.burstChance" min="0" max="1" step="0.05"></div>
+      <div><label>Lull chance (0–1)</label><input type="number" data-path="cadence.lullChance" min="0" max="1" step="0.05"></div>
+    </div>
+    <div class="row">
+      <div><label>Reply delay after you type (s)</label><input type="number" data-path="cadence.replyDelaySeconds" min="2" max="60"></div>
+      <div><label>Min gap between screenshots (s)</label><input type="number" data-path="cadence.minScreenshotGapSeconds" min="0" max="300"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>📝 Session memory</h2>
+    <p class="desc">The ghost keeps compact running notes on the stream so it can call back to earlier moments.</p>
+    <div class="check">
+      <input type="checkbox" id="memEnabled" data-path="memory.enabled" data-type="bool">
+      <label for="memEnabled" style="margin:0;color:var(--text)">Enable session memory</label>
+    </div>
+    <label>Refresh notes every N messages</label>
+    <input type="number" data-path="memory.updateEvery" min="2" max="20">
+  </section>
+
+  <section>
+    <h2>📺 Twitch viewer detection</h2>
+    <p class="desc">Optional, read-only viewer count check so the ghost auto-quiets when real people arrive. App credentials at <a href="https://dev.twitch.tv/console" target="_blank">dev.twitch.tv/console</a>.</p>
+    <label>Channel name</label>
+    <input type="text" data-path="twitch.channel">
+    <div class="row">
+      <div><label>Client ID</label><input type="text" data-path="twitch.clientId"></div>
+      <div><label>Client secret</label><input type="password" data-path="twitch.clientSecret"></div>
+    </div>
+    <label>Poll every (seconds)</label>
+    <input type="number" data-path="cadence.viewerPollSeconds" min="30" max="600">
+  </section>
+
+  <section>
+    <h2>🔧 Advanced</h2>
+    <label>Local server port (dashboard + overlay)</label>
+    <input type="number" data-path="port" min="1024" max="65535">
+    <p class="hint">If you change this, update the overlay Browser Source URL in OBS to match.</p>
+  </section>
+
+  <div id="savebar">
+    <button id="save" class="primary">Save &amp; Restart</button>
+    <span class="result" id="saveResult"></span>
+  </div>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const fields = [...document.querySelectorAll('[data-path]')];
+  let cfg = null;
+
+  const getPath = (obj, p) => p.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
+  const setPath = (obj, p, v) => {
+    const keys = p.split('.');
+    let o = obj;
+    for (const k of keys.slice(0, -1)) o = o[k] ?? (o[k] = {});
+    o[keys.at(-1)] = v;
+  };
+
+  fetch('/api/config').then((r) => r.json()).then(({ config }) => {
+    cfg = config;
+    for (const f of fields) {
+      const v = getPath(cfg, f.dataset.path);
+      if (f.dataset.type === 'bool') f.checked = v !== false;
+      else if (v !== undefined) f.value = v;
+    }
+  });
+
+  $('testKey').onclick = async () => {
+    const el = $('keyResult');
+    el.className = 'result'; el.textContent = 'testing…';
+    const key = fields.find((f) => f.dataset.path === 'anthropic.apiKey').value.trim();
+    const model = fields.find((f) => f.dataset.path === 'anthropic.model').value;
+    const r = await fetch('/api/test-key', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey: key, model }),
+    }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
+    el.className = 'result ' + (r.ok ? 'ok' : 'err');
+    el.textContent = r.ok ? '✓ key works' : '✗ ' + (r.error || 'failed');
+  };
+
+  $('testObs').onclick = async () => {
+    const el = $('obsResult');
+    el.className = 'result'; el.textContent = 'testing…';
+    const url = fields.find((f) => f.dataset.path === 'obs.url').value.trim();
+    const password = fields.find((f) => f.dataset.path === 'obs.password').value;
+    const r = await fetch('/api/test-obs', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, password }),
+    }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
+    el.className = 'result ' + (r.ok ? 'ok' : 'err');
+    el.textContent = r.ok ? `✓ connected — current scene: "${r.scene}"` : '✗ ' + (r.error || 'failed');
+  };
+
+  $('save').onclick = async () => {
+    for (const f of fields) {
+      let v;
+      if (f.dataset.type === 'bool') v = f.checked;
+      else if (f.type === 'number') v = Number(f.value);
+      else v = f.value.trim();
+      setPath(cfg, f.dataset.path, v);
+    }
+    if (!cfg.anthropic.apiKey) {
+      $('saveResult').className = 'result err';
+      $('saveResult').textContent = 'an API key is required';
+      return;
+    }
+    $('save').disabled = true;
+    $('saveResult').className = 'result';
+    $('saveResult').textContent = 'saving…';
+    const r = await fetch('/api/config', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cfg),
+    }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
+    if (!r.ok) {
+      $('save').disabled = false;
+      $('saveResult').className = 'result err';
+      $('saveResult').textContent = '✗ ' + (r.error || 'save failed');
+      return;
+    }
+    $('saveResult').className = 'result ok';
+    $('saveResult').textContent = '✓ saved — restarting Hype Ghost…';
+    setTimeout(() => { location.href = '/'; }, 4000);
+  };
+</script>
+</body>
+</html>
