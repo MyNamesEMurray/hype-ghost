@@ -10,6 +10,9 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(here, '..');
 const SMOKE = Boolean(process.env.HG_SMOKE); // CI/smoke mode: no UI, auto-quit
 
+// Required for Windows notifications/toasts to render at all.
+app.setAppUserModelId('com.hypeghost.app');
+
 // Only one Hype Ghost at a time — a second launch just shows the existing window.
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -33,6 +36,12 @@ let win = null;
 let tray = null;
 let server = null;
 let quitting = false;
+let updateReady = null; // version string once an update is downloaded
+
+function installUpdateNow() {
+  quitting = true;
+  electronUpdater.autoUpdater.quitAndInstall();
+}
 
 function ensureConfig() {
   if (existsSync(configPath)) return;
@@ -77,6 +86,12 @@ function createWindow() {
 
 function trayMenu() {
   return Menu.buildFromTemplate([
+    ...(updateReady
+      ? [
+          { label: `Install update (v${updateReady}) and restart`, click: installUpdateNow },
+          { type: 'separator' },
+        ]
+      : []),
     { label: 'Open Dashboard', click: () => { win.show(); win.focus(); } },
     {
       label: 'Copy Overlay URL (for OBS)',
@@ -179,12 +194,27 @@ app.whenReady().then(() => {
   createTray();
 
   // Auto-update from GitHub Releases (configurable: app.autoUpdate in config.json).
-  // Downloads in the background and installs on quit; notifies when ready.
+  // A tray-resident app rarely quits, so a downloaded update must be actionable:
+  // a real dialog (toasts are unreliable) + a tray menu item, not just install-on-quit.
   const autoUpdateEnabled = loadConfig(configPath).config.app.autoUpdate !== false;
   if (app.isPackaged && !SMOKE && autoUpdateEnabled) {
-    electronUpdater.autoUpdater
-      .checkForUpdatesAndNotify()
-      .catch((err) => console.warn('[update] check failed:', err.message));
+    const { autoUpdater } = electronUpdater;
+    autoUpdater.on('update-downloaded', (info) => {
+      updateReady = info.version;
+      if (tray) tray.setContextMenu(trayMenu());
+      const visible = win && win.isVisible();
+      const choice = dialog.showMessageBoxSync(visible ? win : undefined, {
+        type: 'info',
+        buttons: ['Restart now', 'Later'],
+        defaultId: 0,
+        cancelId: 1,
+        title: 'Update ready',
+        message: `Hype Ghost v${info.version} is ready to install.`,
+        detail: 'Restart to apply it now — or do it later from the tray menu, or just quit whenever (it installs on the way out).',
+      });
+      if (choice === 0) installUpdateNow();
+    });
+    autoUpdater.checkForUpdates().catch((err) => console.warn('[update] check failed:', err.message));
   }
 
   if (SMOKE) {
