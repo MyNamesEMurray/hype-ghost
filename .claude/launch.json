@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "hype-ghost-server",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["src/cli.js"],
+      "port": 3777
+    }
+  ]
+}

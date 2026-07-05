@@ -1,9 +1,10 @@
 import { app, BrowserWindow, Tray, Menu, shell, clipboard, nativeImage, dialog } from 'electron';
 import electronUpdater from 'electron-updater';
-import { existsSync, copyFileSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, copyFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { startServer } from '../src/server.js';
+import { loadConfig } from '../src/config.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(here, '..');
@@ -49,6 +50,19 @@ function createWindow() {
     show: false,
   });
   win.loadURL(`http://127.0.0.1:${server.port}/`);
+  // External links (console.anthropic.com, dev.twitch.tv, …) open in the
+  // user's real browser — never in a chrome-less Electron window where they
+  // can't verify the URL they're typing credentials into.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  win.webContents.on('will-navigate', (e, url) => {
+    if (!url.startsWith(`http://127.0.0.1:${server.port}/`) && !url.startsWith(`http://localhost:${server.port}/`)) {
+      e.preventDefault();
+      shell.openExternal(url);
+    }
+  });
   win.once('ready-to-show', () => {
     if (!SMOKE) win.show();
   });
@@ -130,6 +144,18 @@ app.whenReady().then(() => {
         app.relaunch();
         app.exit(0);
       },
+      // Keep the tray's "Pause Ghost" checkbox in sync when pause is toggled
+      // from the dashboard (or by the auto-pause dead-man switch).
+      onPauseChanged: () => {
+        if (tray) tray.setContextMenu(trayMenu());
+      },
+      // Async server failures (e.g. port already in use) get a friendly
+      // dialog instead of Electron's raw uncaught-exception box.
+      onFatal: (err) => {
+        dialog.showErrorBox('Hype Ghost failed to start', err.message);
+        quitting = true;
+        app.exit(1);
+      },
       // Settings page "Browse…" → native file dialog (full path, which the
       // browser's own <input type=file> can't provide).
       pickFile: async () => {
@@ -154,10 +180,7 @@ app.whenReady().then(() => {
 
   // Auto-update from GitHub Releases (configurable: app.autoUpdate in config.json).
   // Downloads in the background and installs on quit; notifies when ready.
-  let autoUpdateEnabled = true;
-  try {
-    autoUpdateEnabled = JSON.parse(readFileSync(configPath, 'utf8')).app?.autoUpdate !== false;
-  } catch {}
+  const autoUpdateEnabled = loadConfig(configPath).config.app.autoUpdate !== false;
   if (app.isPackaged && !SMOKE && autoUpdateEnabled) {
     electronUpdater.autoUpdater
       .checkForUpdatesAndNotify()

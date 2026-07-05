@@ -1,6 +1,6 @@
 {
   "name": "hype-ghost",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "AI practice chat for streamers",
   "type": "module",
   "main": "electron/main.js",
@@ -14,7 +14,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
+    "@anthropic-ai/sdk": "^0.110.0",
     "electron-updater": "^6.3.9",
     "express": "^4.21.0",
     "obs-websocket-js": "^5.0.6",

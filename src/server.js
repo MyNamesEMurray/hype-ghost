@@ -6,10 +6,13 @@ import { createServer } from 'node:http';
 import { readFileSync, writeFileSync, statSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { loadConfig } from './config.js';
+import { MODELS, messageCost } from './models.js';
 import { ObsCapture } from './obs.js';
 import { Brain } from './brain.js';
 import { TwitchViewers } from './twitch.js';
 import { TranscriptFeed } from './transcript.js';
+import { GhostLoop } from './loop.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(here, '..');
@@ -18,71 +21,52 @@ const packageRoot = path.join(here, '..');
  * Start the Hype Ghost server.
  *
  * @param {Object} [opts]
- * @param {string} [opts.configPath]  where the user's config.json lives (writable location)
- * @param {string} [opts.notesPath]   where rolling session notes persist
- * @param {string} [opts.publicDir]   static assets dir
- * @param {() => void} [opts.onConfigSaved]  called after the setup wizard saves config (host should restart)
+ * @param {string} [opts.configPath]     where the user's config.json lives (writable location)
+ * @param {string} [opts.notesPath]      where rolling session notes persist
+ * @param {string} [opts.publicDir]      static assets dir
+ * @param {() => void} [opts.onConfigSaved]   setup/settings saved config (host should restart)
+ * @param {() => void} [opts.onPauseChanged]  pause state changed (host should refresh tray)
+ * @param {(err: Error) => void} [opts.onFatal]  unrecoverable server error (e.g. port in use)
+ * @param {() => Promise<string|null>} [opts.pickFile]  native file dialog (desktop app only)
  * @returns {{ port: number, pause(): void, resume(): void, isPaused(): boolean }}
  */
 export function startServer(opts = {}) {
   const configPath = opts.configPath ?? path.join(packageRoot, 'config.json');
-  const examplePath = path.join(packageRoot, 'config.example.json');
   const notesPath = opts.notesPath ?? path.join(packageRoot, 'session-notes.txt');
   const publicDir = opts.publicDir ?? path.join(packageRoot, 'public');
 
-  // ---------- config ----------
-  if (!existsSync(configPath)) {
-    console.warn(`[config] ${configPath} not found — using defaults from config.example.json.`);
-  }
-  const config = JSON.parse(readFileSync(existsSync(configPath) ? configPath : examplePath, 'utf8'));
-  const apiKey = config.anthropic?.apiKey || process.env.ANTHROPIC_API_KEY || '';
+  // ---------- config (defaults deep-merged from config.example.json) ----------
+  const { config, warning } = loadConfig(configPath);
+  if (warning) console.warn(`[config] ${warning}`);
+  const apiKey = config.anthropic.apiKey || process.env.ANTHROPIC_API_KEY || '';
+  const port = config.port;
 
   const obs = new ObsCapture(config.obs.url, config.obs.password, config.obs.screenshotWidth);
-  const twitch = new TwitchViewers(config.twitch || {});
+  const twitch = new TwitchViewers(config.twitch);
   const brain = new Brain({
     apiKey,
-    model: config.anthropic?.model || 'claude-sonnet-5',
-    botName: config.bot?.name || 'Beacon',
-    personality: config.bot?.personality || 'friendly and curious',
-    language: config.bot?.language || 'English',
+    model: config.anthropic.model,
+    botName: config.bot.name,
+    personality: config.bot.personality,
+    language: config.bot.language,
   });
-
-  // $/MTok [input, output] for the cost meter; cache reads bill at 10% of
-  // input, cache writes at 125%. Unknown models show token counts only.
-  const PRICES = {
-    'claude-sonnet-5': [3, 15],
-    'claude-haiku-4-5': [1, 5],
-    'claude-opus-4-8': [5, 25],
-  };
-  function messageCost(usage) {
-    const model = config.anthropic?.model || '';
-    const key = Object.keys(PRICES).find((k) => model.startsWith(k));
-    if (!key || !usage) return null;
-    const [inRate, outRate] = PRICES[key];
-    return (
-      ((usage.input_tokens || 0) * inRate +
-        (usage.output_tokens || 0) * outRate +
-        (usage.cache_read_input_tokens || 0) * inRate * 0.1 +
-        (usage.cache_creation_input_tokens || 0) * inRate * 1.25) /
-      1_000_000
-    );
-  }
 
   // ---------- state ----------
   const state = {
     paused: false,
+    autoPaused: false,
     viewerOverride: 'auto', // 'auto' | 'solo' | 'viewers'
     realViewers: null,
     mode: 'solo',
     obsConnected: false,
     apiKeySet: Boolean(apiKey),
     twitchConfigured: twitch.configured(),
-    botName: config.bot?.name || 'Beacon',
+    botName: config.bot.name,
     nextMessageAt: null,
     busy: false,
-    transcriptMode: config.transcript?.mode || 'off',
+    transcriptMode: config.transcript.mode,
     lastHeard: null,
-    costMeter: config.app?.costMeter !== false,
+    costMeter: config.app.costMeter !== false,
     usage: { messages: 0, inputTokens: 0, outputTokens: 0, cost: 0, costKnown: true },
   };
 
@@ -96,10 +80,7 @@ export function startServer(opts = {}) {
   }
 
   // ---------- rolling session memory ----------
-  const memoryEnabled = config.memory?.enabled ?? true;
-  const memoryUpdateEvery = config.memory?.updateEvery ?? 4;
   let sessionNotes = '';
-  let botMessageCount = 0;
   try {
     if (existsSync(notesPath) && Date.now() - statSync(notesPath).mtimeMs < 6 * 3600_000) {
       sessionNotes = readFileSync(notesPath, 'utf8').trim();
@@ -110,6 +91,13 @@ export function startServer(opts = {}) {
   // ---------- web server ----------
   const app = express();
   app.use(express.json());
+  // Host allowlist: defends the localhost API (which holds secrets) against
+  // DNS-rebinding pages that become "same-origin" with 127.0.0.1.
+  const allowedHosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`]);
+  app.use((req, res, next) => {
+    if (allowedHosts.has(req.headers.host)) return next();
+    res.status(403).end('forbidden');
+  });
   app.use(express.static(publicDir));
   // First launch (no API key yet) lands on the setup wizard instead of the dashboard.
   app.get('/', (_req, res) => {
@@ -120,9 +108,18 @@ export function startServer(opts = {}) {
   app.get('/setup', (_req, res) => res.sendFile(path.join(publicDir, 'setup.html')));
   app.get('/settings', (_req, res) => res.sendFile(path.join(publicDir, 'settings.html')));
 
-  // ---------- setup wizard API (localhost only — server binds 127.0.0.1) ----------
+  // ---------- config API (localhost only; see Host allowlist above) ----------
   app.get('/api/config', (_req, res) => {
-    res.json({ config, configPath, firstRun: !state.apiKeySet });
+    // Never hand out the API key — the UI only needs to know one is saved.
+    const redacted = { ...config, anthropic: { ...config.anthropic, apiKey: '' } };
+    res.json({
+      config: redacted,
+      configPath,
+      firstRun: !state.apiKeySet,
+      apiKeySaved: Boolean(config.anthropic.apiKey),
+      models: MODELS,
+      canRestart: Boolean(opts.onConfigSaved),
+    });
   });
 
   app.post('/api/config', (req, res) => {
@@ -131,12 +128,16 @@ export function startServer(opts = {}) {
       if (!next || typeof next !== 'object' || !next.anthropic) {
         return res.status(400).json({ ok: false, error: 'invalid config payload' });
       }
+      // Blank key in the payload means "keep the saved one" (the UI never sees it).
+      if (!next.anthropic.apiKey && config.anthropic.apiKey) {
+        next.anthropic.apiKey = config.anthropic.apiKey;
+      }
       writeFileSync(configPath, JSON.stringify(next, null, 2) + '\n');
-      res.json({ ok: true });
+      res.json({ ok: true, restarting: Boolean(opts.onConfigSaved) });
       // Give the response time to flush, then let the host app restart to apply.
       setTimeout(() => {
         if (opts.onConfigSaved) opts.onConfigSaved();
-        else console.log('[config] saved — restart to apply changes.');
+        else console.log('[config] saved — restart the server to apply.');
       }, 400);
     } catch (err) {
       res.status(500).json({ ok: false, error: err.message });
@@ -145,9 +146,11 @@ export function startServer(opts = {}) {
 
   app.post('/api/test-key', async (req, res) => {
     try {
-      const client = new Anthropic({ apiKey: String(req.body.apiKey || '') });
+      // Blank key tests the saved one (Settings shows the key only as "saved").
+      const key = String(req.body.apiKey || '') || config.anthropic.apiKey;
+      const client = new Anthropic({ apiKey: key });
       await client.messages.create({
-        model: String(req.body.model || 'claude-sonnet-5'),
+        model: String(req.body.model || config.anthropic.model),
         max_tokens: 1,
         messages: [{ role: 'user', content: 'hi' }],
       });
@@ -157,13 +160,31 @@ export function startServer(opts = {}) {
     }
   });
 
+  app.post('/api/test-obs', async (req, res) => {
+    const probe = new OBSWebSocket();
+    try {
+      await probe.connect(String(req.body.url || config.obs.url), req.body.password || undefined);
+      const { currentProgramSceneName } = await probe.call('GetCurrentProgramScene');
+      res.json({ ok: true, scene: currentProgramSceneName });
+    } catch (err) {
+      res.json({ ok: false, error: err.message });
+    } finally {
+      try {
+        await probe.disconnect();
+      } catch {}
+    }
+  });
+
   app.post('/api/install-overlay', async (_req, res) => {
     try {
-      const result = await obs.installOverlay(`http://localhost:${config.port ?? 3777}/overlay`);
+      const result = await obs.installOverlay(`http://localhost:${port}/overlay`);
       state.obsConnected = obs.connected;
       res.json({ ok: true, ...result });
     } catch (err) {
-      res.json({ ok: false, error: 'Could not reach OBS — is it running with the WebSocket server enabled? (' + err.message + ')' });
+      res.json({
+        ok: false,
+        error: 'Could not reach OBS — is it running with the WebSocket server enabled? (' + err.message + ')',
+      });
     }
   });
 
@@ -176,19 +197,6 @@ export function startServer(opts = {}) {
       res.json({ ok: true, path: picked });
     } catch (err) {
       res.json({ ok: false, error: err.message });
-    }
-  });
-
-  app.post('/api/test-obs', async (req, res) => {
-    const probe = new OBSWebSocket();
-    try {
-      await probe.connect(String(req.body.url || 'ws://127.0.0.1:4455'), req.body.password || undefined);
-      const { currentProgramSceneName } = await probe.call('GetCurrentProgramScene');
-      res.json({ ok: true, scene: currentProgramSceneName });
-    } catch (err) {
-      res.json({ ok: false, error: err.message });
-    } finally {
-      try { await probe.disconnect(); } catch {}
     }
   });
 
@@ -212,147 +220,69 @@ export function startServer(opts = {}) {
 
   function broadcastState() {
     state.mode = resolveMode();
+    state.obsConnected = obs.connected;
+    Object.assign(state, loop.snapshot());
     broadcast({ type: 'state', state });
   }
 
   // ---------- mic transcript (LocalVocal OBS plugin) ----------
-  let voiceReplyTimer = null;
-  let voiceRepliedTo = null;
-
   const transcriptFeed = new TranscriptFeed({
-    ...(config.transcript || {}),
-    windowSeconds: config.cadence.transcriptWindowSeconds ?? 120,
+    ...config.transcript,
+    windowSeconds: config.cadence.transcriptWindowSeconds,
     obs,
     onSpeech: (line) => {
       state.lastHeard = { text: line, ts: Date.now() };
       broadcastState();
-      const last = history[history.length - 1];
-      const answerable =
-        last && last.role === 'bot' && last.id !== voiceRepliedTo && Date.now() - last.ts < 120_000;
-      if (answerable && !state.paused && !state.busy) {
-        clearTimeout(voiceReplyTimer);
-        voiceReplyTimer = setTimeout(() => {
-          voiceRepliedTo = history[history.length - 1]?.id ?? null;
-          clearTimeout(timer);
-          speak('voice');
-        }, 8000);
-      }
+      loop.onSpeech();
     },
   });
 
-  // ---------- bot loop ----------
-  let timer = null;
-  let lastShotAt = 0;
-  let lastSceneName = null;
-
-  // Real chat rhythm isn't uniform: mostly normal gaps (± jitter), but sometimes
-  // a quick burst follow-up, and sometimes a long lull of dead air.
-  function intervalMs() {
-    const base = state.mode === 'viewers' ? config.cadence.quietSeconds : config.cadence.soloSeconds;
-    const jitter = config.cadence.jitter ?? 0.35;
-    const burstChance = config.cadence.burstChance ?? 0.15;
-    const lullChance = config.cadence.lullChance ?? 0.15;
-    const roll = Math.random();
-    let factor;
-    if (roll < burstChance) {
-      factor = 0.3 + Math.random() * 0.3; // burst: 0.3–0.6x base
-    } else if (roll < burstChance + lullChance) {
-      factor = 1.6 + Math.random() * 1.4; // lull: 1.6–3x base
-    } else {
-      factor = 1 + (Math.random() * 2 - 1) * jitter; // normal: ± jitter
-    }
-    return Math.max(15, base * factor) * 1000;
-  }
-
-  function scheduleNext(msOverride) {
-    clearTimeout(timer);
-    if (state.paused) {
-      state.nextMessageAt = null;
-      broadcastState();
-      return;
-    }
-    const ms = msOverride ?? intervalMs();
-    state.nextMessageAt = Date.now() + ms;
-    broadcastState();
-    timer = setTimeout(() => speak('timer'), ms);
-  }
-
-  async function speak(trigger) {
-    if (state.paused || state.busy) return;
-    if (!state.apiKeySet) {
-      broadcast({ type: 'system', text: 'No Anthropic API key configured — set it in config.json (tray menu → Edit Config).' });
-      scheduleNext();
-      return;
-    }
-    state.busy = true;
-    broadcastState();
-    try {
-      // Skip the screenshot on rapid follow-ups — the scene hasn't meaningfully
-      // changed, and the image is by far the biggest token cost per message.
-      const minShotGapMs = (config.cadence.minScreenshotGapSeconds ?? 25) * 1000;
-      let screenshot = null;
-      let staleScreenshot = false;
-      if (Date.now() - lastShotAt < minShotGapMs) {
-        staleScreenshot = true;
-      } else {
-        screenshot = await obs.screenshot();
-        state.obsConnected = obs.connected;
-        if (screenshot) {
-          lastShotAt = Date.now();
-          lastSceneName = screenshot.sceneName ?? lastSceneName;
-        }
-      }
-      const updateNotes = memoryEnabled && (botMessageCount + 1) % memoryUpdateEvery === 0;
-      // Occasionally steer toward a streamer-provided talking point (never on replies).
-      const points = Array.isArray(config.talkingPoints) ? config.talkingPoints.filter(Boolean) : [];
-      const talkingPoint =
-        points.length && (trigger === 'timer' || trigger === 'nudge') && Math.random() < 0.3
-          ? points[Math.floor(Math.random() * points.length)]
-          : undefined;
-      const result = await brain.generate({
-        history: history.slice(-14),
-        screenshot,
-        staleScreenshot,
-        mode: resolveMode(),
-        trigger,
-        transcript: transcriptFeed.getWindow() || undefined,
-        notes: sessionNotes || undefined,
-        updateNotes,
-        sceneName: lastSceneName || undefined,
-        streamContext: config.stream?.context || undefined,
-        talkingPoint,
-      });
-      if (result.usage) {
-        const cost = messageCost(result.usage);
+  // ---------- the ghost ----------
+  const loop = new GhostLoop({
+    config,
+    brain,
+    obs,
+    transcriptFeed,
+    hooks: {
+      getMode: resolveMode,
+      getHistory: () => history,
+      onMessage: (text) => pushMessage('bot', state.botName, text),
+      onSystem: (text) => broadcast({ type: 'system', text }),
+      onState: () => {
+        broadcastState();
+        if (opts.onPauseChanged) opts.onPauseChanged();
+      },
+      getNotes: () => sessionNotes,
+      setNotes: (notes) => {
+        sessionNotes = notes;
+        try {
+          writeFileSync(notesPath, sessionNotes + '\n');
+        } catch {}
+        console.log('[memory] session notes updated:', sessionNotes.replace(/\s+/g, ' ').slice(0, 100) + '…');
+      },
+      addUsage: (usage) => {
+        const cost = messageCost(config.anthropic.model, usage);
         state.usage.messages++;
         state.usage.inputTokens +=
-          (result.usage.input_tokens || 0) +
-          (result.usage.cache_read_input_tokens || 0) +
-          (result.usage.cache_creation_input_tokens || 0);
-        state.usage.outputTokens += result.usage.output_tokens || 0;
+          (usage.input_tokens || 0) + (usage.cache_read_input_tokens || 0) + (usage.cache_creation_input_tokens || 0);
+        state.usage.outputTokens += usage.output_tokens || 0;
         if (cost === null) state.usage.costKnown = false;
         else state.usage.cost += cost;
-      }
-      if (result.text) {
-        pushMessage('bot', state.botName, result.text);
-        botMessageCount++;
-      }
-      if (result.notes) {
-        sessionNotes = result.notes;
-        try { writeFileSync(notesPath, sessionNotes + '\n'); } catch {}
-        console.log('[memory] session notes updated:', sessionNotes.replace(/\s+/g, ' ').slice(0, 100) + '…');
-      }
-    } catch (err) {
-      console.error('[bot] generation failed:', err.message);
-      broadcast({ type: 'system', text: `Message generation failed: ${err.message}` });
-    } finally {
-      state.busy = false;
-      scheduleNext();
-    }
-  }
+      },
+    },
+  });
 
-  // ---------- websocket commands from dashboard ----------
-  wss.on('connection', (ws) => {
+  // ---------- websocket: dashboard + overlay clients ----------
+  wss.on('connection', (ws, req) => {
+    // Origin allowlist: browsers always send Origin on ws handshakes, so this
+    // blocks any webpage from reading chat/mic-transcript state or injecting
+    // messages, while keeping non-browser clients (no Origin) usable.
+    const origin = req.headers.origin;
+    const originOk = !origin || origin === `http://127.0.0.1:${port}` || origin === `http://localhost:${port}`;
+    if (!originOk) {
+      ws.close();
+      return;
+    }
     ws.send(JSON.stringify({ type: 'init', state, history }));
     ws.on('message', (raw) => {
       let cmd;
@@ -366,25 +296,22 @@ export function startServer(opts = {}) {
           const text = String(cmd.text || '').trim();
           if (!text) return;
           pushMessage('streamer', 'Streamer', text);
-          scheduleNext((config.cadence.replyDelaySeconds ?? 6) * 1000);
+          loop.onStreamerMessage();
           break;
         }
         case 'pause':
-          state.paused = true;
-          scheduleNext();
+          loop.pause();
           break;
         case 'resume':
-          state.paused = false;
-          scheduleNext(3000);
+          loop.resume();
           break;
         case 'nudge':
-          clearTimeout(timer);
-          speak('nudge');
+          loop.nudge();
           break;
         case 'override_viewers':
           if (['auto', 'solo', 'viewers'].includes(cmd.value)) {
             state.viewerOverride = cmd.value;
-            scheduleNext();
+            loop.scheduleNext();
           }
           break;
       }
@@ -401,51 +328,55 @@ export function startServer(opts = {}) {
         const newMode = resolveMode();
         if (prevMode !== newMode) {
           console.log(`[twitch] mode change: ${prevMode} -> ${newMode} (${count} viewers)`);
-          scheduleNext();
+          loop.scheduleNext();
         } else {
           broadcastState();
         }
       }
     };
     poll();
-    setInterval(poll, (config.cadence.viewerPollSeconds ?? 60) * 1000);
+    setInterval(poll, config.cadence.viewerPollSeconds * 1000);
   } else {
-    console.log('[twitch] not configured — use the Solo/Viewers override on the dashboard.');
+    console.log('[twitch] not configured — use the Solo/Viewers mode on the dashboard.');
   }
 
   // ---------- mic transcript polling ----------
   if (state.transcriptMode !== 'off') {
     transcriptFeed.start();
   } else {
-    console.log('[transcript] off — enable it in config.json ("transcript") to let the ghost hear you.');
+    console.log('[transcript] off — enable voice awareness in Settings → Voice to let the ghost hear you.');
   }
 
   // ---------- start ----------
-  const port = config.port ?? 3777;
-  // 127.0.0.1 only: the wizard API exposes config (incl. the API key), so
-  // never listen on the LAN. OBS's browser source is on this machine anyway.
+  // listen() failures (port in use) arrive async via 'error' — without this
+  // handler they'd bypass the caller's try/catch and hard-crash the app.
+  httpServer.on('error', (err) => {
+    const friendly =
+      err.code === 'EADDRINUSE'
+        ? `Port ${port} is already in use — is Hype Ghost already running?`
+        : `Server error: ${err.message}`;
+    if (opts.onFatal) opts.onFatal(new Error(friendly));
+    else {
+      console.error(friendly);
+      process.exit(1);
+    }
+  });
+  // 127.0.0.1 only: the config API holds secrets — never listen on the LAN.
+  // OBS's browser source runs on this machine anyway.
   httpServer.listen(port, '127.0.0.1', () => {
     console.log('');
     console.log(`  Hype Ghost is running (local only)`);
     console.log(`  Dashboard (your chat window): http://localhost:${port}/`);
     console.log(`  OBS Browser Source overlay:   http://localhost:${port}/overlay`);
     console.log('');
-    if (!state.apiKeySet) console.warn('  ⚠ No Anthropic API key set — the ghost cannot generate messages yet.');
-    scheduleNext(15_000);
+    if (!state.apiKeySet) console.warn('  ⚠ No Anthropic API key set — open the dashboard to run the setup wizard.');
+    loop.start();
   });
 
   return {
     port,
-    pause() {
-      state.paused = true;
-      scheduleNext();
-    },
-    resume() {
-      state.paused = false;
-      scheduleNext(3000);
-    },
-    isPaused() {
-      return state.paused;
-    },
+    pause: () => loop.pause(),
+    resume: () => loop.resume(),
+    isPaused: () => loop.isPaused(),
   };
 }

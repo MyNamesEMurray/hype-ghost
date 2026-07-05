@@ -4,79 +4,34 @@
 <meta charset="utf-8">
 <title>Hype Ghost — Settings</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/theme.css">
 <style>
-  :root {
-    --bg: #0f0f14; --panel: #1a1a23; --border: #2c2c3a;
-    --text: #e8e8f0; --dim: #8a8a9e; --accent: #9b6dff; --good: #7ee49a; --bad: #ff8b8b;
-    color-scheme: dark;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; min-height: 100vh; background: var(--bg); color: var(--text);
-    font: 15px/1.5 "Segoe UI", system-ui, sans-serif;
-    display: flex; justify-content: center;
-  }
+  /* layout only — tokens & components come from theme.css */
+  body { min-height: 100vh; display: flex; justify-content: center; }
   #page { width: 680px; max-width: 94vw; padding: 24px 0 60px; }
   header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-  h1 { font-size: 21px; margin: 0; flex: 1; }
+  header .page-title { flex: 1; }
   a.back { color: var(--dim); text-decoration: none; font-size: 14px; }
   a.back:hover { color: var(--accent); }
-  #level { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-  #level button { border: none; border-radius: 0; padding: 6px 14px; font-size: 13px; color: var(--dim); }
-  #level button.on { background: var(--accent); color: #14081f; font-weight: 600; }
+  #level { display: flex; border: 1px solid var(--border); border-radius: var(--r-ctl); overflow: hidden; }
+  #level button { border: none; border-radius: 0; padding: 6px 14px; }
+  #level button.on { background: var(--accent); color: var(--on-accent); font-weight: 600; }
   #tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
-  #tabs button {
-    border: 1px solid var(--border); border-radius: 999px; padding: 7px 16px;
-    font-size: 13.5px; color: var(--dim); background: transparent;
-  }
-  #tabs button.on { background: var(--panel); color: var(--text); border-color: var(--accent); }
   body.simple .adv { display: none !important; }
-  section {
-    background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
-    padding: 18px 22px; margin-bottom: 14px; display: none;
-  }
+  section { display: none; margin-bottom: 14px; }
   section.active { display: block; }
-  section h2 { font-size: 15px; margin: 0 0 4px; }
-  section .desc { font-size: 13px; color: var(--dim); margin: 0 0 8px; }
-  label { display: block; font-size: 13px; color: var(--dim); margin: 12px 0 4px; }
-  input[type=text], input[type=password], input[type=number], textarea, select {
-    width: 100%; background: var(--bg); color: var(--text);
-    border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; font: inherit;
-  }
-  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
-  select option { background: var(--panel); color: var(--text); }
-  textarea { resize: vertical; min-height: 60px; }
-  .row { display: flex; gap: 12px; }
-  .row > div { flex: 1; }
-  .check { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 14px; }
-  .check input { width: auto; }
-  .check label { margin: 0; color: var(--text); }
-  .hint { font-size: 12px; color: var(--dim); margin-top: 4px; }
+  section .desc { font-size: var(--fs-sm); color: var(--dim); margin: 0 0 8px; }
   .test { margin-top: 10px; display: flex; align-items: center; gap: 10px; }
-  .result { font-size: 13px; }
-  .result.ok { color: var(--good); }
-  .result.err { color: var(--bad); }
-  .withbtn { display: flex; gap: 8px; }
-  .withbtn input { flex: 1; }
-  .withbtn button { white-space: nowrap; }
-  button {
-    background: transparent; color: var(--text); border: 1px solid var(--border);
-    border-radius: 8px; padding: 8px 16px; font: inherit; font-size: 14px; cursor: pointer;
-  }
-  button:hover { border-color: var(--accent); }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #14081f; font-weight: 600; }
-  button:disabled { opacity: .5; cursor: default; }
   #savebar {
     position: sticky; bottom: 0; background: linear-gradient(transparent, var(--bg) 30%);
     padding: 18px 0 14px; display: flex; gap: 12px; align-items: center;
   }
-  a { color: var(--accent); }
 </style>
 </head>
 <body>
 <div id="page">
   <header>
-    <h1>⚙ Settings</h1>
+    <h1 class="page-title">⚙ Settings</h1>
     <div id="level">
       <button id="lvlSimple">Simple</button>
       <button id="lvlAdv">Advanced</button>
@@ -85,16 +40,16 @@
   </header>
 
   <div id="tabs">
-    <button data-tab="ghost">👻 Ghost</button>
-    <button data-tab="brain">🧠 Brain</button>
-    <button data-tab="stream">📷 Stream</button>
-    <button data-tab="voice">🎙 Voice</button>
-    <button data-tab="behavior">💬 Behavior</button>
-    <button data-tab="app">🔧 App</button>
+    <button class="tab" data-tab="ghost">👻 Ghost</button>
+    <button class="tab" data-tab="brain">🧠 Brain</button>
+    <button class="tab" data-tab="stream">📷 Stream</button>
+    <button class="tab" data-tab="voice">🎙 Voice</button>
+    <button class="tab" data-tab="behavior">💬 Behavior</button>
+    <button class="tab" data-tab="app">🔧 App</button>
   </div>
 
   <!-- ============ GHOST ============ -->
-  <section data-tab="ghost">
+  <section class="card" data-tab="ghost">
     <h2>👻 Ghost</h2>
     <p class="desc">Who shows up in your chat, and what they know about your stream.</p>
     <label>Chat name</label>
@@ -117,17 +72,13 @@
   </section>
 
   <!-- ============ BRAIN ============ -->
-  <section data-tab="brain">
+  <section class="card" data-tab="brain">
     <h2>🧠 Brain</h2>
     <p class="desc">Messages are generated with the Claude API — keys at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>.</p>
     <label>Anthropic API key</label>
-    <input type="password" data-path="anthropic.apiKey">
+    <input type="password" data-path="anthropic.apiKey" id="apiKeyField">
     <label>Model</label>
-    <select data-path="anthropic.model">
-      <option value="claude-sonnet-5">Sonnet — recommended (~$0.20/hr)</option>
-      <option value="claude-haiku-4-5">Haiku — budget (~$0.07/hr)</option>
-      <option value="claude-opus-4-8">Opus — premium (~$0.60/hr)</option>
-    </select>
+    <select data-path="anthropic.model" id="modelSelect"></select>
     <div class="test"><button id="testKey">Test key</button><span class="result" id="keyResult"></span></div>
     <div class="check adv">
       <input type="checkbox" id="costMeter" data-path="app.costMeter" data-type="bool">
@@ -136,7 +87,7 @@
   </section>
 
   <!-- ============ STREAM ============ -->
-  <section data-tab="stream">
+  <section class="card" data-tab="stream">
     <h2>📷 Stream (OBS)</h2>
     <p class="desc">How the ghost sees your stream. OBS → Tools → WebSocket Server Settings.</p>
     <div class="row">
@@ -146,14 +97,14 @@
     <div class="test"><button id="testObs">Test connection</button><span class="result" id="obsResult"></span></div>
     <label style="margin-top:18px">On-stream overlay</label>
     <div class="test" style="margin-top:2px"><button id="installOverlay">Add overlay to OBS</button><span class="result" id="overlayResult"></span></div>
-    <p class="hint">Creates a "Hype Ghost Overlay" browser source in your current scene (position/resize it in OBS, copy it to other scenes as needed). Manual URL: <b>http://localhost:3777/overlay</b>, ~460×600.</p>
+    <p class="hint">Creates a "Hype Ghost Overlay" browser source in your current scene (position/resize it in OBS, copy it to other scenes as needed). Manual URL: <b><span id="overlayUrl"></span></b>, ~460×600.</p>
     <label class="adv">Screenshot width (px)</label>
     <input class="adv" type="number" data-path="obs.screenshotWidth" min="320" max="1920">
     <p class="hint adv">Bigger = the ghost reads finer on-screen detail but costs more (image tokens scale with pixels). 800 is the sweet spot.</p>
   </section>
 
   <!-- ============ VOICE ============ -->
-  <section data-tab="voice">
+  <section class="card" data-tab="voice">
     <h2>🎙 Voice awareness</h2>
     <p class="desc">Local mic transcription via the <a href="https://obsproject.com/forum/resources/localvocal-local-live-captions-translation-on-the-go.1769/" target="_blank">LocalVocal</a> OBS plugin, so answering out loud is replying.</p>
     <label>Mode</label>
@@ -180,7 +131,7 @@
   </section>
 
   <!-- ============ BEHAVIOR ============ -->
-  <section data-tab="behavior">
+  <section class="card" data-tab="behavior">
     <h2>💬 Cadence</h2>
     <p class="desc">How often the ghost talks. Real rhythm: normal gaps ± jitter, occasional quick bursts and long lulls.</p>
     <div class="row">
@@ -194,6 +145,7 @@
     </div>
     <div class="row adv">
       <div><label>Reply delay after you type (s)</label><input type="number" data-path="cadence.replyDelaySeconds" min="2" max="60"></div>
+      <div><label>Min gap between voice replies (s)</label><input type="number" data-path="cadence.minVoiceReplyGapSeconds" min="0" max="300"></div>
       <div><label>Min gap between screenshots (s)</label><input type="number" data-path="cadence.minScreenshotGapSeconds" min="0" max="300"></div>
     </div>
     <div class="adv" style="margin-top:20px">
@@ -209,12 +161,19 @@
   </section>
 
   <!-- ============ APP ============ -->
-  <section data-tab="app">
+  <section class="card" data-tab="app">
     <h2>🔧 App</h2>
     <div class="check">
       <input type="checkbox" id="autoUpdate" data-path="app.autoUpdate" data-type="bool">
       <label for="autoUpdate">Update automatically (checks GitHub for new versions at launch)</label>
     </div>
+    <div class="check">
+      <input type="checkbox" id="autoPause" data-path="app.autoPause" data-type="bool">
+      <label for="autoPause">Auto-pause when OBS is gone (stops API spend if you forget the app in the tray)</label>
+    </div>
+    <label class="adv">Auto-pause after OBS unreachable for (minutes)</label>
+    <input class="adv" type="number" data-path="app.autoPauseMinutes" min="2" max="120">
+    <p class="hint adv">The ghost resumes automatically when OBS comes back. Practicing with OBS open never pauses — only OBS being closed counts.</p>
     <div class="adv" style="margin-top:20px">
       <h2>📺 Twitch viewer detection</h2>
       <p class="desc">Optional, read-only viewer count check so the ghost auto-quiets when real people arrive. App credentials at <a href="https://dev.twitch.tv/console" target="_blank">dev.twitch.tv/console</a>.</p>
@@ -236,7 +195,7 @@
   </section>
 
   <div id="savebar">
-    <button id="save" class="primary">Save &amp; Restart</button>
+    <button id="save" class="primary">Save &amp; restart</button>
     <span class="result" id="saveResult"></span>
   </div>
 </div>
@@ -245,6 +204,10 @@
   const $ = (id) => document.getElementById(id);
   const fields = [...document.querySelectorAll('[data-path]')];
   let cfg = null;
+  let apiKeySaved = false;
+  let canRestart = false;
+
+  $('overlayUrl').textContent = location.origin + '/overlay';
 
   const getPath = (obj, p) => p.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
   const setPath = (obj, p, v) => {
@@ -255,7 +218,7 @@
   };
 
   // ---- tabs ----
-  const tabButtons = [...document.querySelectorAll('#tabs button')];
+  const tabButtons = [...document.querySelectorAll('#tabs .tab')];
   function setTab(name) {
     tabButtons.forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
     document.querySelectorAll('section').forEach((s) => s.classList.toggle('active', s.dataset.tab === name));
@@ -276,13 +239,19 @@
   setLevel(localStorage.getItem('hg-settings-level') === 'adv');
 
   // ---- prefill ----
-  fetch('/api/config').then((r) => r.json()).then(({ config }) => {
-    cfg = config;
+  fetch('/api/config').then((r) => r.json()).then((data) => {
+    cfg = data.config;
+    apiKeySaved = data.apiKeySaved;
+    canRestart = data.canRestart;
+    $('modelSelect').innerHTML = data.models
+      .map((m) => `<option value="${m.id}">${m.label}</option>`)
+      .join('');
     for (const f of fields) {
       const v = getPath(cfg, f.dataset.path);
       if (f.dataset.type === 'bool') f.checked = v !== false;
       else if (v !== undefined) f.value = v;
     }
+    if (apiKeySaved) $('apiKeyField').placeholder = 'saved ✓ — leave blank to keep the current key';
     $('talkingPoints').value = (cfg.talkingPoints || []).join('\n');
   });
 
@@ -292,6 +261,7 @@
   $('testKey').onclick = async () => {
     const el = $('keyResult');
     el.className = 'result'; el.textContent = 'testing…';
+    // blank field = test the saved key (the server never sends it to us)
     const r = await fetch('/api/test-key', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ apiKey: val('anthropic.apiKey').trim(), model: val('anthropic.model') }),
@@ -346,7 +316,7 @@
       setPath(cfg, f.dataset.path, v);
     }
     cfg.talkingPoints = $('talkingPoints').value.split('\n').map((s) => s.trim()).filter(Boolean);
-    if (!cfg.anthropic.apiKey) {
+    if (!cfg.anthropic.apiKey && !apiKeySaved) {
       $('saveResult').className = 'result err';
       $('saveResult').textContent = 'an API key is required (Brain tab)';
       return;
@@ -365,8 +335,13 @@
       return;
     }
     $('saveResult').className = 'result ok';
-    $('saveResult').textContent = '✓ saved — restarting Hype Ghost…';
-    setTimeout(() => { location.href = '/'; }, 4000);
+    if (r.restarting) {
+      $('saveResult').textContent = '✓ saved — restarting Hype Ghost…';
+      setTimeout(() => { location.href = '/'; }, 4000);
+    } else {
+      $('save').disabled = false;
+      $('saveResult').textContent = '✓ saved — restart the server to apply.';
+    }
   };
 </script>
 </body>

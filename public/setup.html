@@ -4,88 +4,45 @@
 <meta charset="utf-8">
 <title>Hype Ghost — Setup</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/theme.css">
 <style>
-  :root {
-    --bg: #0f0f14; --panel: #1a1a23; --border: #2c2c3a;
-    --text: #e8e8f0; --dim: #8a8a9e; --accent: #9b6dff; --good: #7ee49a; --bad: #ff8b8b;
-    color-scheme: dark; /* native controls (dropdown lists, scrollbars) render dark */
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
-    background: var(--bg); color: var(--text);
-    font: 15px/1.5 "Segoe UI", system-ui, sans-serif;
-  }
-  #card {
-    width: 640px; max-width: 94vw; background: var(--panel);
-    border: 1px solid var(--border); border-radius: 16px; padding: 28px 32px;
-    margin: 24px 0;
-  }
-  h1 { font-size: 22px; margin: 0 0 4px; }
-  h1 .ghost { font-size: 26px; }
+  /* layout only — tokens & components come from theme.css */
+  body { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  #card { width: 640px; max-width: 94vw; margin: 24px 0; padding: 28px 32px; }
   .sub { color: var(--dim); margin: 0 0 20px; font-size: 14px; }
   #dots { display: flex; gap: 8px; margin-bottom: 22px; }
   #dots span { width: 34px; height: 5px; border-radius: 3px; background: var(--border); }
   #dots span.on { background: var(--accent); }
   .step { display: none; }
   .step.active { display: block; }
-  label { display: block; font-size: 13px; color: var(--dim); margin: 14px 0 5px; }
-  input[type=text], input[type=password], input[type=number], textarea, select {
-    width: 100%; background: var(--bg); color: var(--text);
-    border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font: inherit;
-  }
-  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
-  select option { background: var(--panel); color: var(--text); }
-  textarea { resize: vertical; min-height: 64px; }
   .choices { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
-  .choice {
-    border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; cursor: pointer;
-  }
+  .choice { border: 1px solid var(--border); border-radius: var(--r-md); padding: 12px 14px; cursor: pointer; }
   .choice:hover { border-color: var(--accent); }
-  .choice.selected { border-color: var(--accent); background: #241a3355; }
+  .choice.selected { border-color: var(--accent); background: var(--accent-tint); }
   .choice b { display: block; margin-bottom: 2px; }
   .choice small { color: var(--dim); }
   .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
-  .chip {
-    font-size: 13px; padding: 5px 12px; border-radius: 999px; cursor: pointer;
-    border: 1px solid var(--border); color: var(--dim);
-  }
-  .chip:hover { border-color: var(--accent); color: var(--text); }
-  .row { display: flex; gap: 12px; }
-  .row > div { flex: 1; }
   .test { margin-top: 10px; display: flex; align-items: center; gap: 10px; }
-  .result { font-size: 13px; }
-  .result.ok { color: var(--good); }
-  .result.err { color: var(--bad); }
-  button {
-    background: transparent; color: var(--text); border: 1px solid var(--border);
-    border-radius: 8px; padding: 9px 18px; font: inherit; font-size: 14px; cursor: pointer;
-  }
-  button:hover { border-color: var(--accent); }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #14081f; font-weight: 600; }
-  button:disabled { opacity: .5; cursor: default; }
   nav { display: flex; justify-content: space-between; margin-top: 26px; }
-  details { margin-top: 14px; border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
+  details { margin-top: 14px; border: 1px solid var(--border); border-radius: var(--r-md); padding: 10px 14px; }
   summary { cursor: pointer; color: var(--dim); }
-  a { color: var(--accent); }
-  .hint { font-size: 12.5px; color: var(--dim); margin-top: 5px; }
   #done { text-align: center; padding: 30px 0; display: none; }
   #done .ghost { font-size: 52px; }
 </style>
 </head>
 <body>
-<div id="card">
-  <h1><span class="ghost">👻</span> Hype Ghost setup</h1>
-  <p class="sub">Your practice chat, configured in a minute. Everything can be changed later (tray → Edit Config).</p>
+<div id="card" class="card">
+  <h1 class="page-title">👻 Hype Ghost setup</h1>
+  <p class="sub">Your practice chat, configured in a minute. Everything can be changed later in Settings (⚙ on the dashboard).</p>
   <div id="dots"></div>
 
   <!-- Step 1: goal -->
   <div class="step" data-step="0">
     <b>What are you hoping to get out of Hype Ghost?</b>
     <div class="choices" id="goal">
-      <div class="choice" data-goal="practice"><b>Practice talking to chat</b><small>Build the habit of narrating and answering chat out loud, so you're sharp when real viewers show up.</small></div>
-      <div class="choice" data-goal="company"><b>Company on quiet streams</b><small>A chattier companion so streaming to zero never feels like streaming to zero.</small></div>
-      <div class="choice" data-goal="vod"><b>Better VODs</b><small>Occasional prompts that give your VODs conversational structure — a bit more hands-off.</small></div>
+      <div class="choice" tabindex="0" data-goal="practice"><b>Practice talking to chat</b><small>Build the habit of narrating and answering chat out loud, so you're sharp when real viewers show up.</small></div>
+      <div class="choice" tabindex="0" data-goal="company"><b>Company on quiet streams</b><small>A chattier companion so streaming to zero never feels like streaming to zero.</small></div>
+      <div class="choice" tabindex="0" data-goal="vod"><b>Better VODs</b><small>Occasional prompts that give your VODs conversational structure — a bit more hands-off.</small></div>
     </div>
     <p class="hint" id="goalHint"></p>
   </div>
@@ -98,10 +55,10 @@
     <label>Personality</label>
     <textarea id="personality" placeholder="friendly, curious, a little goofy"></textarea>
     <div class="chips">
-      <span class="chip" data-p="friendly, curious, a little goofy; loves asking questions about whatever is on screen">Friendly &amp; curious</span>
-      <span class="chip" data-p="high-energy hype friend; celebrates every small win, big on encouragement, never negative">Hype &amp; energetic</span>
-      <span class="chip" data-p="dry, deadpan, lightly sarcastic; roasts gently but is secretly very supportive">Dry &amp; sarcastic</span>
-      <span class="chip" data-p="chill lurker energy; short laid-back messages, vibes along with the stream">Chill lurker</span>
+      <span class="chip" tabindex="0" data-p="friendly, curious, a little goofy; loves asking questions about whatever is on screen">Friendly &amp; curious</span>
+      <span class="chip" tabindex="0" data-p="high-energy hype friend; celebrates every small win, big on encouragement, never negative">Hype &amp; energetic</span>
+      <span class="chip" tabindex="0" data-p="dry, deadpan, lightly sarcastic; roasts gently but is secretly very supportive">Dry &amp; sarcastic</span>
+      <span class="chip" tabindex="0" data-p="chill lurker energy; short laid-back messages, vibes along with the stream">Chill lurker</span>
     </div>
   </div>
 
@@ -112,11 +69,7 @@
     <label>Anthropic API key</label>
     <input type="password" id="apiKey" placeholder="sk-ant-…">
     <label>Model</label>
-    <select id="model">
-      <option value="claude-sonnet-5">Sonnet — recommended balance of banter &amp; cost (~$0.20/hr)</option>
-      <option value="claude-haiku-4-5">Haiku — budget (~$0.07/hr), simpler messages</option>
-      <option value="claude-opus-4-8">Opus — premium (~$0.60/hr), sharpest banter</option>
-    </select>
+    <select id="model"></select>
     <div class="test">
       <button id="testKey">Test key</button>
       <span class="result" id="keyResult"></span>
@@ -148,9 +101,9 @@
   <div class="step" data-step="4">
     <b>How chatty should the ghost be?</b>
     <div class="choices" id="cadence">
-      <div class="choice" data-solo="60"><b>Chatty</b><small>Averages about a message a minute — with natural bursts and lulls either side.</small></div>
-      <div class="choice" data-solo="90"><b>Balanced</b><small>Averages about every 90 seconds. Good default.</small></div>
-      <div class="choice" data-solo="150"><b>Relaxed</b><small>Every 2–3 minutes — present, but leaves you room.</small></div>
+      <div class="choice" tabindex="0" data-solo="60"><b>Chatty</b><small>Averages about a message a minute — with natural bursts and lulls either side.</small></div>
+      <div class="choice" tabindex="0" data-solo="90"><b>Balanced</b><small>Averages about every 90 seconds. Good default.</small></div>
+      <div class="choice" tabindex="0" data-solo="150"><b>Relaxed</b><small>Every 2–3 minutes — present, but leaves you room.</small></div>
     </div>
     <label>Or custom (seconds between messages)</label>
     <input type="number" id="soloSeconds" min="20" max="900">
@@ -174,7 +127,7 @@
     </details>
     <details>
       <summary>📺 Twitch viewer detection — auto-quiet when real people arrive</summary>
-      <p class="hint">Read-only viewer count check (never touches chat). Create app credentials at <a href="https://dev.twitch.tv/console" target="_blank">dev.twitch.tv/console</a>. Skip this and use the dashboard's manual toggle instead.</p>
+      <p class="hint">Read-only viewer count check (never touches chat). Create app credentials at <a href="https://dev.twitch.tv/console" target="_blank">dev.twitch.tv/console</a>. Skip this and use the dashboard's manual mode toggle instead.</p>
       <label>Channel name</label>
       <input type="text" id="twChannel">
       <div class="row">
@@ -182,13 +135,13 @@
         <div><label>Client secret</label><input type="password" id="twSecret"></div>
       </div>
     </details>
-    <p class="hint" style="margin-top:14px">After setup: add a <b>Browser Source</b> in OBS pointing at <b>http://localhost:3777/overlay</b> (~460×600) so the chat shows on your stream and VODs.</p>
+    <p class="hint" style="margin-top:14px">After setup: open Settings → Stream and click <b>Add overlay to OBS</b> to put the chat on your stream and VODs (or add a Browser Source manually: <b><span id="overlayUrl"></span></b>, ~460×600).</p>
   </div>
 
   <div id="done">
     <div class="ghost">👻</div>
     <h2>You're all set!</h2>
-    <p class="sub">Saving and restarting Hype Ghost…</p>
+    <p class="sub" id="doneMsg">Saving…</p>
   </div>
 
   <nav>
@@ -201,10 +154,13 @@
   const STEPS = 6;
   let step = 0;
   let cfg = null;
+  let apiKeySaved = false;
+  let canRestart = false;
 
   const $ = (id) => document.getElementById(id);
   const dots = $('dots');
   for (let i = 0; i < STEPS; i++) dots.appendChild(document.createElement('span'));
+  $('overlayUrl').textContent = location.origin + '/overlay';
 
   function show() {
     document.querySelectorAll('.step').forEach((el) => el.classList.toggle('active', Number(el.dataset.step) === step));
@@ -214,21 +170,26 @@
   }
 
   // ---- prefill from current config ----
-  fetch('/api/config').then((r) => r.json()).then(({ config }) => {
-    cfg = config;
-    $('botName').value = cfg.bot?.name ?? 'Beacon';
-    $('personality').value = cfg.bot?.personality ?? '';
-    $('apiKey').value = cfg.anthropic?.apiKey ?? '';
-    $('model').value = cfg.anthropic?.model ?? 'claude-sonnet-5';
-    $('obsUrl').value = cfg.obs?.url ?? 'ws://127.0.0.1:4455';
-    $('obsPassword').value = cfg.obs?.password ?? '';
-    $('soloSeconds').value = cfg.cadence?.soloSeconds ?? 90;
+  fetch('/api/config').then((r) => r.json()).then((data) => {
+    cfg = data.config;
+    apiKeySaved = data.apiKeySaved;
+    canRestart = data.canRestart;
+    $('model').innerHTML = data.models
+      .map((m) => `<option value="${m.id}">${m.label}</option>`)
+      .join('');
+    $('botName').value = cfg.bot.name;
+    $('personality').value = cfg.bot.personality;
+    if (apiKeySaved) $('apiKey').placeholder = 'saved ✓ — leave blank to keep the current key';
+    $('model').value = cfg.anthropic.model;
+    $('obsUrl').value = cfg.obs.url;
+    $('obsPassword').value = cfg.obs.password;
+    $('soloSeconds').value = cfg.cadence.soloSeconds;
     markCadence();
-    $('trMode').value = cfg.transcript?.mode ?? 'off';
-    $('trTarget').value = cfg.transcript?.mode === 'textSource' ? (cfg.transcript?.textSource ?? '') : (cfg.transcript?.file ?? '');
-    $('twChannel').value = cfg.twitch?.channel ?? '';
-    $('twId').value = cfg.twitch?.clientId ?? '';
-    $('twSecret').value = cfg.twitch?.clientSecret ?? '';
+    $('trMode').value = cfg.transcript.mode;
+    $('trTarget').value = cfg.transcript.mode === 'textSource' ? cfg.transcript.textSource : cfg.transcript.file;
+    $('twChannel').value = cfg.twitch.channel;
+    $('twId').value = cfg.twitch.clientId;
+    $('twSecret').value = cfg.twitch.clientSecret;
   });
 
   // ---- goal step ----
@@ -237,21 +198,30 @@
     company: { solo: 60, hint: 'The ghost will lean chattier. You can tune exactly how chatty in a later step.' },
     vod: { solo: 150, hint: 'The ghost will hang back a bit and prioritize messages that give segments structure.' },
   };
-  $('goal').addEventListener('click', (e) => {
-    const c = e.target.closest('.choice');
-    if (!c) return;
+  function chooseGoal(c) {
     document.querySelectorAll('#goal .choice').forEach((x) => x.classList.remove('selected'));
     c.classList.add('selected');
     const preset = GOAL_PRESETS[c.dataset.goal];
     $('soloSeconds').value = preset.solo;
     $('goalHint').textContent = preset.hint;
     markCadence();
+  }
+  $('goal').addEventListener('click', (e) => {
+    const c = e.target.closest('.choice');
+    if (c) chooseGoal(c);
   });
 
   // ---- personality chips ----
-  document.querySelectorAll('.chip').forEach((chip) =>
-    chip.addEventListener('click', () => { $('personality').value = chip.dataset.p; })
-  );
+  document.querySelectorAll('.chip').forEach((chip) => {
+    chip.addEventListener('click', () => { $('personality').value = chip.dataset.p; });
+  });
+
+  // choices & chips work with Enter/Space for keyboard users
+  document.querySelectorAll('.choice, .chip').forEach((el) => {
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
+    });
+  });
 
   // ---- cadence choices <-> custom input ----
   function markCadence() {
@@ -292,7 +262,7 @@
   // ---- navigation + save ----
   $('back').onclick = () => { if (step > 0) { step--; show(); } };
   $('next').onclick = async () => {
-    if (step === 2 && !$('apiKey').value.trim()) {
+    if (step === 2 && !$('apiKey').value.trim() && !apiKeySaved) {
       $('keyResult').className = 'result err';
       $('keyResult').textContent = 'an API key is required — the ghost has no brain without it';
       return;
@@ -300,6 +270,7 @@
     if (step < STEPS - 1) { step++; show(); return; }
 
     // Finish: merge wizard fields into the existing config and save.
+    // A blank key field means "keep the saved key" — the server preserves it.
     cfg.bot = { ...cfg.bot, name: $('botName').value.trim() || 'Beacon', personality: $('personality').value.trim() || 'friendly and curious' };
     cfg.anthropic = { ...cfg.anthropic, apiKey: $('apiKey').value.trim(), model: $('model').value };
     cfg.obs = { ...cfg.obs, url: $('obsUrl').value.trim() || 'ws://127.0.0.1:4455', password: $('obsPassword').value };
@@ -328,8 +299,11 @@
     document.querySelector('nav').style.display = 'none';
     dots.style.display = 'none';
     $('done').style.display = 'block';
-    // Desktop app relaunches itself; if it doesn't (headless mode), go to the dashboard.
-    setTimeout(() => { location.href = '/'; }, 4000);
+    // Desktop app relaunches itself; headless mode needs a manual restart.
+    $('doneMsg').textContent = r.restarting
+      ? 'Saving and restarting Hype Ghost…'
+      : 'Saved — restart the server to apply your settings.';
+    if (r.restarting) setTimeout(() => { location.href = '/'; }, 4000);
   };
 
   show();

@@ -163,6 +163,10 @@ export class Brain {
     const response = await this.client.messages.create({
       model: this.model,
       max_tokens: updateNotes ? 450 : 200,
+      // Note: the system prompt (~550 tokens) is below the model's minimum
+      // cacheable prefix, so this marker is currently inert — it engages
+      // automatically (and beneficially, at this cadence) if the prompt ever
+      // grows past the minimum. Costs nothing while below it.
       system: [{ type: 'text', text: this.buildSystemPrompt(), cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content }],
     });
@@ -174,10 +178,12 @@ export class Brain {
       .trim();
     const [rawMsg, rawNotes] = raw.split(/-{3,}\s*NOTES\s*-{3,}/i);
     // Strip surrounding quotes or a leaked name prefix if the model adds one.
+    // (Escape the name — a bot name with regex metacharacters must not throw.)
+    const safeName = this.botName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const text = rawMsg
       .trim()
       .replace(/^["']|["']$/g, '')
-      .replace(new RegExp(`^${this.botName}\\s*:\\s*`, 'i'), '');
+      .replace(new RegExp(`^${safeName}\\s*:\\s*`, 'i'), '');
     return {
       text,
       notes: rawNotes ? rawNotes.trim().slice(0, 1000) : null,

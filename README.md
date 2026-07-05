@@ -28,7 +28,8 @@ Closing the window **minimizes to the system tray** — the ghost keeps chatting
 Quit from the tray menu.
 
 **Tray menu:** Open Dashboard · Copy Overlay URL (for OBS) · Pause Ghost · Settings ·
-Run Setup Wizard · Edit Config (raw JSON) · Start with Windows · Quit.
+Run Setup Wizard · Edit Config (raw JSON) · Open Config Folder · Start with Windows ·
+Quit Hype Ghost.
 
 ## Setup notes
 
@@ -71,13 +72,21 @@ Run Setup Wizard · Edit Config (raw JSON) · Start with Windows · Quit.
 
 ## Cost
 
-~$0.005 per message on Sonnet 5 (screenshot ~480 tokens at 800px + cached system prompt +
+~$0.005 per message on Sonnet 5 (screenshot ~480 tokens at 800px + system prompt +
 history/transcript/notes). At a 90s solo cadence that's ~40 messages/hour ≈ **$0.20/hour**.
+The dashboard's cost pill shows the real number live, and if OBS disappears for 10 minutes
+the ghost **auto-pauses** so a forgotten tray app can't burn money overnight — it resumes
+by itself when OBS is back (Settings → App).
 
-## Privacy
+## Privacy & security
 
 Screenshots of your stream and (if enabled) your mic transcript go to the Anthropic API to
 generate messages, and nowhere else. Speech-to-text runs entirely locally inside OBS.
+The local server binds to 127.0.0.1 only, validates the Host header, and rejects WebSocket
+connections from foreign origins, so other websites can't peek at your chat or transcript.
+Two honest notes: your API key is stored **unencrypted** in `%APPDATA%\Hype Ghost\config.json`
+(treat that folder like a password, and note it survives uninstall), and auto-updates are
+**unsigned** — they're only as trustworthy as the GitHub account that publishes them.
 Nothing is sent to Twitch except the optional read-only viewer-count check.
 
 ## Development

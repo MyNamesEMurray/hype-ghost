@@ -14,6 +14,8 @@ export class ObsCapture {
     this.screenshotWidth = screenshotWidth ?? 800;
     this.obs = new OBSWebSocket();
     this.connected = false;
+    this.connectPromise = null; // dedupes concurrent connect attempts
+    this.nextAttemptAt = 0; // reconnect backoff while OBS is closed
 
     this.obs.on('ConnectionClosed', () => {
       this.connected = false;
@@ -22,8 +24,26 @@ export class ObsCapture {
 
   async ensureConnected() {
     if (this.connected) return;
-    await this.obs.connect(this.url, this.password);
-    this.connected = true;
+    // Concurrent callers (screenshot loop + transcript poll) share one
+    // attempt instead of racing connects on the same socket.
+    if (this.connectPromise) return this.connectPromise;
+    if (Date.now() < this.nextAttemptAt) throw new Error('OBS not reachable (retrying shortly)');
+    this.connectPromise = this.obs
+      .connect(this.url, this.password)
+      .then(() => {
+        this.connected = true;
+        this.nextAttemptAt = 0;
+      })
+      .catch((err) => {
+        // Back off so a closed OBS isn't hammered with a TCP connect every
+        // 2s poll — one attempt per 30s is plenty to notice it coming back.
+        this.nextAttemptAt = Date.now() + 30_000;
+        throw err;
+      })
+      .finally(() => {
+        this.connectPromise = null;
+      });
+    return this.connectPromise;
   }
 
   /**

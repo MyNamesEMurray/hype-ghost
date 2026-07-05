@@ -4,74 +4,43 @@
 <meta charset="utf-8">
 <title>Hype Ghost — Practice Chat</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/theme.css">
 <style>
-  :root {
-    --bg: #0f0f14; --panel: #1a1a23; --border: #2c2c3a;
-    --text: #e8e8f0; --dim: #8a8a9e; --accent: #9b6dff; --bot: #6dc2ff;
-    color-scheme: dark; /* native controls (dropdown lists, scrollbars) render dark */
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; height: 100vh; display: flex; flex-direction: column;
-    background: var(--bg); color: var(--text);
-    font: 15px/1.45 "Segoe UI", system-ui, sans-serif;
-  }
+  /* layout only — tokens & components come from theme.css */
+  body { height: 100vh; display: flex; flex-direction: column; }
   header {
     padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--border);
     display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
   }
-  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
-  header h1 span { color: var(--accent); }
-  .pill {
-    font-size: 12px; padding: 2px 10px; border-radius: 999px;
-    border: 1px solid var(--border); color: var(--dim); white-space: nowrap;
-  }
-  .pill.good { color: #7ee49a; border-color: #2e5c3d; }
-  .pill.bad  { color: #ff8b8b; border-color: #5c2e2e; }
+  header .app-title span { color: var(--accent); }
   .spacer { flex: 1; }
-  button, select {
-    background: #26263300; color: var(--text); border: 1px solid var(--border);
-    border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer;
-  }
-  button:hover, select:hover { border-color: var(--accent); }
-  select { background: var(--panel); }
-  select option { background: var(--panel); color: var(--text); }
-  /* Mic pill gets a fixed width so live transcript updates never reflow the header */
-  #pill-mic {
-    flex: none; width: 190px; overflow: hidden;
-    text-overflow: ellipsis; text-align: left;
-  }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #14081f; font-weight: 600; }
+  /* dense toolbar: compact controls are a deliberate density override */
+  header button, header select { padding: 6px 12px; font-size: var(--fs-sm); }
+  header select { width: auto; }
+  /* mic pill is fixed-width so live transcript updates never reflow the header */
+  #pill-mic { flex: none; width: 190px; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+  #countdown { font-variant-numeric: tabular-nums; }
   #messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
   .msg { max-width: 720px; }
-  .msg .meta { font-size: 12px; color: var(--dim); margin-bottom: 2px; display: flex; gap: 6px; align-items: center; }
-  .msg .name { font-weight: 600; }
-  .msg.bot .name { color: var(--bot); }
+  .msg .meta { font-size: var(--fs-xs); color: var(--dim); margin-bottom: 2px; display: flex; gap: 6px; align-items: center; }
+  .msg .name { font-weight: 600; font-size: var(--fs-sm); }
+  .msg.bot .name { color: var(--ghost); }
   .msg.streamer .name { color: var(--accent); }
-  .badge {
-    font-size: 10px; font-weight: 700; letter-spacing: .5px; padding: 1px 6px;
-    border-radius: 4px; background: var(--bot); color: #06121c;
-  }
   .msg .text {
     background: var(--panel); border: 1px solid var(--border);
-    border-radius: 10px; padding: 8px 12px; display: inline-block;
+    border-radius: var(--r-md); padding: 8px 12px; display: inline-block;
   }
   .msg.streamer { align-self: flex-end; text-align: right; }
   .msg.streamer .meta { justify-content: flex-end; }
-  .msg.streamer .text { background: #241a33; border-color: #3c2c5a; }
-  .sys { align-self: center; font-size: 12px; color: #ffb86b; }
+  .msg.streamer .text { background: var(--accent-tint); border-color: var(--accent-tint-border); }
+  .sys { align-self: center; font-size: var(--fs-xs); color: var(--warn); }
   footer { padding: 12px 16px; background: var(--panel); border-top: 1px solid var(--border); display: flex; gap: 10px; }
-  footer input {
-    flex: 1; background: var(--bg); color: var(--text); border: 1px solid var(--border);
-    border-radius: 8px; padding: 10px 12px; font: inherit;
-  }
-  footer input:focus { outline: none; border-color: var(--accent); }
-  #countdown { font-variant-numeric: tabular-nums; }
+  footer input { flex: 1; }
 </style>
 </head>
 <body>
   <header>
-    <h1>👻 Hype Ghost <span id="botname"></span></h1>
+    <h1 class="app-title">👻 Hype Ghost <span id="botname"></span></h1>
     <span class="pill" id="pill-obs">OBS: …</span>
     <span class="pill" id="pill-key">API key: …</span>
     <span class="pill" id="pill-viewers">Viewers: …</span>
@@ -89,13 +58,13 @@
     </label>
     <button id="nudge">Say something</button>
     <button id="pause" class="primary">Pause</button>
-    <button id="settings" title="Settings" onclick="location.href='/settings'">⚙</button>
+    <button id="settings" aria-label="Settings" title="Settings" onclick="location.href='/settings'">⚙</button>
   </header>
 
   <div id="messages"></div>
 
   <footer>
-    <input id="input" placeholder="Reply to your practice chat… (the bot will answer)" autocomplete="off">
+    <input id="input" placeholder="Reply to your practice chat… (the ghost will answer)" autocomplete="off">
     <button id="send" class="primary">Send</button>
   </footer>
 
@@ -103,8 +72,7 @@
   const $ = (id) => document.getElementById(id);
   const messagesEl = $('messages');
   let state = {};
-
-  const ws = new WebSocket(`ws://${location.host}`);
+  let ws = null;
 
   function addMessage(m) {
     const div = document.createElement('div');
@@ -113,11 +81,12 @@
     div.innerHTML = `
       <div class="meta">
         <span class="name"></span>
-        ${m.role === 'bot' ? '<span class="badge">🤖 AI</span>' : ''}
+        ${m.role === 'bot' ? '<span class="badge-ai">🤖 AI</span>' : ''}
         <span>${time}</span>
       </div>
       <div class="text"></div>`;
-    div.querySelector('.name').textContent = m.author;
+    // your own messages read "You" here; the overlay keeps "Streamer" for viewers
+    div.querySelector('.name').textContent = m.role === 'streamer' ? 'You' : m.author;
     div.querySelector('.text').textContent = m.text;
     messagesEl.appendChild(div);
     messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -154,6 +123,25 @@
     renderCost();
   }
 
+  function renderMic() {
+    const pill = $('pill-mic');
+    if (!state.transcriptMode || state.transcriptMode === 'off') {
+      pill.textContent = 'Mic: off';
+      pill.className = 'pill';
+      return;
+    }
+    const heardRecently = state.lastHeard && Date.now() - state.lastHeard.ts < 15000;
+    if (heardRecently) {
+      // fixed-width pill + CSS ellipsis truncates; title shows the full line
+      pill.textContent = '🎙 ' + state.lastHeard.text;
+      pill.title = state.lastHeard.text;
+      pill.className = 'pill good';
+    } else {
+      pill.textContent = state.lastHeard ? 'Mic: quiet' : 'Mic: waiting…';
+      pill.className = 'pill';
+    }
+  }
+
   function renderCost() {
     const pill = $('pill-cost');
     const u = state.usage;
@@ -165,28 +153,9 @@
     pill.title = `This session: ${u.messages} messages, ${u.inputTokens.toLocaleString()} input + ${u.outputTokens.toLocaleString()} output tokens`;
   }
 
-  function renderMic() {
-    const pill = $('pill-mic');
-    if (!state.transcriptMode || state.transcriptMode === 'off') {
-      pill.textContent = 'Mic: off';
-      pill.className = 'pill';
-      return;
-    }
-    const heardRecently = state.lastHeard && Date.now() - state.lastHeard.ts < 15000;
-    if (heardRecently) {
-      // Fixed-width pill + CSS ellipsis handles truncation; title shows the full line.
-      pill.textContent = '🎙 ' + state.lastHeard.text;
-      pill.title = state.lastHeard.text;
-      pill.className = 'pill good';
-    } else {
-      pill.textContent = state.lastHeard ? 'Mic: quiet' : 'Mic: waiting…';
-      pill.className = 'pill';
-    }
-  }
-
   setInterval(() => {
     const el = $('countdown');
-    if (state.paused) { el.textContent = 'paused'; return; }
+    if (state.paused) { el.textContent = state.autoPaused ? 'auto-paused (OBS gone)' : 'paused'; return; }
     if (state.busy) { el.textContent = 'typing…'; return; }
     if (!state.nextMessageAt) { el.textContent = ''; return; }
     const s = Math.max(0, Math.round((state.nextMessageAt - Date.now()) / 1000));
@@ -194,35 +163,51 @@
   }, 500);
   setInterval(renderMic, 2000); // "hearing you" indicator is time-based
 
-  ws.onmessage = (ev) => {
-    const msg = JSON.parse(ev.data);
-    if (msg.type === 'init') {
-      state = msg.state;
-      messagesEl.innerHTML = '';
-      msg.history.forEach(addMessage);
-      renderState();
-    } else if (msg.type === 'chat') {
-      addMessage(msg.msg);
-    } else if (msg.type === 'state') {
-      state = msg.state;
-      renderState();
-    } else if (msg.type === 'system') {
-      addSystem(msg.text);
-    }
-  };
-  ws.onclose = () => addSystem('Disconnected from server — is it still running?');
+  // auto-reconnect: the dashboard survives server restarts and sleep/wake
+  let announcedDrop = false;
+  function connect() {
+    ws = new WebSocket(`ws://${location.host}`);
+    ws.onopen = () => { announcedDrop = false; };
+    ws.onmessage = (ev) => {
+      const msg = JSON.parse(ev.data);
+      if (msg.type === 'init') {
+        state = msg.state;
+        messagesEl.innerHTML = '';
+        msg.history.forEach(addMessage);
+        renderState();
+      } else if (msg.type === 'chat') {
+        addMessage(msg.msg);
+      } else if (msg.type === 'state') {
+        state = msg.state;
+        renderState();
+      } else if (msg.type === 'system') {
+        addSystem(msg.text);
+      }
+    };
+    ws.onclose = () => {
+      if (!announcedDrop) {
+        announcedDrop = true;
+        addSystem('Connection lost — reconnecting…');
+      }
+      setTimeout(connect, 3000);
+    };
+  }
+  connect();
 
+  function sendCmd(cmd) {
+    if (ws && ws.readyState === 1) ws.send(JSON.stringify(cmd));
+  }
   function send() {
     const text = $('input').value.trim();
     if (!text) return;
-    ws.send(JSON.stringify({ type: 'streamer_message', text }));
+    sendCmd({ type: 'streamer_message', text });
     $('input').value = '';
   }
   $('send').onclick = send;
   $('input').addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
-  $('pause').onclick = () => ws.send(JSON.stringify({ type: state.paused ? 'resume' : 'pause' }));
-  $('nudge').onclick = () => ws.send(JSON.stringify({ type: 'nudge' }));
-  $('mode').onchange = (e) => ws.send(JSON.stringify({ type: 'override_viewers', value: e.target.value }));
+  $('pause').onclick = () => sendCmd({ type: state.paused ? 'resume' : 'pause' });
+  $('nudge').onclick = () => sendCmd({ type: 'nudge' });
+  $('mode').onchange = (e) => sendCmd({ type: 'override_viewers', value: e.target.value });
 </script>
 </body>
 </html>

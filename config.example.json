@@ -7,7 +7,9 @@
   },
   "app": {
     "autoUpdate": true,
-    "costMeter": true
+    "costMeter": true,
+    "autoPause": true,
+    "autoPauseMinutes": 10
   },
   "stream": {
     "context": ""
@@ -44,6 +46,7 @@
     "burstChance": 0.15,
     "lullChance": 0.15,
     "replyDelaySeconds": 6,
+    "minVoiceReplyGapSeconds": 35,
     "viewerPollSeconds": 60,
     "transcriptWindowSeconds": 120,
     "minScreenshotGapSeconds": 25
