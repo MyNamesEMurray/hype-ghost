@@ -29,6 +29,7 @@
   "build": {
     "appId": "com.hypeghost.app",
     "productName": "Hype Ghost",
+    "artifactName": "Hype-Ghost-Setup-${version}.${ext}",
     "publish": {
       "provider": "github",
       "owner": "MyNamesEMurray",
