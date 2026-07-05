@@ -2,11 +2,20 @@
   "port": 3777,
   "bot": {
     "name": "Beacon",
-    "personality": "friendly, curious, a little goofy; loves asking questions about whatever is on screen"
+    "personality": "friendly, curious, a little goofy; loves asking questions about whatever is on screen",
+    "language": "English"
   },
+  "app": {
+    "autoUpdate": true,
+    "costMeter": true
+  },
+  "stream": {
+    "context": ""
+  },
+  "talkingPoints": [],
   "anthropic": {
     "apiKey": "",
-    "model": "claude-opus-4-8"
+    "model": "claude-sonnet-5"
   },
   "obs": {
     "url": "ws://127.0.0.1:4455",

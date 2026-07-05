@@ -44,7 +44,29 @@ export function startServer(opts = {}) {
     model: config.anthropic?.model || 'claude-sonnet-5',
     botName: config.bot?.name || 'Beacon',
     personality: config.bot?.personality || 'friendly and curious',
+    language: config.bot?.language || 'English',
   });
+
+  // $/MTok [input, output] for the cost meter; cache reads bill at 10% of
+  // input, cache writes at 125%. Unknown models show token counts only.
+  const PRICES = {
+    'claude-sonnet-5': [3, 15],
+    'claude-haiku-4-5': [1, 5],
+    'claude-opus-4-8': [5, 25],
+  };
+  function messageCost(usage) {
+    const model = config.anthropic?.model || '';
+    const key = Object.keys(PRICES).find((k) => model.startsWith(k));
+    if (!key || !usage) return null;
+    const [inRate, outRate] = PRICES[key];
+    return (
+      ((usage.input_tokens || 0) * inRate +
+        (usage.output_tokens || 0) * outRate +
+        (usage.cache_read_input_tokens || 0) * inRate * 0.1 +
+        (usage.cache_creation_input_tokens || 0) * inRate * 1.25) /
+      1_000_000
+    );
+  }
 
   // ---------- state ----------
   const state = {
@@ -60,6 +82,8 @@ export function startServer(opts = {}) {
     busy: false,
     transcriptMode: config.transcript?.mode || 'off',
     lastHeard: null,
+    costMeter: config.app?.costMeter !== false,
+    usage: { messages: 0, inputTokens: 0, outputTokens: 0, cost: 0, costKnown: true },
   };
 
   const history = []; // {id, author, role: 'bot'|'streamer', text, ts}
@@ -130,6 +154,16 @@ export function startServer(opts = {}) {
       res.json({ ok: true });
     } catch (err) {
       res.json({ ok: false, error: err.message });
+    }
+  });
+
+  app.post('/api/install-overlay', async (_req, res) => {
+    try {
+      const result = await obs.installOverlay(`http://localhost:${config.port ?? 3777}/overlay`);
+      state.obsConnected = obs.connected;
+      res.json({ ok: true, ...result });
+    } catch (err) {
+      res.json({ ok: false, error: 'Could not reach OBS — is it running with the WebSocket server enabled? (' + err.message + ')' });
     }
   });
 
@@ -209,6 +243,7 @@ export function startServer(opts = {}) {
   // ---------- bot loop ----------
   let timer = null;
   let lastShotAt = 0;
+  let lastSceneName = null;
 
   // Real chat rhythm isn't uniform: mostly normal gaps (± jitter), but sometimes
   // a quick burst follow-up, and sometimes a long lull of dead air.
@@ -262,9 +297,18 @@ export function startServer(opts = {}) {
       } else {
         screenshot = await obs.screenshot();
         state.obsConnected = obs.connected;
-        if (screenshot) lastShotAt = Date.now();
+        if (screenshot) {
+          lastShotAt = Date.now();
+          lastSceneName = screenshot.sceneName ?? lastSceneName;
+        }
       }
       const updateNotes = memoryEnabled && (botMessageCount + 1) % memoryUpdateEvery === 0;
+      // Occasionally steer toward a streamer-provided talking point (never on replies).
+      const points = Array.isArray(config.talkingPoints) ? config.talkingPoints.filter(Boolean) : [];
+      const talkingPoint =
+        points.length && (trigger === 'timer' || trigger === 'nudge') && Math.random() < 0.3
+          ? points[Math.floor(Math.random() * points.length)]
+          : undefined;
       const result = await brain.generate({
         history: history.slice(-14),
         screenshot,
@@ -274,7 +318,21 @@ export function startServer(opts = {}) {
         transcript: transcriptFeed.getWindow() || undefined,
         notes: sessionNotes || undefined,
         updateNotes,
+        sceneName: lastSceneName || undefined,
+        streamContext: config.stream?.context || undefined,
+        talkingPoint,
       });
+      if (result.usage) {
+        const cost = messageCost(result.usage);
+        state.usage.messages++;
+        state.usage.inputTokens +=
+          (result.usage.input_tokens || 0) +
+          (result.usage.cache_read_input_tokens || 0) +
+          (result.usage.cache_creation_input_tokens || 0);
+        state.usage.outputTokens += result.usage.output_tokens || 0;
+        if (cost === null) state.usage.costKnown = false;
+        else state.usage.cost += cost;
+      }
       if (result.text) {
         pushMessage('bot', state.botName, result.text);
         botMessageCount++;

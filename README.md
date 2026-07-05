@@ -35,8 +35,11 @@ Run Setup Wizard · Edit Config (raw JSON) · Start with Windows · Quit.
 - The wizard covers the essentials; for everything else there's a full **Settings** page
   (⚙ in the dashboard, or tray → **Settings**) with live API-key and OBS connection tests.
   Under the hood it's all `%APPDATA%\Hype Ghost\config.json` — full reference below.
-- **Overlay:** in OBS, add a **Browser Source** with URL `http://localhost:3777/overlay`,
-  ~460×600, transparent background. This puts the chat on your stream/VOD.
+- **Overlay:** Settings → Stream → **Add overlay to OBS** creates the browser source for you
+  (or add one manually: URL `http://localhost:3777/overlay`, ~460×600, transparent). This
+  puts the chat on your stream/VOD.
+- **Updates:** the app checks GitHub Releases at launch and updates itself (toggle in
+  Settings → App).
 - **Voice awareness:** install the
   [LocalVocal](https://obsproject.com/forum/resources/localvocal-local-live-captions-translation-on-the-go.1769/)
   OBS plugin (local whisper.cpp — audio never leaves your PC), add its Transcription filter
@@ -48,6 +51,11 @@ Run Setup Wizard · Edit Config (raw JSON) · Start with Windows · Quit.
 
 | Setting | What it is |
 |---|---|
+| `app.autoUpdate` | Check GitHub for new versions at launch and update automatically (default true). |
+| `app.costMeter` | Show the live session cost pill on the dashboard (default true). |
+| `bot.language` | Language the ghost chats in (default English). |
+| `stream.context` | Standing context about your stream (game, format, vibe) the ghost always knows. It also sees your current OBS scene name automatically. |
+| `talkingPoints` | Topics you want covered; the ghost works one in occasionally when it fits naturally. |
 | `anthropic.apiKey` | Anthropic API key (console.anthropic.com), or set `ANTHROPIC_API_KEY` env var. |
 | `anthropic.model` | `claude-sonnet-5` is the sweet spot; `claude-haiku-4-5` ~3x cheaper, `claude-opus-4-8` ~3x pricier and chattiest. |
 | `bot.name` / `bot.personality` | The ghost's chat name and vibe. |

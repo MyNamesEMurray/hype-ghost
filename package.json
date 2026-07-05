@@ -1,6 +1,6 @@
 {
   "name": "hype-ghost",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "AI practice chat for streamers",
   "type": "module",
   "main": "electron/main.js",
@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
+    "electron-updater": "^6.3.9",
     "express": "^4.21.0",
     "obs-websocket-js": "^5.0.6",
     "ws": "^8.18.0"
@@ -28,6 +29,11 @@
   "build": {
     "appId": "com.hypeghost.app",
     "productName": "Hype Ghost",
+    "publish": {
+      "provider": "github",
+      "owner": "MyNamesEMurray",
+      "repo": "hype-ghost"
+    },
     "files": [
       "electron/**",
       "src/**",

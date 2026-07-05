@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Tray, Menu, shell, clipboard, nativeImage, dialog } from 'electron';
-import { existsSync, copyFileSync, mkdirSync } from 'node:fs';
+import electronUpdater from 'electron-updater';
+import { existsSync, copyFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { startServer } from '../src/server.js';
@@ -150,6 +151,18 @@ app.whenReady().then(() => {
   }
   createWindow();
   createTray();
+
+  // Auto-update from GitHub Releases (configurable: app.autoUpdate in config.json).
+  // Downloads in the background and installs on quit; notifies when ready.
+  let autoUpdateEnabled = true;
+  try {
+    autoUpdateEnabled = JSON.parse(readFileSync(configPath, 'utf8')).app?.autoUpdate !== false;
+  } catch {}
+  if (app.isPackaged && !SMOKE && autoUpdateEnabled) {
+    electronUpdater.autoUpdater
+      .checkForUpdatesAndNotify()
+      .catch((err) => console.warn('[update] check failed:', err.message));
+  }
 
   if (SMOKE) {
     // Verify the server responds, then exit with a pass/fail code.

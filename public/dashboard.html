@@ -76,6 +76,7 @@
     <span class="pill" id="pill-key">API key: …</span>
     <span class="pill" id="pill-viewers">Viewers: …</span>
     <span class="pill" id="pill-mic" title="Mic transcription via the LocalVocal OBS plugin">Mic: …</span>
+    <span class="pill" id="pill-cost" style="display:none"></span>
     <span class="pill" id="countdown"></span>
     <div class="spacer"></div>
     <label class="pill" style="display:flex;align-items:center;gap:6px;">
@@ -150,6 +151,18 @@
     $('pause').textContent = state.paused ? 'Resume' : 'Pause';
     $('pause').className = state.paused ? '' : 'primary';
     renderMic();
+    renderCost();
+  }
+
+  function renderCost() {
+    const pill = $('pill-cost');
+    const u = state.usage;
+    if (!state.costMeter || !u || u.messages === 0) { pill.style.display = 'none'; return; }
+    pill.style.display = '';
+    pill.textContent = u.costKnown
+      ? `$${u.cost.toFixed(3)} · ${u.messages} msgs`
+      : `${u.messages} msgs · ${Math.round((u.inputTokens + u.outputTokens) / 1000)}k tokens`;
+    pill.title = `This session: ${u.messages} messages, ${u.inputTokens.toLocaleString()} input + ${u.outputTokens.toLocaleString()} output tokens`;
   }
 
   function renderMic() {

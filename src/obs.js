@@ -44,11 +44,33 @@ export class ObsCapture {
       const match = /^data:(image\/[a-z]+);base64,(.+)$/s.exec(imageData);
       if (!match) return null;
       const mediaType = match[1] === 'image/jpg' ? 'image/jpeg' : match[1];
-      return { data: match[2], mediaType };
+      return { data: match[2], mediaType, sceneName: currentProgramSceneName };
     } catch (err) {
       this.connected = false;
       return null;
     }
+  }
+
+  /**
+   * One-click overlay: create (or repoint) a browser source named
+   * "Hype Ghost Overlay" in the current program scene.
+   */
+  async installOverlay(url) {
+    await this.ensureConnected();
+    const NAME = 'Hype Ghost Overlay';
+    const { inputs } = await this.obs.call('GetInputList');
+    if (inputs.some((i) => i.inputName === NAME)) {
+      await this.obs.call('SetInputSettings', { inputName: NAME, inputSettings: { url } });
+      return { created: false };
+    }
+    const { currentProgramSceneName } = await this.obs.call('GetCurrentProgramScene');
+    await this.obs.call('CreateInput', {
+      sceneName: currentProgramSceneName,
+      inputName: NAME,
+      inputKind: 'browser_source',
+      inputSettings: { url, width: 460, height: 600 },
+    });
+    return { created: true, scene: currentProgramSceneName };
   }
 
   /**

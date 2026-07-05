@@ -27,11 +27,12 @@ function pickStyle() {
  * conversation, produce one short chat message.
  */
 export class Brain {
-  constructor({ apiKey, model, botName, personality }) {
+  constructor({ apiKey, model, botName, personality, language }) {
     this.client = new Anthropic(apiKey ? { apiKey } : {});
     this.model = model;
     this.botName = botName;
     this.personality = personality;
+    this.language = language || 'English';
   }
 
   buildSystemPrompt() {
@@ -54,6 +55,7 @@ export class Brain {
       `that hydra fight") are what make you feel like you've actually been watching.`,
       ``,
       `Rules for every message:`,
+      `- Write every chat message in ${this.language}.`,
       `- Write like a real Twitch chatter: casual, lowercase, imperfect punctuation, no markdown.`,
       `- Most chat messages are NOT questions. They're reactions, observations, jokes, hot takes.`,
       `  Follow the style instruction you're given for each message.`,
@@ -80,9 +82,12 @@ export class Brain {
    * @param {string} [opts.transcript] what the streamer said on mic recently
    * @param {string} [opts.notes] rolling session memory from earlier in the stream
    * @param {boolean} [opts.updateNotes] ask the model to also return refreshed session notes
-   * @returns {Promise<{text: string, notes: string|null}>} chat message + updated notes (if requested)
+   * @param {string} [opts.sceneName] current OBS scene name (game awareness)
+   * @param {string} [opts.streamContext] streamer-provided context hint (what/how they stream)
+   * @param {string} [opts.talkingPoint] a topic the streamer wants worked in naturally
+   * @returns {Promise<{text: string, notes: string|null, usage: object}>} message + notes + token usage
    */
-  async generate({ history, screenshot, staleScreenshot, mode, trigger, transcript, notes, updateNotes }) {
+  async generate({ history, screenshot, staleScreenshot, mode, trigger, transcript, notes, updateNotes, sceneName, streamContext, talkingPoint }) {
     const historyText = history.length
       ? history.map((m) => `${m.role === 'bot' ? this.botName + ' (you)' : 'Streamer'}: ${m.text}`).join('\n')
       : '(no messages yet — this is your first message of the stream)';
@@ -123,6 +128,12 @@ export class Brain {
         text: 'No screenshot is available right now (OBS not reachable), so go off the conversation and general encouragement instead — do not invent things you cannot see.',
       });
     }
+    if (sceneName || streamContext) {
+      const bits = [];
+      if (sceneName) bits.push(`Current OBS scene name: "${sceneName}"`);
+      if (streamContext) bits.push(`About this stream (from the streamer): ${streamContext}`);
+      content.push({ type: 'text', text: bits.join('\n') });
+    }
     if (notes) {
       content.push({
         type: 'text',
@@ -135,6 +146,9 @@ export class Brain {
         text: `Mic transcript — what the streamer said out loud recently (auto-generated, may contain errors):\n"${transcript}"`,
       });
     }
+    const pointInstruction = talkingPoint
+      ? `\n\nIf you can do it naturally this message, steer toward this topic the streamer wants to cover: "${talkingPoint}". If it would feel forced right now, skip it.`
+      : '';
     const notesInstruction = updateNotes
       ? `\n\nThen, after your chat message, on a new line write exactly ---NOTES--- followed by an ` +
         `updated version of your session notes: plain text, under 100 words, covering the current ` +
@@ -143,7 +157,7 @@ export class Brain {
       : '';
     content.push({
       type: 'text',
-      text: `${situation}\n\nRecent chat:\n${historyText}\n\n${task}${notesInstruction}`,
+      text: `${situation}\n\nRecent chat:\n${historyText}\n\n${task}${pointInstruction}${notesInstruction}`,
     });
 
     const response = await this.client.messages.create({
@@ -164,6 +178,10 @@ export class Brain {
       .trim()
       .replace(/^["']|["']$/g, '')
       .replace(new RegExp(`^${this.botName}\\s*:\\s*`, 'i'), '');
-    return { text, notes: rawNotes ? rawNotes.trim().slice(0, 1000) : null };
+    return {
+      text,
+      notes: rawNotes ? rawNotes.trim().slice(0, 1000) : null,
+      usage: response.usage, // input/output/cache token counts for the cost meter
+    };
   }
 }

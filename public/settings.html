@@ -17,14 +17,25 @@
     display: flex; justify-content: center;
   }
   #page { width: 680px; max-width: 94vw; padding: 24px 0 60px; }
-  header { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
   h1 { font-size: 21px; margin: 0; flex: 1; }
   a.back { color: var(--dim); text-decoration: none; font-size: 14px; }
   a.back:hover { color: var(--accent); }
+  #level { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  #level button { border: none; border-radius: 0; padding: 6px 14px; font-size: 13px; color: var(--dim); }
+  #level button.on { background: var(--accent); color: #14081f; font-weight: 600; }
+  #tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+  #tabs button {
+    border: 1px solid var(--border); border-radius: 999px; padding: 7px 16px;
+    font-size: 13.5px; color: var(--dim); background: transparent;
+  }
+  #tabs button.on { background: var(--panel); color: var(--text); border-color: var(--accent); }
+  body.simple .adv { display: none !important; }
   section {
     background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
-    padding: 18px 22px; margin-bottom: 14px;
+    padding: 18px 22px; margin-bottom: 14px; display: none;
   }
+  section.active { display: block; }
   section h2 { font-size: 15px; margin: 0 0 4px; }
   section .desc { font-size: 13px; color: var(--dim); margin: 0 0 8px; }
   label { display: block; font-size: 13px; color: var(--dim); margin: 12px 0 4px; }
@@ -39,11 +50,15 @@
   .row > div { flex: 1; }
   .check { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 14px; }
   .check input { width: auto; }
+  .check label { margin: 0; color: var(--text); }
   .hint { font-size: 12px; color: var(--dim); margin-top: 4px; }
   .test { margin-top: 10px; display: flex; align-items: center; gap: 10px; }
   .result { font-size: 13px; }
   .result.ok { color: var(--good); }
   .result.err { color: var(--bad); }
+  .withbtn { display: flex; gap: 8px; }
+  .withbtn input { flex: 1; }
+  .withbtn button { white-space: nowrap; }
   button {
     background: transparent; color: var(--text); border: 1px solid var(--border);
     border-radius: 8px; padding: 8px 16px; font: inherit; font-size: 14px; cursor: pointer;
@@ -55,14 +70,6 @@
     position: sticky; bottom: 0; background: linear-gradient(transparent, var(--bg) 30%);
     padding: 18px 0 14px; display: flex; gap: 12px; align-items: center;
   }
-  #level { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-  #level button { border: none; border-radius: 0; padding: 6px 14px; font-size: 13px; color: var(--dim); }
-  #level button.on { background: var(--accent); color: #14081f; font-weight: 600; }
-  body.simple .adv { display: none !important; }
-  .withbtn { display: flex; gap: 8px; }
-  .withbtn input { flex: 1; }
-  .withbtn button { white-space: nowrap; }
-  #saveResult { font-size: 13px; }
   a { color: var(--accent); }
 </style>
 </head>
@@ -77,17 +84,40 @@
     <a class="back" href="/">← Back to dashboard</a>
   </header>
 
-  <section>
+  <div id="tabs">
+    <button data-tab="ghost">👻 Ghost</button>
+    <button data-tab="brain">🧠 Brain</button>
+    <button data-tab="stream">📷 Stream</button>
+    <button data-tab="voice">🎙 Voice</button>
+    <button data-tab="behavior">💬 Behavior</button>
+    <button data-tab="app">🔧 App</button>
+  </div>
+
+  <!-- ============ GHOST ============ -->
+  <section data-tab="ghost">
     <h2>👻 Ghost</h2>
-    <p class="desc">Who shows up in your chat.</p>
-    <div class="row">
-      <div><label>Chat name</label><input type="text" data-path="bot.name" maxlength="24"></div>
-    </div>
+    <p class="desc">Who shows up in your chat, and what they know about your stream.</p>
+    <label>Chat name</label>
+    <input type="text" data-path="bot.name" maxlength="24">
     <label>Personality</label>
     <textarea data-path="bot.personality"></textarea>
+    <label>Chat language</label>
+    <input type="text" data-path="bot.language" list="langs" placeholder="English">
+    <datalist id="langs">
+      <option>English</option><option>Spanish</option><option>Portuguese</option>
+      <option>French</option><option>German</option><option>Japanese</option><option>Korean</option>
+    </datalist>
+    <p class="hint">The ghost writes all messages in this language.</p>
+    <label>About your stream (optional)</label>
+    <textarea data-path="stream.context" placeholder="e.g. Variety streamer, mostly roguelikes; chill vibes; currently doing a Hades 100% run"></textarea>
+    <p class="hint">Standing context the ghost always knows — game, format, vibe. It also sees your current OBS scene name automatically.</p>
+    <label>Talking points (one per line, optional)</label>
+    <textarea id="talkingPoints" placeholder="ask me about the new PC build&#10;remind viewers about the charity stream Saturday"></textarea>
+    <p class="hint">Topics you want covered — the ghost works one in occasionally, only when it fits naturally.</p>
   </section>
 
-  <section>
+  <!-- ============ BRAIN ============ -->
+  <section data-tab="brain">
     <h2>🧠 Brain</h2>
     <p class="desc">Messages are generated with the Claude API — keys at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>.</p>
     <label>Anthropic API key</label>
@@ -99,22 +129,31 @@
       <option value="claude-opus-4-8">Opus — premium (~$0.60/hr)</option>
     </select>
     <div class="test"><button id="testKey">Test key</button><span class="result" id="keyResult"></span></div>
+    <div class="check adv">
+      <input type="checkbox" id="costMeter" data-path="app.costMeter" data-type="bool">
+      <label for="costMeter">Show the session cost meter on the dashboard</label>
+    </div>
   </section>
 
-  <section>
-    <h2>📷 OBS</h2>
+  <!-- ============ STREAM ============ -->
+  <section data-tab="stream">
+    <h2>📷 Stream (OBS)</h2>
     <p class="desc">How the ghost sees your stream. OBS → Tools → WebSocket Server Settings.</p>
     <div class="row">
       <div><label>WebSocket URL</label><input type="text" data-path="obs.url"></div>
       <div><label>Password</label><input type="password" data-path="obs.password"></div>
     </div>
+    <div class="test"><button id="testObs">Test connection</button><span class="result" id="obsResult"></span></div>
+    <label style="margin-top:18px">On-stream overlay</label>
+    <div class="test" style="margin-top:2px"><button id="installOverlay">Add overlay to OBS</button><span class="result" id="overlayResult"></span></div>
+    <p class="hint">Creates a "Hype Ghost Overlay" browser source in your current scene (position/resize it in OBS, copy it to other scenes as needed). Manual URL: <b>http://localhost:3777/overlay</b>, ~460×600.</p>
     <label class="adv">Screenshot width (px)</label>
     <input class="adv" type="number" data-path="obs.screenshotWidth" min="320" max="1920">
     <p class="hint adv">Bigger = the ghost reads finer on-screen detail but costs more (image tokens scale with pixels). 800 is the sweet spot.</p>
-    <div class="test"><button id="testObs">Test connection</button><span class="result" id="obsResult"></span></div>
   </section>
 
-  <section>
+  <!-- ============ VOICE ============ -->
+  <section data-tab="voice">
     <h2>🎙 Voice awareness</h2>
     <p class="desc">Local mic transcription via the <a href="https://obsproject.com/forum/resources/localvocal-local-live-captions-translation-on-the-go.1769/" target="_blank">LocalVocal</a> OBS plugin, so answering out loud is replying.</p>
     <label>Mode</label>
@@ -140,7 +179,8 @@
     </div>
   </section>
 
-  <section>
+  <!-- ============ BEHAVIOR ============ -->
+  <section data-tab="behavior">
     <h2>💬 Cadence</h2>
     <p class="desc">How often the ghost talks. Real rhythm: normal gaps ± jitter, occasional quick bursts and long lulls.</p>
     <div class="row">
@@ -156,37 +196,43 @@
       <div><label>Reply delay after you type (s)</label><input type="number" data-path="cadence.replyDelaySeconds" min="2" max="60"></div>
       <div><label>Min gap between screenshots (s)</label><input type="number" data-path="cadence.minScreenshotGapSeconds" min="0" max="300"></div>
     </div>
+    <div class="adv" style="margin-top:20px">
+      <h2>📝 Session memory</h2>
+      <p class="desc">The ghost keeps compact running notes on the stream so it can call back to earlier moments.</p>
+      <div class="check">
+        <input type="checkbox" id="memEnabled" data-path="memory.enabled" data-type="bool">
+        <label for="memEnabled">Enable session memory</label>
+      </div>
+      <label>Refresh notes every N messages</label>
+      <input type="number" data-path="memory.updateEvery" min="2" max="20">
+    </div>
   </section>
 
-  <section class="adv">
-    <h2>📝 Session memory</h2>
-    <p class="desc">The ghost keeps compact running notes on the stream so it can call back to earlier moments.</p>
+  <!-- ============ APP ============ -->
+  <section data-tab="app">
+    <h2>🔧 App</h2>
     <div class="check">
-      <input type="checkbox" id="memEnabled" data-path="memory.enabled" data-type="bool">
-      <label for="memEnabled" style="margin:0;color:var(--text)">Enable session memory</label>
+      <input type="checkbox" id="autoUpdate" data-path="app.autoUpdate" data-type="bool">
+      <label for="autoUpdate">Update automatically (checks GitHub for new versions at launch)</label>
     </div>
-    <label>Refresh notes every N messages</label>
-    <input type="number" data-path="memory.updateEvery" min="2" max="20">
-  </section>
-
-  <section class="adv">
-    <h2>📺 Twitch viewer detection</h2>
-    <p class="desc">Optional, read-only viewer count check so the ghost auto-quiets when real people arrive. App credentials at <a href="https://dev.twitch.tv/console" target="_blank">dev.twitch.tv/console</a>.</p>
-    <label>Channel name</label>
-    <input type="text" data-path="twitch.channel">
-    <div class="row">
-      <div><label>Client ID</label><input type="text" data-path="twitch.clientId"></div>
-      <div><label>Client secret</label><input type="password" data-path="twitch.clientSecret"></div>
+    <div class="adv" style="margin-top:20px">
+      <h2>📺 Twitch viewer detection</h2>
+      <p class="desc">Optional, read-only viewer count check so the ghost auto-quiets when real people arrive. App credentials at <a href="https://dev.twitch.tv/console" target="_blank">dev.twitch.tv/console</a>.</p>
+      <label>Channel name</label>
+      <input type="text" data-path="twitch.channel">
+      <div class="row">
+        <div><label>Client ID</label><input type="text" data-path="twitch.clientId"></div>
+        <div><label>Client secret</label><input type="password" data-path="twitch.clientSecret"></div>
+      </div>
+      <label>Poll every (seconds)</label>
+      <input type="number" data-path="cadence.viewerPollSeconds" min="30" max="600">
     </div>
-    <label>Poll every (seconds)</label>
-    <input type="number" data-path="cadence.viewerPollSeconds" min="30" max="600">
-  </section>
-
-  <section class="adv">
-    <h2>🔧 Advanced</h2>
-    <label>Local server port (dashboard + overlay)</label>
-    <input type="number" data-path="port" min="1024" max="65535">
-    <p class="hint">If you change this, update the overlay Browser Source URL in OBS to match.</p>
+    <div class="adv" style="margin-top:20px">
+      <h2>Advanced</h2>
+      <label>Local server port (dashboard + overlay)</label>
+      <input type="number" data-path="port" min="1024" max="65535">
+      <p class="hint">If you change this, update the overlay Browser Source URL in OBS to match (or click "Add overlay to OBS" again after restarting).</p>
+    </div>
   </section>
 
   <div id="savebar">
@@ -208,7 +254,17 @@
     o[keys.at(-1)] = v;
   };
 
-  // Simple shows the essentials; Advanced reveals every knob. Sticky per user.
+  // ---- tabs ----
+  const tabButtons = [...document.querySelectorAll('#tabs button')];
+  function setTab(name) {
+    tabButtons.forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
+    document.querySelectorAll('section').forEach((s) => s.classList.toggle('active', s.dataset.tab === name));
+    localStorage.setItem('hg-settings-tab', name);
+  }
+  tabButtons.forEach((b) => (b.onclick = () => setTab(b.dataset.tab)));
+  setTab(localStorage.getItem('hg-settings-tab') || 'ghost');
+
+  // ---- simple / advanced ----
   function setLevel(adv) {
     document.body.classList.toggle('simple', !adv);
     $('lvlSimple').classList.toggle('on', !adv);
@@ -219,10 +275,56 @@
   $('lvlAdv').onclick = () => setLevel(true);
   setLevel(localStorage.getItem('hg-settings-level') === 'adv');
 
+  // ---- prefill ----
+  fetch('/api/config').then((r) => r.json()).then(({ config }) => {
+    cfg = config;
+    for (const f of fields) {
+      const v = getPath(cfg, f.dataset.path);
+      if (f.dataset.type === 'bool') f.checked = v !== false;
+      else if (v !== undefined) f.value = v;
+    }
+    $('talkingPoints').value = (cfg.talkingPoints || []).join('\n');
+  });
+
+  // ---- action buttons ----
+  const val = (path) => fields.find((f) => f.dataset.path === path).value;
+
+  $('testKey').onclick = async () => {
+    const el = $('keyResult');
+    el.className = 'result'; el.textContent = 'testing…';
+    const r = await fetch('/api/test-key', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey: val('anthropic.apiKey').trim(), model: val('anthropic.model') }),
+    }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
+    el.className = 'result ' + (r.ok ? 'ok' : 'err');
+    el.textContent = r.ok ? '✓ key works' : '✗ ' + (r.error || 'failed');
+  };
+
+  $('testObs').onclick = async () => {
+    const el = $('obsResult');
+    el.className = 'result'; el.textContent = 'testing…';
+    const r = await fetch('/api/test-obs', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: val('obs.url').trim(), password: val('obs.password') }),
+    }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
+    el.className = 'result ' + (r.ok ? 'ok' : 'err');
+    el.textContent = r.ok ? `✓ connected — current scene: "${r.scene}"` : '✗ ' + (r.error || 'failed');
+  };
+
+  $('installOverlay').onclick = async () => {
+    const el = $('overlayResult');
+    el.className = 'result'; el.textContent = 'adding…';
+    const r = await fetch('/api/install-overlay', { method: 'POST' })
+      .then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
+    el.className = 'result ' + (r.ok ? 'ok' : 'err');
+    el.textContent = r.ok
+      ? r.created ? `✓ added to scene "${r.scene}" — position it in OBS` : '✓ already in OBS — URL refreshed'
+      : '✗ ' + (r.error || 'failed');
+  };
+
   $('browseFile').onclick = async () => {
     const r = await fetch('/api/pick-file', { method: 'POST' })
-      .then((x) => x.json())
-      .catch((e) => ({ ok: false, error: e.message }));
+      .then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
     if (r.ok && r.path) {
       fields.find((f) => f.dataset.path === 'transcript.file').value = r.path;
       const mode = fields.find((f) => f.dataset.path === 'transcript.mode');
@@ -232,41 +334,7 @@
     }
   };
 
-  fetch('/api/config').then((r) => r.json()).then(({ config }) => {
-    cfg = config;
-    for (const f of fields) {
-      const v = getPath(cfg, f.dataset.path);
-      if (f.dataset.type === 'bool') f.checked = v !== false;
-      else if (v !== undefined) f.value = v;
-    }
-  });
-
-  $('testKey').onclick = async () => {
-    const el = $('keyResult');
-    el.className = 'result'; el.textContent = 'testing…';
-    const key = fields.find((f) => f.dataset.path === 'anthropic.apiKey').value.trim();
-    const model = fields.find((f) => f.dataset.path === 'anthropic.model').value;
-    const r = await fetch('/api/test-key', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ apiKey: key, model }),
-    }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
-    el.className = 'result ' + (r.ok ? 'ok' : 'err');
-    el.textContent = r.ok ? '✓ key works' : '✗ ' + (r.error || 'failed');
-  };
-
-  $('testObs').onclick = async () => {
-    const el = $('obsResult');
-    el.className = 'result'; el.textContent = 'testing…';
-    const url = fields.find((f) => f.dataset.path === 'obs.url').value.trim();
-    const password = fields.find((f) => f.dataset.path === 'obs.password').value;
-    const r = await fetch('/api/test-obs', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, password }),
-    }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
-    el.className = 'result ' + (r.ok ? 'ok' : 'err');
-    el.textContent = r.ok ? `✓ connected — current scene: "${r.scene}"` : '✗ ' + (r.error || 'failed');
-  };
-
+  // ---- save ----
   $('save').onclick = async () => {
     for (const f of fields) {
       let v;
@@ -277,9 +345,10 @@
       } else v = f.value.trim();
       setPath(cfg, f.dataset.path, v);
     }
+    cfg.talkingPoints = $('talkingPoints').value.split('\n').map((s) => s.trim()).filter(Boolean);
     if (!cfg.anthropic.apiKey) {
       $('saveResult').className = 'result err';
-      $('saveResult').textContent = 'an API key is required';
+      $('saveResult').textContent = 'an API key is required (Brain tab)';
       return;
     }
     $('save').disabled = true;
