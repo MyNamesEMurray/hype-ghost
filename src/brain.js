@@ -22,13 +22,36 @@ function pickStyle() {
   return STYLES[0].note;
 }
 
+// The energy dial (0–100) is Hype Ghost 3.0's one live tone control. It scales
+// cadence in the loop; here it colors the room's mood so the same cast feels
+// sleepy at 10 and electric at 95.
+export function energyTone(energy) {
+  const e = Math.max(0, Math.min(100, Number(energy) ?? 55));
+  if (e < 20) return 'The room is very low-key right now — sleepy late-night hangout energy. Keep messages short, sparse, and calm.';
+  if (e < 40) return 'The room is relaxed and easygoing. Warm, unhurried reactions.';
+  if (e < 65) return 'Normal, engaged chat energy — present and warm.';
+  if (e < 85) return 'The room is lively and playful — lean into hype, jokes, and quick back-and-forth.';
+  return 'The room is ELECTRIC — maximum hype, fast reactions, more caps and emote-words (but never spam or lose the words entirely).';
+}
+
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Pull a labeled tail section (---NOTES---, ---PROFILE---, ---MOMENT---) out of
+// the model's raw output, tolerant of dash count and stopping at the next label.
+function extractSection(raw, label) {
+  const re = new RegExp(
+    `-{2,}\\s*${label}\\s*-{2,}([\\s\\S]*?)(?=-{2,}\\s*(?:NOTES|PROFILE|MOMENT)\\s*-{2,}|$)`,
+    'i'
+  );
+  const m = re.exec(raw);
+  return m ? m[1].trim() : null;
+}
 
 /**
  * The "viewer brain": given a screenshot of the stream and the recent
- * conversation, produce the next chat message(s) from one or two simulated
+ * conversation, produce the next chat message(s) from the cast of simulated
  * viewers ("personas"), plus optional session-notes / long-term-profile
- * updates piggybacked on the same call.
+ * updates and clip-worthy "moment" flags piggybacked on the same call.
  *
  * Providers: the Anthropic API (default), or any OpenAI-compatible endpoint
  * (Ollama, LM Studio, Groq, Gemini's compat layer, …) for local/free use.
@@ -38,7 +61,7 @@ export class Brain {
    * @param {Object} opts
    * @param {{provider:string, openaiBaseUrl:string, openaiModel:string, openaiApiKey:string}} opts.brain
    * @param {{apiKey:string, model:string}} opts.anthropic
-   * @param {Array<{name:string, personality:string}>} opts.personas 1 or 2 entries
+   * @param {Array<{name:string, personality:string}>} opts.personas 1–4 entries
    * @param {string} opts.language
    */
   constructor({ brain, anthropic, personas, language }) {
@@ -56,24 +79,26 @@ export class Brain {
     }
   }
 
-  buildSystemPrompt() {
-    const [p1, p2] = this.personas;
-    const who = p2
-      ? [
-          `You simulate a tiny practice chat of TWO viewers for a live streamer:`,
-          `- ${p1.name}: ${p1.personality}`,
-          `- ${p2.name}: ${p2.personality}`,
-          `They are distinct people with different voices; they sometimes react to each other,`,
-          `but the streamer is always the center of the room — never let the two of them drift`,
-          `into a private conversation.`,
-        ]
-      : [`You are "${p1.name}", a simulated practice-chat companion for a live streamer.`, `Personality: ${p1.personality}`];
+  buildSystemPrompt(energy) {
+    const solo = this.personas.length === 1;
+    const who = solo
+      ? [`You are "${this.personas[0].name}", a simulated practice-chat companion for a live streamer.`,
+         `Personality: ${this.personas[0].personality}`]
+      : [
+          `You simulate a tiny practice chat of ${this.personas.length} distinct viewers for a live streamer:`,
+          ...this.personas.map((p) => `- ${p.name}: ${p.personality}`),
+          `They are different people with different voices; they sometimes react to each other,`,
+          `but the streamer is always the center of the room — never let them drift into a`,
+          `private conversation that leaves the streamer out.`,
+        ];
     return [
       ...who,
       `These viewers are NOT real and must never pretend to be. They exist so the streamer`,
       `practices talking to chat even when nobody is watching. Messages appear on the stream`,
       `overlay clearly labeled as AI — no need to disclaim it in the text, but if asked,`,
-      `cheerfully confirm being the AI practice buddies.`,
+      `cheerfully confirm being the AI practice ${solo ? 'buddy' : 'buddies'}.`,
+      ``,
+      `Room energy right now: ${energyTone(energy)}`,
       ``,
       `You may be given an auto-generated transcript of what the streamer said out loud on mic.`,
       `Treat it as the streamer talking to chat: follow up naturally, never quote it verbatim`,
@@ -102,11 +127,11 @@ export class Brain {
   }
 
   /**
-   * @returns {Promise<{messages: Array<{speaker:string, text:string}>, notes: string|null, profile: string|null, usage: object}>}
+   * @returns {Promise<{messages: Array<{speaker:string, text:string}>, notes: string|null, profile: string|null, moment: string|null, usage: object}>}
    */
   async generate({
     history, screenshot, staleScreenshot, mode, trigger, transcript, notes, profile,
-    updateNotes, updateProfile, sceneName, streamContext, talkingPoint, allowExchange,
+    updateNotes, updateProfile, flagMoments, energy, sceneName, streamContext, talkingPoint, allowExchange,
   }) {
     const names = this.personas.map((p) => p.name);
     const historyText = history.length
@@ -127,7 +152,7 @@ export class Brain {
     const exchangeNote =
       this.personas.length > 1
         ? allowExchange
-          ? ' If the moment invites it, this may be a quick 2-message exchange (both viewers, second one riffing on the first) — but one message is usually right.'
+          ? ` If the moment invites it, this may be a quick 2-message exchange from two DIFFERENT viewers (the second riffing on the first) — but one message is usually right.`
           : ' Exactly ONE message from ONE viewer this time.'
         : '';
     const task =
@@ -159,34 +184,35 @@ export class Brain {
     const pointInstruction = talkingPoint
       ? `\n\nIf it can be done naturally this message, steer toward this topic the streamer wants covered: "${talkingPoint}". If it would feel forced, skip it.`
       : '';
+    const momentInstruction = flagMoments
+      ? `\n\nIf — and ONLY if — something genuinely clip-worthy just happened on screen (a big play, a hilarious fail, a milestone, a jump scare), add a final line: ---MOMENT--- followed by a punchy label of at most 6 words. Most messages must NOT include this.`
+      : '';
     const notesInstruction = updateNotes
       ? `\n\nAfter the chat message(s), on a new line write exactly ---NOTES--- followed by updated session notes: plain text, under 100 words — current game/activity, notable events, topics discussed, running jokes.`
       : '';
     const profileInstruction = updateProfile
       ? `\n\nThen on a new line write exactly ---PROFILE--- followed by an updated viewer profile: plain text, under 150 words of LONG-TERM memory worth keeping across streams — per-game progress ("Hades: reached heat 16"), recurring jokes, facts about the streamer. Merge with the existing profile; drop stale trivia.`
       : '';
-    blocks.push({ text: `${situation}\n\nRecent chat:\n${historyText}\n\n${task}${pointInstruction}${notesInstruction}${profileInstruction}` });
+    blocks.push({ text: `${situation}\n\nRecent chat:\n${historyText}\n\n${task}${pointInstruction}${momentInstruction}${notesInstruction}${profileInstruction}` });
 
-    const maxTokens = 200 + (updateNotes ? 250 : 0) + (updateProfile ? 300 : 0);
+    const maxTokens = 200 + (updateNotes ? 250 : 0) + (updateProfile ? 300 : 0) + (flagMoments ? 20 : 0);
     const { raw, usage } =
       this.provider === 'anthropic'
-        ? await this.callAnthropic(blocks, maxTokens)
-        : await this.callOpenAI(blocks, maxTokens);
+        ? await this.callAnthropic(blocks, maxTokens, energy)
+        : await this.callOpenAI(blocks, maxTokens, energy);
 
-    // Split off piggybacked memory blocks, then parse "NAME: text" lines.
-    const [msgPart, tail1] = raw.split(/-{3,}\s*NOTES\s*-{3,}/i);
-    let newNotes = null;
-    let newProfile = null;
-    if (tail1 !== undefined) {
-      const [n, p] = tail1.split(/-{3,}\s*PROFILE\s*-{3,}/i);
-      newNotes = n.trim().slice(0, 1000) || null;
-      if (p !== undefined) newProfile = p.trim().slice(0, 1500) || null;
-    } else {
-      const [m2, p] = msgPart.split(/-{3,}\s*PROFILE\s*-{3,}/i);
-      if (p !== undefined) newProfile = p.trim().slice(0, 1500) || null;
-      if (p !== undefined) return { messages: this.parseMessages(m2), notes: null, profile: newProfile, usage };
-    }
-    return { messages: this.parseMessages(msgPart), notes: newNotes, profile: newProfile, usage };
+    // Split off any piggybacked tail sections, then parse "NAME: text" lines.
+    const newNotes = extractSection(raw, 'NOTES');
+    const newProfile = extractSection(raw, 'PROFILE');
+    const moment = extractSection(raw, 'MOMENT');
+    const msgPart = raw.split(/-{2,}\s*(?:NOTES|PROFILE|MOMENT)\s*-{2,}/i)[0];
+    return {
+      messages: this.parseMessages(msgPart),
+      notes: newNotes ? newNotes.slice(0, 1000) : null,
+      profile: newProfile ? newProfile.slice(0, 1500) : null,
+      moment: moment ? moment.replace(/^["']|["']$/g, '').slice(0, 60) : null,
+      usage,
+    };
   }
 
   parseMessages(raw) {
@@ -209,7 +235,7 @@ export class Brain {
     return messages.slice(0, 2); // hard cap, whatever the model does
   }
 
-  async callAnthropic(blocks, maxTokens) {
+  async callAnthropic(blocks, maxTokens, energy) {
     const content = blocks.map((b) =>
       b.image
         ? { type: 'image', source: { type: 'base64', media_type: b.image.mediaType, data: b.image.data } }
@@ -220,14 +246,14 @@ export class Brain {
       max_tokens: maxTokens,
       // Inert below the model's minimum cacheable prefix; engages automatically
       // (and beneficially, at this cadence) if the prompt ever grows past it.
-      system: [{ type: 'text', text: this.buildSystemPrompt(), cache_control: { type: 'ephemeral' } }],
+      system: [{ type: 'text', text: this.buildSystemPrompt(energy), cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content }],
     });
     const raw = response.content.filter((b) => b.type === 'text').map((b) => b.text).join(' ').trim();
     return { raw, usage: response.usage };
   }
 
-  async callOpenAI(blocks, maxTokens) {
+  async callOpenAI(blocks, maxTokens, energy) {
     const content = blocks.map((b) =>
       b.image
         ? { type: 'image_url', image_url: { url: `data:${b.image.mediaType};base64,${b.image.data}` } }
@@ -243,7 +269,7 @@ export class Brain {
         model: this.model,
         max_tokens: maxTokens,
         messages: [
-          { role: 'system', content: this.buildSystemPrompt() },
+          { role: 'system', content: this.buildSystemPrompt(energy) },
           { role: 'user', content },
         ],
       }),

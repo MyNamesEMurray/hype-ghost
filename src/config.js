@@ -41,5 +41,10 @@ export function loadConfig(configPath) {
       warning = `config at ${configPath} is not valid JSON (${err.message}) — using defaults. Fix or re-save it in Settings.`;
     }
   }
-  return { config: deepMerge(defaults, user), warning };
+  const config = deepMerge(defaults, user);
+  // Cast migration: if the user's config predates 3.x (no `cast` key of their
+  // own), drop the example cast so resolveCast() rebuilds the roster from their
+  // customized bot/bot2 instead of silently replacing it with "Beacon/Wisp".
+  if (!isPlainObject(user) || !Array.isArray(user.cast)) config.cast = null;
+  return { config, warning };
 }

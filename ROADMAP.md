@@ -1,6 +1,38 @@
 # Hype Ghost Roadmap 👻
 
-Planning document for the 2.0 release and beyond. Order within a phase ≠ commitment.
+Planning document. Order within a phase ≠ commitment.
+
+## Shipped in 3.0 — "The Green Room"
+
+A ground-up reimagining of the interface and a jump from two ghosts to a directable cast.
+
+- ✅ **The Cast** — 1–4 ghosts (was max 2), each with a name, personality archetype, and
+  assignable stage color. Full roster editor (Settings → Cast); the brain, loop, overlay, and
+  deck all generalized from the hardcoded bot/bot2 pair. 2.x configs migrate automatically.
+- ✅ **Command Deck** — the dashboard reimagined into a stage (cast avatars that breathe when
+  active), a live feed with avatars, ambient status orbs, and a session clock — nothing like
+  the 2.x sidebar + list.
+- ✅ **Energy dial** — one live control on the deck scales cadence *and* mood (🌙 → 🔥),
+  wired through the loop's interval math and the brain's tone. Presets + a real-time slider.
+- ✅ **Moments** — the cast flags clip-worthy plays (piggybacked on the generation call) into
+  a deck highlight reel, an optional overlay ✨ pop, and VOD chapter markers in the recap.
+- ✅ **Command palette** — ⌘/Ctrl-K quick actions (pause, energy, mode, copy overlay URL,
+  recap, settings).
+- ✅ **New design language** — glass/aurora studio-at-night theme, accent theming
+  (violet/cyan/emerald/amber/magenta), per-ghost colors, purposeful motion, reduced-motion
+  safe. Written up in [DESIGN.md](DESIGN.md).
+- ✅ **Reimagined overlay & setup** — overlay gains per-ghost color spines, a `compact` style,
+  and moment pops (keeping the mandatory AI badge + watermark); setup becomes an archetype +
+  energy flow.
+
+## Ideas beyond 3.0
+
+- **Per-ghost attention** — one ghost watches gameplay closely, another lurks; distinct
+  screenshot/transcript weighting per persona.
+- **Scene-aware casts** — swap energy/behavior presets per OBS scene (BRB vs. gameplay).
+- **Moment clipping** — trigger an OBS replay-buffer save when a moment is flagged.
+- **Deck analytics** — a richer post-stream view than the markdown recap.
+- **Code signing / distribution** — kill the SmartScreen warning (cert ~$100+/yr) or MS Store.
 
 ## Shipped in 1.x
 

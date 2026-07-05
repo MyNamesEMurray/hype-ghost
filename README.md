@@ -1,15 +1,30 @@
 # Hype Ghost 👻
 
-**Local-only simulated AI viewers** for streamers. One or two "ghosts" watch your OBS output
+**Local-only simulated AI viewers** for streamers. A *cast* of "ghosts" watch your OBS output
 like real viewers — screenshots of your live scene, plus a local transcription of your mic —
 and chat with you through a desktop app + an on-stream overlay, so you practice talking to
 chat even when nobody is watching.
 
-2.0 highlights: a second ghost persona (they riff on each other, capped so you stay the
-show), **local/free brains** (Ollama, LM Studio, or any OpenAI-compatible endpoint — no API
-key required), cross-stream memory ("did you ever beat that boss from Tuesday?"), read-only
-Twitch chat awareness, spoken messages (local TTS), post-stream recap export, overlay
-customization, and a Spanish dashboard. Resource posture: software rendering, below-normal
+**3.0 — "The Green Room"** is a ground-up reimagining of the interface. The old chat window
+becomes a **Command Deck**: a stage of your cast, a live feed, an **energy dial**, and a
+highlight reel — the console you direct your simulated room from.
+
+3.0 highlights:
+- **The Cast** — up to **four** ghosts (was two), each with its own name, personality
+  archetype, and stage color. They react to the stream and to each other; you're always the
+  show. Edit the whole roster on Settings → Cast.
+- **The energy dial** — one live control on the deck scales how often the cast talks *and*
+  their whole mood, from 🌙 chill to 🔥 electric, mid-stream, no settings trip.
+- **Moments** — the cast auto-flags genuinely clip-worthy plays into a highlight reel on the
+  deck, a ✨ pop on the overlay, and **VOD chapter markers** in your recap export.
+- **Command palette** — ⌘/Ctrl-K for pause, energy, mode, overlay URL, recap, and more.
+- **A new look** — glass panels, a signature aurora, accent themes, per-ghost colors, and
+  purposeful motion, in a studio-at-night dark theme.
+
+Carried over from 2.x: **local/free brains** (Ollama, LM Studio, or any OpenAI-compatible
+endpoint — no API key required), cross-stream memory ("did you ever beat that boss from
+Tuesday?"), read-only Twitch chat awareness, spoken messages (local TTS), overlay
+customization, and a Spanish interface. Resource posture: software rendering, below-normal
 process priority, and the UI unloads entirely when closed to tray — OBS and your game come
 first.
 
@@ -60,14 +75,19 @@ Quit Hype Ghost.
 
 | Setting | What it is |
 |---|---|
+| `cast` | The roster: 1–4 ghosts, each `{ name, personality, color, enabled }`. Colors: `aqua rose mint gold coral sky` (violet is reserved for you). Edit on Settings → Cast. A 2.x config with no `cast` is migrated from `bot`/`bot2` automatically. |
+| `energy` | Default room energy 0–100 (default 55). The deck's live energy dial overrides this per session; low = calmer/slower, high = livelier/faster. |
+| `moments.enabled` | Let the cast flag clip-worthy plays into the highlight reel + recap VOD chapters (default true). |
+| `theme.accent` | Your (the human's) accent color on the deck: `violet cyan emerald amber magenta` (default violet). |
+| `overlay.theme` / `overlay.reactions` | Overlay style (`cards` or `compact`) and whether a ✨ moment pop shows on the overlay. |
 | `app.autoUpdate` | Check GitHub for new versions at launch and update automatically (default true). |
-| `app.costMeter` | Show the live session cost pill on the dashboard (default true). |
-| `bot.language` | Language the ghost chats in (default English). |
-| `stream.context` | Standing context about your stream (game, format, vibe) the ghost always knows. It also sees your current OBS scene name automatically. |
-| `talkingPoints` | Topics you want covered; the ghost works one in occasionally when it fits naturally. |
+| `app.costMeter` | Show the live session cost readout in the deck's top bar (default true). |
+| `bot.language` | Language the whole cast chats in (default English). |
+| `stream.context` | Standing context about your stream (game, format, vibe) the cast always knows. It also sees your current OBS scene name automatically. |
+| `talkingPoints` | Topics you want covered; the cast works one in occasionally when it fits naturally. |
 | `anthropic.apiKey` | Anthropic API key (console.anthropic.com), or set `ANTHROPIC_API_KEY` env var. |
 | `anthropic.model` | `claude-sonnet-5` is the sweet spot; `claude-haiku-4-5` ~3x cheaper, `claude-opus-4-8` ~3x pricier and chattiest. |
-| `bot.name` / `bot.personality` | The ghost's chat name and vibe. |
+| `bot.name` / `bot.personality` | Legacy single-ghost fields, kept in sync with `cast[0]` for backward compatibility. |
 | `obs.url` / `obs.password` | OBS WebSocket (default port 4455). |
 | `obs.screenshotWidth` | Screenshot width in px (default 800). Image tokens scale with pixels (w×h÷750) — JPEG quality has no effect on tokens. |
 | `twitch.*` | *(Optional)* App credentials + channel, used **read-only** for live viewer count. Without it, use the dashboard's manual mode toggle. |

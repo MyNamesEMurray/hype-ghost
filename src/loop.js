@@ -29,6 +29,8 @@ export class GhostLoop {
     this.autoPaused = false; // paused by the dead-man switch, not the user
     this.busy = false;
     this.nextMessageAt = null;
+    this.energy = Number.isFinite(config.energy) ? config.energy : 55; // 0–100 live mood dial
+    this.lastMomentAt = 0; // rate floor for clip-worthy "moment" flags
 
     this.timer = null;
     this.pendingTrigger = 'timer';
@@ -61,7 +63,27 @@ export class GhostLoop {
       autoPaused: this.autoPaused,
       busy: this.busy,
       nextMessageAt: this.nextMessageAt,
+      energy: this.energy,
     };
+  }
+
+  /**
+   * The energy dial (0–100) is the streamer's one live tone control. Low energy
+   * stretches the gaps between messages (calm room); high energy tightens them
+   * (electric room). It also flows to the brain to color the cast's mood.
+   */
+  setEnergy(value) {
+    const next = Math.max(0, Math.min(100, Math.round(Number(value))));
+    if (!Number.isFinite(next) || next === this.energy) return;
+    this.energy = next;
+    if (!this.paused && !this.busy) this.scheduleNext(); // re-pace to the new mood
+    else this.hooks.onState();
+  }
+
+  // Map energy to a cadence multiplier: 0 → ~1.7x the gaps (sleepy),
+  // 100 → ~0.45x (rapid-fire), 55 → ~0.9x (a touch livelier than baseline).
+  energyMultiplier() {
+    return 1.7 - (this.energy / 100) * 1.25;
   }
 
   isPaused() {
@@ -146,7 +168,7 @@ export class GhostLoop {
     } else {
       factor = 1 + (Math.random() * 2 - 1) * c.jitter; // normal: ± jitter
     }
-    return Math.max(15, base * factor) * 1000;
+    return Math.max(12, base * factor * this.energyMultiplier()) * 1000;
   }
 
   scheduleNext(msOverride, trigger = 'timer') {
@@ -206,6 +228,12 @@ export class GhostLoop {
       const updateProfile =
         memory.enabled && (this.botMessageCount + 1) % (memory.profileEvery ?? 12) === 0;
       const allowExchange = this.lastStreamerActivityAt > this.lastExchangeAt;
+      // Moment flags only make sense on a fresh frame, and no faster than once
+      // every 45s so a single big play doesn't spam the highlight reel.
+      const flagMoments =
+        this.config.moments?.enabled !== false &&
+        Boolean(screenshot) &&
+        Date.now() - this.lastMomentAt > 45_000;
 
       // Only speech the model hasn't seen yet (15s overlap for continuity).
       const transcript = this.feed.getWindow(this.lastGenAt ? this.lastGenAt - 15_000 : 0);
@@ -222,6 +250,8 @@ export class GhostLoop {
         profile: this.hooks.getProfile() || undefined,
         updateNotes,
         updateProfile,
+        flagMoments,
+        energy: this.energy,
         sceneName: this.lastSceneName || undefined,
         streamContext: this.config.stream?.context || undefined,
         talkingPoint,
@@ -246,6 +276,10 @@ export class GhostLoop {
       }
       if (result.notes) this.hooks.setNotes(result.notes);
       if (result.profile) this.hooks.setProfile(result.profile);
+      if (result.moment && this.hooks.onMoment) {
+        this.lastMomentAt = Date.now();
+        this.hooks.onMoment(result.moment);
+      }
     } catch (err) {
       console.error('[ghost] generation failed:', err.message);
       this.hooks.onSystem(`Message generation failed: ${err.message}`);

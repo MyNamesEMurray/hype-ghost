@@ -2,118 +2,271 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Hype Ghost — Practice Chat</title>
+<title>Hype Ghost — The Green Room</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="/theme.css">
 <style>
   /* layout only — tokens & components come from theme.css */
-  body { height: 100vh; display: flex; }
-  /* ---- sidebar ---- */
+  body { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ---------- top bar ---------- */
+  header {
+    display: flex; align-items: center; gap: 16px; flex: none;
+    padding: 12px 18px; border-bottom: 1px solid var(--border);
+    background: rgba(10,10,16,.5); backdrop-filter: blur(12px);
+  }
+  header .brand { display: flex; align-items: baseline; gap: 8px; }
+  header .brand .g { font-size: 20px; }
+  header .brand small { font-size: 11px; font-weight: 700; letter-spacing: .12em; color: var(--faint); }
+  #clock { font-size: var(--fs-sm); color: var(--dim); font-variant-numeric: tabular-nums; }
+  #orbs { display: flex; gap: 16px; margin-left: auto; flex-wrap: wrap; }
+  #orbs .orb .lbl { display: none; }
+  @media (min-width: 1080px) { #orbs .orb .lbl { display: inline; } }
+  #cost { font-size: var(--fs-xs); color: var(--dim); font-variant-numeric: tabular-nums; }
+  .iconbtn { padding: 8px 11px; border-radius: var(--r-md); }
+  .kbd { font-size: 10px; border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; color: var(--faint); margin-left: 6px; }
+
+  /* ---------- body split ---------- */
+  .split { flex: 1; display: flex; min-height: 0; }
   aside {
-    width: 232px; flex: none; display: flex; flex-direction: column; gap: 4px;
-    background: var(--panel); border-right: 1px solid var(--border); padding: 16px 14px;
+    width: 300px; flex: none; display: flex; flex-direction: column; gap: 14px;
+    padding: 16px; overflow-y: auto; border-right: 1px solid var(--border);
   }
-  aside .app-title { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
-  #personas { font-size: var(--fs-sm); margin-bottom: 8px; }
-  #personas .p0 { color: var(--ghost); font-weight: 600; }
-  #personas .p1 { color: var(--ghost2); font-weight: 600; }
-  #countdown { font-size: var(--fs-xs); color: var(--dim); font-variant-numeric: tabular-nums; min-height: 18px; margin-bottom: 8px; }
-  #statuses { border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 6px 0; margin-bottom: 10px; }
-  aside label.side { margin: 4px 0 4px; }
-  aside select, aside button { width: 100%; margin-bottom: 8px; }
-  #cost { margin-top: auto; font-size: var(--fs-xs); color: var(--dim); border-top: 1px solid var(--border); padding-top: 10px; display: none; }
-  /* ---- chat ---- */
   main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-  #messages { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
-  .msg { max-width: 680px; }
-  .msg .meta { font-size: var(--fs-xs); color: var(--dim); margin-bottom: 2px; display: flex; gap: 6px; align-items: center; }
-  .msg .name { font-weight: 600; font-size: var(--fs-sm); }
-  .msg.bot .name { color: var(--ghost); }
-  .msg.bot[data-p="1"] .name { color: var(--ghost2); }
-  .msg.streamer .name { color: var(--accent); }
-  .msg .text {
-    background: var(--panel); border: 1px solid var(--border);
-    border-radius: var(--r-md); padding: 8px 12px; display: inline-block;
+
+  /* ---------- the cast (stage) ---------- */
+  .rail-h { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .14em; color: var(--faint); font-weight: 700; margin: 2px 2px 8px; display: flex; justify-content: space-between; }
+  #stage { display: flex; flex-direction: column; gap: 8px; }
+  .ghost-tile {
+    display: flex; align-items: center; gap: 11px; padding: 10px 12px;
+    border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--glass-2);
+    position: relative; overflow: hidden; transition: border-color .3s;
   }
-  .msg.streamer { align-self: flex-end; text-align: right; }
-  .msg.streamer .meta { justify-content: flex-end; }
-  .msg.streamer .text { background: var(--accent-tint); border-color: var(--accent-tint-border); }
-  .sys { align-self: center; font-size: var(--fs-xs); color: var(--warn); }
-  footer { padding: 12px 16px; background: var(--panel); border-top: 1px solid var(--border); display: flex; gap: 10px; }
-  footer input { flex: 1; }
+  .ghost-tile.active { border-color: var(--gc); }
+  .avatar {
+    width: 38px; height: 38px; border-radius: var(--r-full); flex: none;
+    display: grid; place-items: center; font-weight: 800; font-size: 16px;
+    color: var(--bg); background: var(--gc);
+    box-shadow: 0 0 0 0 var(--gc); transition: box-shadow .5s;
+  }
+  .ghost-tile.active .avatar { animation: breathe 2.4s ease-in-out infinite; }
+  @keyframes breathe {
+    0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--gc) 55%, transparent); }
+    50%     { box-shadow: 0 0 0 7px transparent; }
+  }
+  .ghost-tile .who { min-width: 0; flex: 1; }
+  .ghost-tile .nm { font-weight: 650; font-size: var(--fs-sm); color: var(--gc); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ghost-tile .st { font-size: var(--fs-xs); color: var(--faint); }
+
+  /* ---------- energy dial ---------- */
+  .panel { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--glass-2); padding: 13px 14px; }
+  .energy-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+  .energy-top .val { font-size: var(--fs-lg); font-weight: 750; }
+  .energy-top .val b { background: var(--aurora); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  input[type=range].dial {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 8px; border-radius: var(--r-full);
+    background: var(--aurora); outline: none; cursor: pointer; opacity: .92; padding: 0;
+  }
+  input[type=range].dial::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%;
+    background: #fff; border: 3px solid var(--bg); box-shadow: 0 2px 8px rgba(0,0,0,.5); cursor: grab;
+  }
+  input[type=range].dial::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 3px solid var(--bg); cursor: grab; }
+  .presets { display: flex; gap: 6px; margin-top: 11px; }
+  .presets .chip { flex: 1; text-align: center; font-size: var(--fs-xs); padding: 5px 0; }
+
+  /* ---------- mode segmented ---------- */
+  .seg { display: flex; border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+  .seg button { flex: 1; border: none; border-radius: 0; background: transparent; padding: 8px 4px; font-size: var(--fs-xs); }
+  .seg button.on { background: var(--accent-soft); color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
+
+  .actions { display: flex; gap: 8px; }
+  .actions button { flex: 1; }
+
+  /* ---------- moments rail ---------- */
+  #moments { display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; }
+  .moment-row { display: flex; gap: 9px; align-items: baseline; font-size: var(--fs-sm); padding: 6px 9px; border-radius: var(--r-md); background: var(--glass-2); border: 1px solid var(--border); }
+  .moment-row .t { font-size: var(--fs-xs); color: var(--faint); font-variant-numeric: tabular-nums; flex: none; }
+  .moment-row .l { min-width: 0; }
+  .moments-empty { font-size: var(--fs-xs); color: var(--faint); padding: 4px 2px; }
+
+  /* ---------- feed ---------- */
+  #feed { flex: 1; overflow-y: auto; padding: 22px 26px; display: flex; flex-direction: column; gap: 14px; }
+  #empty { margin: auto; text-align: center; color: var(--faint); max-width: 360px; }
+  #empty .big { font-size: 46px; margin-bottom: 8px; filter: grayscale(.2); }
+  .msg { display: flex; gap: 11px; max-width: 720px; animation: rise .28s ease-out; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .msg .av { width: 32px; height: 32px; border-radius: var(--r-full); flex: none; display: grid; place-items: center; font-weight: 800; font-size: 13px; color: var(--bg); background: var(--gc); margin-top: 2px; }
+  .msg .body { min-width: 0; }
+  .msg .meta { display: flex; align-items: center; gap: 7px; margin-bottom: 3px; }
+  .msg .nm { font-weight: 650; font-size: var(--fs-sm); color: var(--gc); }
+  .msg .tm { font-size: var(--fs-xs); color: var(--faint); }
+  .msg .bubble { background: var(--glass); border: 1px solid var(--border); border-radius: var(--r-lg); border-top-left-radius: 4px; padding: 9px 14px; display: inline-block; }
+  .msg.streamer { align-self: flex-end; flex-direction: row-reverse; }
+  .msg.streamer .av { background: var(--accent); }
+  .msg.streamer .meta { flex-direction: row-reverse; }
+  .msg.streamer .nm { color: var(--accent-2); }
+  .msg.streamer .bubble { background: var(--accent-soft); border-color: var(--accent-line); border-radius: var(--r-lg); border-top-right-radius: 4px; }
+  .moment-card { align-self: center; display: flex; align-items: center; gap: 10px; padding: 7px 15px; border-radius: var(--r-full); background: var(--glass); border: 1px solid var(--accent-line); font-size: var(--fs-sm); animation: pop .4s cubic-bezier(.2,1.3,.5,1); }
+  @keyframes pop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: none; } }
+  .moment-card .spark { background: var(--aurora); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 800; }
+  .sys { align-self: center; font-size: var(--fs-xs); color: var(--warn); background: rgba(255,199,107,.08); border: 1px solid rgba(255,199,107,.25); border-radius: var(--r-full); padding: 5px 14px; }
+  .typing { display: flex; gap: 11px; align-items: center; padding: 0 26px 10px; color: var(--faint); font-size: var(--fs-sm); }
+  .typing .dots span { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--ghost); margin-right: 3px; animation: blink 1.2s infinite; }
+  .typing .dots span:nth-child(2) { animation-delay: .2s; } .typing .dots span:nth-child(3) { animation-delay: .4s; }
+  @keyframes blink { 0%,60%,100% { opacity: .3; } 30% { opacity: 1; } }
+
+  /* ---------- composer ---------- */
+  footer { flex: none; padding: 14px 26px 18px; border-top: 1px solid var(--border); background: rgba(10,10,16,.4); }
+  .composer { display: flex; gap: 10px; }
+  .composer input { flex: 1; border-radius: var(--r-full); padding: 11px 18px; }
+  .composer button { border-radius: var(--r-full); }
+
+  /* ---------- command palette ---------- */
+  #palette { position: fixed; inset: 0; background: rgba(4,4,8,.6); backdrop-filter: blur(4px); display: none; align-items: flex-start; justify-content: center; z-index: 50; }
+  #palette.open { display: flex; }
+  #palette .box { width: 540px; max-width: 92vw; margin-top: 12vh; background: var(--panel); border: 1px solid var(--border-strong); border-radius: var(--r-lg); box-shadow: var(--shadow); overflow: hidden; }
+  #palette input { border: none; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; padding: 16px 18px; font-size: var(--fs-lg); }
+  #palette input:focus { box-shadow: none; }
+  #pal-list { max-height: 320px; overflow-y: auto; padding: 6px; }
+  .pal-item { display: flex; align-items: center; gap: 12px; padding: 10px 13px; border-radius: var(--r-md); cursor: pointer; }
+  .pal-item.sel, .pal-item:hover { background: var(--accent-soft); }
+  .pal-item .ic { width: 22px; text-align: center; }
+  .pal-item .sub { margin-left: auto; font-size: var(--fs-xs); color: var(--faint); }
+
+  #toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--panel); border: 1px solid var(--border-strong); border-radius: var(--r-full); padding: 9px 18px; font-size: var(--fs-sm); box-shadow: var(--shadow); opacity: 0; transition: .25s; pointer-events: none; z-index: 60; }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 </style>
 </head>
 <body>
-  <aside>
-    <h1 class="app-title">👻 Hype Ghost</h1>
-    <div id="personas"></div>
-    <div id="countdown"></div>
-    <div id="statuses">
-      <div class="status" id="st-obs"><span class="dot"></span><span>OBS</span></div>
-      <div class="status" id="st-brain"><span class="dot"></span><span data-i18n="brain">Brain</span></div>
-      <div class="status" id="st-viewers"><span class="dot"></span><span data-i18n="viewers">Viewers</span></div>
-      <div class="status" id="st-mic"><span class="dot"></span><span data-i18n="mic">Mic</span></div>
-      <div class="status" id="st-chat" style="display:none"><span class="dot"></span><span data-i18n="chat">Chat</span></div>
+  <header>
+    <div class="brand"><span class="g">👻</span><span class="app-title">Hype Ghost</span><small>3.0</small></div>
+    <div id="clock">00:00:00</div>
+    <div id="orbs">
+      <span class="orb" id="o-obs"><span class="dot"></span><span class="lbl">OBS</span></span>
+      <span class="orb" id="o-brain"><span class="dot"></span><span class="lbl" data-i18n="brain">Brain</span></span>
+      <span class="orb" id="o-viewers"><span class="dot"></span><span class="lbl" data-i18n="viewers">Viewers</span></span>
+      <span class="orb" id="o-mic"><span class="dot"></span><span class="lbl" data-i18n="mic">Mic</span></span>
+      <span class="orb" id="o-chat" style="display:none"><span class="dot"></span><span class="lbl" data-i18n="chat">Chat</span></span>
     </div>
-    <label class="side" data-i18n="mode">Mode</label>
-    <select id="mode">
-      <option value="auto" data-i18n="modeAuto">Auto</option>
-      <option value="solo" data-i18n="modeSolo">Solo (chatty)</option>
-      <option value="viewers" data-i18n="modeViewers">Viewers present (quiet)</option>
-    </select>
-    <button id="nudge" data-i18n="say">Say something</button>
-    <button id="pause" class="primary" data-i18n="pause">Pause</button>
-    <button onclick="location.href='/api/recap'" data-i18n="recap">Export recap</button>
-    <button onclick="location.href='/settings'" data-i18n="settings">Settings</button>
-    <div id="cost"></div>
-  </aside>
+    <span id="cost"></span>
+    <button class="iconbtn ghostbtn" id="palBtn" title="Command palette">⌘<span class="kbd">K</span></button>
+    <button class="iconbtn ghostbtn" onclick="location.href='/settings'" title="Settings">⚙</button>
+  </header>
 
-  <main>
-    <div id="messages"></div>
-    <footer>
-      <input id="input" autocomplete="off">
-      <button id="send" class="primary" data-i18n="send">Send</button>
-    </footer>
-  </main>
+  <div class="split">
+    <aside>
+      <div>
+        <div class="rail-h"><span data-i18n="cast">The cast</span><span id="upnext"></span></div>
+        <div id="stage"></div>
+      </div>
+
+      <div class="panel">
+        <div class="energy-top"><span class="rail-h" style="margin:0" data-i18n="energy">Energy</span><span class="val"><b id="energyVal">55</b></span></div>
+        <input type="range" class="dial" id="energy" min="0" max="100" value="55">
+        <div class="presets">
+          <span class="chip" data-energy="20" data-i18n="chill">Chill</span>
+          <span class="chip" data-energy="55" data-i18n="balanced">Balanced</span>
+          <span class="chip" data-energy="88" data-i18n="hype">Hype</span>
+        </div>
+      </div>
+
+      <div>
+        <div class="rail-h" data-i18n="room">Room</div>
+        <div class="seg" id="mode">
+          <button data-mode="auto" data-i18n="modeAuto">Auto</button>
+          <button data-mode="solo" data-i18n="modeSolo">Solo</button>
+          <button data-mode="viewers" data-i18n="modeViewers">Viewers</button>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="nudge" data-i18n="say">Say something</button>
+        <button id="pause" class="primary" data-i18n="pause">Pause</button>
+      </div>
+
+      <div>
+        <div class="rail-h"><span data-i18n="moments">Moments</span><span id="momentCount"></span></div>
+        <div id="moments"></div>
+        <button style="width:100%;margin-top:8px" class="ghostbtn" onclick="location.href='/api/recap'" data-i18n="recap">Export recap</button>
+      </div>
+    </aside>
+
+    <main>
+      <div id="feed">
+        <div id="empty">
+          <div class="big">👻</div>
+          <div data-i18n="emptyTitle">The stage is set.</div>
+          <p class="hint" data-i18n="emptyBody">Your cast is warming up — the first message lands in a moment. Say something to get the room going.</p>
+        </div>
+      </div>
+      <div class="typing" id="typing" style="display:none"><span class="dots"><span></span><span></span><span></span></span><span data-i18n="typing">the cast is typing…</span></div>
+      <footer>
+        <div class="composer">
+          <input id="input" autocomplete="off">
+          <button id="send" class="primary" data-i18n="send">Send</button>
+        </div>
+      </footer>
+    </main>
+  </div>
+
+  <div id="palette"><div class="box">
+    <input id="palInput" placeholder="Type a command…" autocomplete="off">
+    <div id="pal-list"></div>
+  </div></div>
+  <div id="toast"></div>
 
 <script>
-  // ---- i18n (UI language set in Settings → App; the ghost's chat language is separate) ----
+  // ---------- accent theming ----------
+  const ACCENTS = {
+    violet:  ['#a78bfa','#c4b5fd','#0d0620','rgba(167,139,250,.14)','rgba(167,139,250,.4)'],
+    cyan:    ['#38bdf8','#7dd3fc','#04121c','rgba(56,189,248,.14)','rgba(56,189,248,.4)'],
+    emerald: ['#34d399','#6ee7b7','#04140d','rgba(52,211,153,.14)','rgba(52,211,153,.4)'],
+    amber:   ['#fbbf24','#fcd34d','#1c1204','rgba(251,191,36,.14)','rgba(251,191,36,.4)'],
+    magenta: ['#f472b6','#f9a8d4','#1c0714','rgba(244,114,182,.14)','rgba(244,114,182,.4)'],
+  };
+  function applyAccent(name) {
+    const a = ACCENTS[name] || ACCENTS.violet, r = document.documentElement.style;
+    r.setProperty('--accent', a[0]); r.setProperty('--accent-2', a[1]); r.setProperty('--on-accent', a[2]);
+    r.setProperty('--accent-soft', a[3]); r.setProperty('--accent-line', a[4]);
+  }
+
+  // ---------- i18n ----------
   const STR = {
-    en: {
-      brain: 'Brain', viewers: 'Viewers', mic: 'Mic', chat: 'Chat', mode: 'Mode',
-      modeAuto: 'Auto', modeSolo: 'Solo (chatty)', modeViewers: 'Viewers present (quiet)',
-      say: 'Say something', pause: 'Pause', resume: 'Resume', recap: 'Export recap',
-      settings: 'Settings', send: 'Send', you: 'You',
-      placeholder: 'Reply to your practice chat… (the ghost will answer)',
-      paused: 'paused', autoPaused: 'auto-paused (OBS gone)', typing: 'typing…', next: 'next message in',
-      obsOk: 'OBS connected', obsNo: 'OBS not connected', brainOk: 'Brain ready', brainNo: 'Brain not configured',
-      viewersManual: 'Viewers: manual only', micOff: 'Mic off', micQuiet: 'Mic quiet', micWait: 'Mic waiting…',
-      chatQuiet: 'Chat quiet', chatActive: 'Chat active', lost: 'Connection lost — reconnecting…', msgs: 'msgs',
-    },
-    es: {
-      brain: 'Cerebro', viewers: 'Espectadores', mic: 'Micro', chat: 'Chat', mode: 'Modo',
-      modeAuto: 'Auto', modeSolo: 'Solo (hablador)', modeViewers: 'Con espectadores (discreto)',
-      say: 'Di algo', pause: 'Pausar', resume: 'Reanudar', recap: 'Exportar resumen',
-      settings: 'Ajustes', send: 'Enviar', you: 'Tú',
-      placeholder: 'Responde a tu chat de práctica… (el fantasma contestará)',
-      paused: 'en pausa', autoPaused: 'pausa automática (sin OBS)', typing: 'escribiendo…', next: 'próximo mensaje en',
-      obsOk: 'OBS conectado', obsNo: 'OBS desconectado', brainOk: 'Cerebro listo', brainNo: 'Cerebro sin configurar',
-      viewersManual: 'Espectadores: manual', micOff: 'Micro apagado', micQuiet: 'Micro en silencio', micWait: 'Micro esperando…',
-      chatQuiet: 'Chat tranquilo', chatActive: 'Chat activo', lost: 'Conexión perdida — reconectando…', msgs: 'msjs',
-    },
+    en: { brain:'Brain', viewers:'Viewers', mic:'Mic', chat:'Chat', cast:'The cast', energy:'Energy',
+      chill:'Chill', balanced:'Balanced', hype:'Hype', room:'Room', modeAuto:'Auto', modeSolo:'Solo', modeViewers:'Viewers',
+      say:'Say something', pause:'Pause', resume:'Resume', moments:'Moments', recap:'Export recap', send:'Send', you:'You',
+      emptyTitle:'The stage is set.', emptyBody:'Your cast is warming up — the first message lands in a moment. Say something to get the room going.',
+      typing:'the cast is typing…', placeholder:'Talk to your chat… they will answer', paused:'paused', autoPaused:'auto-paused · OBS gone',
+      next:'up next', obsOk:'OBS connected', obsNo:'OBS offline', brainOk:'Brain ready', brainNo:'No brain', viewersManual:'manual',
+      micOff:'off', micQuiet:'quiet', micWait:'waiting', chatQuiet:'quiet', chatActive:'active', lost:'Connection lost — reconnecting…',
+      msgs:'msgs', watching:'watching', idle:'idle', noMoments:'No moments yet — the cast flags clip-worthy plays here.' },
+    es: { brain:'Cerebro', viewers:'Espectadores', mic:'Micro', chat:'Chat', cast:'El elenco', energy:'Energía',
+      chill:'Tranqui', balanced:'Normal', hype:'Máx', room:'Sala', modeAuto:'Auto', modeSolo:'Solo', modeViewers:'Público',
+      say:'Di algo', pause:'Pausar', resume:'Reanudar', moments:'Momentos', recap:'Exportar', send:'Enviar', you:'Tú',
+      emptyTitle:'Todo listo.', emptyBody:'Tu elenco se prepara — el primer mensaje llega enseguida. Di algo para animar la sala.',
+      typing:'el elenco escribe…', placeholder:'Habla con tu chat… te responderán', paused:'en pausa', autoPaused:'pausa automática · sin OBS',
+      next:'siguiente', obsOk:'OBS conectado', obsNo:'OBS desconectado', brainOk:'Cerebro listo', brainNo:'Sin cerebro', viewersManual:'manual',
+      micOff:'apagado', micQuiet:'silencio', micWait:'esperando', chatQuiet:'tranquilo', chatActive:'activo', lost:'Conexión perdida — reconectando…',
+      msgs:'msjs', watching:'mirando', idle:'inactivo', noMoments:'Aún no hay momentos — el elenco marcará jugadas destacadas aquí.' },
   };
   let L = STR.en;
-  const T = (k) => L[k] ?? STR.en[k] ?? k;
+  const T = (k) => (L[k] ?? STR.en[k] ?? k);
   function applyI18n() {
     document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = T(el.dataset.i18n); });
     $('input').placeholder = T('placeholder');
   }
 
   const $ = (id) => document.getElementById(id);
-  const messagesEl = $('messages');
+  const feed = $('feed');
   let state = {};
-  let ws = null;
   let booted = false;
+  let dragging = false;
+  let cast = [];
+
+  // ---------- rendering ----------
+  function initial(name) { return (name || '?').trim().charAt(0).toUpperCase(); }
+  function colorOf(name) { const g = cast.find((c) => c.name === name); return g ? g.color : 'var(--ghost)'; }
 
   function speak(text) {
     if (!state.tts || !state.tts.enabled || !('speechSynthesis' in window)) return;
@@ -124,133 +277,221 @@
     speechSynthesis.speak(u);
   }
 
+  function clearEmpty() { const e = $('empty'); if (e) e.remove(); }
+
   function addMessage(m, live) {
+    clearEmpty();
     const div = document.createElement('div');
     div.className = 'msg ' + m.role;
-    if (m.role === 'bot') div.dataset.p = m.p ?? 0;
+    const gc = m.role === 'streamer' ? 'var(--accent)' : (m.color || colorOf(m.author));
+    div.style.setProperty('--gc', gc);
     const time = new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     div.innerHTML = `
-      <div class="meta">
-        <span class="name"></span>
-        ${m.role === 'bot' ? '<span class="badge-ai">🤖 AI</span>' : ''}
-        <span>${time}</span>
-      </div>
-      <div class="text"></div>`;
-    div.querySelector('.name').textContent = m.role === 'streamer' ? T('you') : m.author;
-    div.querySelector('.text').textContent = m.text;
-    messagesEl.appendChild(div);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+      <div class="av"></div>
+      <div class="body">
+        <div class="meta">
+          <span class="nm"></span>
+          ${m.role === 'bot' ? '<span class="badge-ai">🤖 AI</span>' : ''}
+          <span class="tm">${time}</span>
+        </div>
+        <div class="bubble"></div>
+      </div>`;
+    div.querySelector('.av').textContent = m.role === 'streamer' ? initial(T('you')) : initial(m.author);
+    div.querySelector('.nm').textContent = m.role === 'streamer' ? T('you') : m.author;
+    div.querySelector('.bubble').textContent = m.text;
+    feed.appendChild(div);
+    feed.scrollTop = feed.scrollHeight;
+    if (m.role === 'bot') pulseGhost(m.author);
     if (live && m.role === 'bot') speak(m.text);
   }
 
+  function addMoment(mo, live) {
+    clearEmpty();
+    const div = document.createElement('div');
+    div.className = 'moment-card';
+    const time = new Date(mo.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    div.innerHTML = `<span class="spark">✨ MOMENT</span><span></span><span class="tm" style="color:var(--faint);font-size:var(--fs-xs)">${time}</span>`;
+    div.children[1].textContent = mo.label;
+    feed.appendChild(div);
+    feed.scrollTop = feed.scrollHeight;
+    renderMoments();
+  }
+
   function addSystem(text) {
+    clearEmpty();
     const div = document.createElement('div');
     div.className = 'sys';
     div.textContent = '⚠ ' + text;
-    messagesEl.appendChild(div);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    feed.appendChild(div);
+    feed.scrollTop = feed.scrollHeight;
   }
 
-  function setStatus(id, cls, text) {
-    const el = $(id);
-    el.className = 'status ' + cls;
-    el.lastElementChild.textContent = text;
+  let momentsData = [];
+  function renderMoments() {
+    const box = $('moments');
+    $('momentCount').textContent = momentsData.length ? momentsData.length : '';
+    if (!momentsData.length) { box.innerHTML = `<div class="moments-empty">${T('noMoments')}</div>`; return; }
+    const start = state._startedAt || Date.now();
+    box.innerHTML = momentsData.slice(-24).reverse().map((m) => {
+      const el = Math.max(0, Math.floor((m.ts - start) / 60000));
+      const t = `${String(Math.floor(el/60)).padStart(2,'0')}:${String(el%60).padStart(2,'0')}`;
+      return `<div class="moment-row"><span class="t">${t}</span><span class="l"></span></div>`;
+    }).join('');
+    box.querySelectorAll('.moment-row .l').forEach((el, i) => { el.textContent = momentsData.slice(-24).reverse()[i].label; });
   }
+
+  function renderStage() {
+    const stage = $('stage');
+    stage.innerHTML = cast.map((c) => `
+      <div class="ghost-tile" data-name="${c.name.replace(/"/g,'&quot;')}" style="--gc:${c.color}">
+        <div class="avatar">${initial(c.name)}</div>
+        <div class="who"><div class="nm"></div><div class="st"></div></div>
+        <span class="badge-ai">AI</span>
+      </div>`).join('');
+    stage.querySelectorAll('.ghost-tile').forEach((el, i) => {
+      el.querySelector('.nm').textContent = cast[i].name;
+      el.querySelector('.st').textContent = T('watching');
+    });
+  }
+  function pulseGhost(name) {
+    const el = document.querySelector(`.ghost-tile[data-name="${(name||'').replace(/"/g,'&quot;')}"]`);
+    if (!el) return;
+    el.classList.add('active');
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.classList.remove('active'), 4000);
+  }
+
+  function setOrb(id, cls, text) { const el = $(id); el.className = 'orb ' + cls; el.querySelector('.lbl').textContent = text; }
 
   function renderState() {
     L = STR[state.uiLanguage] ?? STR.en;
+    applyAccent(state.accent);
+    if (JSON.stringify(cast) !== JSON.stringify(state.cast || [])) { cast = state.cast || []; renderStage(); }
     applyI18n();
-    $('personas').innerHTML = (state.personas || [])
-      .map((n, i) => `<span class="p${i}"></span>`).join(' · ');
-    document.querySelectorAll('#personas span').forEach((el, i) => { el.textContent = state.personas[i]; });
 
-    setStatus('st-obs', state.obsConnected ? 'good' : 'bad', state.obsConnected ? T('obsOk') : T('obsNo'));
-    setStatus('st-brain', state.apiKeySet ? 'good' : 'bad', state.apiKeySet ? T('brainOk') : T('brainNo'));
-    if (!state.twitchConfigured && state.viewerOverride === 'auto' && state.chatPerMin === null) {
-      setStatus('st-viewers', '', T('viewersManual'));
-    } else {
-      setStatus('st-viewers', state.mode === 'viewers' ? 'good' : '', `${T('viewers')}: ${state.realViewers ?? '?'} · ${state.mode}`);
-    }
+    setOrb('o-obs', state.obsConnected ? 'good' : 'bad', state.obsConnected ? T('obsOk') : T('obsNo'));
+    setOrb('o-brain', state.apiKeySet ? 'good' : 'bad', state.apiKeySet ? T('brainOk') : T('brainNo'));
+    if (!state.twitchConfigured && state.viewerOverride === 'auto' && state.chatPerMin === null) setOrb('o-viewers', '', T('viewersManual'));
+    else setOrb('o-viewers', state.mode === 'viewers' ? 'good' : '', `${state.realViewers ?? '?'} · ${state.mode}`);
     const heard = state.lastHeard && Date.now() - state.lastHeard.ts < 15000;
-    if (!state.transcriptMode || state.transcriptMode === 'off') setStatus('st-mic', '', T('micOff'));
-    else if (heard) { setStatus('st-mic', 'good', '🎙 ' + state.lastHeard.text); $('st-mic').title = state.lastHeard.text; }
-    else setStatus('st-mic', '', state.lastHeard ? T('micQuiet') : T('micWait'));
-    if (state.chatPerMin !== null) {
-      $('st-chat').style.display = '';
-      const active = state.chatPerMin >= 2;
-      setStatus('st-chat', active ? 'good' : '', `${active ? T('chatActive') : T('chatQuiet')} · ${state.chatPerMin}/min`);
-    }
+    if (!state.transcriptMode || state.transcriptMode === 'off') setOrb('o-mic', '', T('micOff'));
+    else if (heard) setOrb('o-mic', 'good', state.lastHeard.text.slice(0, 24));
+    else setOrb('o-mic', '', state.lastHeard ? T('micQuiet') : T('micWait'));
+    if (state.chatPerMin !== null) { $('o-chat').style.display = ''; const a = state.chatPerMin >= 2; setOrb('o-chat', a ? 'good' : '', `${a ? T('chatActive') : T('chatQuiet')} · ${state.chatPerMin}/m`); }
 
-    $('mode').value = state.viewerOverride;
+    // mode segmented
+    $('mode').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.mode === state.viewerOverride));
+    // pause
     $('pause').textContent = state.paused ? T('resume') : T('pause');
     $('pause').className = state.paused ? '' : 'primary';
+    // energy (don't fight the user's drag)
+    if (!dragging && typeof state.energy === 'number') { $('energy').value = state.energy; $('energyVal').textContent = state.energy; }
+    // ghost tile states
+    document.querySelectorAll('.ghost-tile .st').forEach((el) => { el.textContent = state.busy ? T('typing').replace('…','') : (state.paused ? T('idle') : T('watching')); });
+    $('typing').style.display = state.busy ? 'flex' : 'none';
     renderCost();
   }
 
   function renderCost() {
-    const el = $('cost');
-    const u = state.usage;
-    if (!state.costMeter || !u || u.messages === 0) { el.style.display = 'none'; return; }
-    el.style.display = '';
-    el.textContent = u.costKnown
-      ? `$${u.cost.toFixed(3)} · ${u.messages} ${T('msgs')}`
-      : `${u.messages} ${T('msgs')} · ${Math.round((u.inputTokens + u.outputTokens) / 1000)}k tokens`;
-    el.title = `${u.inputTokens.toLocaleString()} in + ${u.outputTokens.toLocaleString()} out tokens`;
+    const el = $('cost'); const u = state.usage;
+    if (!state.costMeter || !u || u.messages === 0) { el.textContent = ''; return; }
+    el.textContent = u.costKnown ? `$${u.cost.toFixed(3)} · ${u.messages} ${T('msgs')}` : `${u.messages} ${T('msgs')}`;
+    el.title = `${(u.inputTokens||0).toLocaleString()} in + ${(u.outputTokens||0).toLocaleString()} out tokens`;
   }
 
-  // Countdown ticks only while the tab is visible — zero idle work when
-  // the window is hidden or destroyed (resource posture: OBS and the game come first).
+  // ---------- session clock + countdown ----------
   setInterval(() => {
     if (document.hidden) return;
-    const el = $('countdown');
-    if (state.paused) { el.textContent = state.autoPaused ? T('autoPaused') : T('paused'); return; }
-    if (state.busy) { el.textContent = T('typing'); return; }
-    if (!state.nextMessageAt) { el.textContent = ''; return; }
-    const s = Math.max(0, Math.round((state.nextMessageAt - Date.now()) / 1000));
-    el.textContent = `${T('next')} ~${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    if (state._startedAt) {
+      const s = Math.floor((Date.now() - state._startedAt) / 1000);
+      $('clock').textContent = `${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor(s/60)%60).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+    }
+    const up = $('upnext');
+    if (state.paused) up.textContent = state.autoPaused ? T('autoPaused') : T('paused');
+    else if (state.busy) up.textContent = '•••';
+    else if (state.nextMessageAt) { const s = Math.max(0, Math.round((state.nextMessageAt - Date.now())/1000)); up.textContent = `${T('next')} ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; }
+    else up.textContent = '';
   }, 1000);
-  setInterval(() => { if (!document.hidden) renderState(); }, 3000); // mic/chat freshness
 
+  // ---------- websocket ----------
   let announcedDrop = false;
   function connect() {
-    ws = new WebSocket(`ws://${location.host}`);
+    const ws = new WebSocket(`ws://${location.host}`);
+    window._ws = ws;
     ws.onopen = () => { announcedDrop = false; };
     ws.onmessage = (ev) => {
       const msg = JSON.parse(ev.data);
       if (msg.type === 'init') {
-        state = msg.state;
-        messagesEl.innerHTML = '';
+        state = msg.state; state._startedAt = state._startedAt || Date.now();
+        cast = state.cast || []; renderStage();
+        feed.innerHTML = ''; if (!msg.history.length) { feed.appendChild(emptyEl()); }
         msg.history.forEach((m) => addMessage(m, false));
-        booted = true;
-        renderState();
-      } else if (msg.type === 'chat') {
-        addMessage(msg.msg, booted);
-      } else if (msg.type === 'state') {
-        state = msg.state;
-        renderState();
-      } else if (msg.type === 'system') {
-        addSystem(msg.text);
-      }
+        momentsData = msg.highlights || []; renderMoments();
+        booted = true; renderState();
+      } else if (msg.type === 'chat') { addMessage(msg.msg, booted); }
+      else if (msg.type === 'moment') { momentsData.push(msg.moment); addMoment(msg.moment, true); }
+      else if (msg.type === 'state') { const s = state._startedAt; state = msg.state; state._startedAt = s || Date.now(); renderState(); }
+      else if (msg.type === 'system') { addSystem(msg.text); }
     };
-    ws.onclose = () => {
-      if (!announcedDrop) { announcedDrop = true; addSystem(T('lost')); }
-      setTimeout(connect, 3000);
-    };
+    ws.onclose = () => { if (!announcedDrop) { announcedDrop = true; toast(T('lost')); } setTimeout(connect, 3000); };
   }
+  function emptyEl() { const d = document.createElement('div'); d.id='empty'; d.innerHTML = `<div class="big">👻</div><div>${T('emptyTitle')}</div><p class="hint">${T('emptyBody')}</p>`; return d; }
   connect();
 
-  const sendCmd = (cmd) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(cmd)); };
-  function send() {
-    const text = $('input').value.trim();
-    if (!text) return;
-    sendCmd({ type: 'streamer_message', text });
-    $('input').value = '';
-  }
+  const sendCmd = (c) => { if (window._ws && window._ws.readyState === 1) window._ws.send(JSON.stringify(c)); };
+  function send() { const t = $('input').value.trim(); if (!t) return; sendCmd({ type: 'streamer_message', text: t }); $('input').value = ''; }
   $('send').onclick = send;
   $('input').addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
   $('pause').onclick = () => sendCmd({ type: state.paused ? 'resume' : 'pause' });
   $('nudge').onclick = () => sendCmd({ type: 'nudge' });
-  $('mode').onchange = (e) => sendCmd({ type: 'override_viewers', value: e.target.value });
+  $('mode').querySelectorAll('button').forEach((b) => b.onclick = () => sendCmd({ type: 'override_viewers', value: b.dataset.mode }));
+
+  // energy dial
+  const energyEl = $('energy');
+  let energyThrottle = 0;
+  function pushEnergy(v) { $('energyVal').textContent = v; const now = Date.now(); if (now - energyThrottle > 120) { energyThrottle = now; sendCmd({ type: 'set_energy', value: Number(v) }); } }
+  energyEl.addEventListener('input', (e) => { dragging = true; pushEnergy(e.target.value); });
+  energyEl.addEventListener('change', (e) => { dragging = false; sendCmd({ type: 'set_energy', value: Number(e.target.value) }); });
+  document.querySelectorAll('.presets .chip').forEach((c) => c.onclick = () => { energyEl.value = c.dataset.energy; pushEnergy(c.dataset.energy); sendCmd({ type: 'set_energy', value: Number(c.dataset.energy) }); });
+
+  // ---------- toast ----------
+  let toastT;
+  function toast(msg) { const el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2600); }
+
+  // ---------- command palette ----------
+  const COMMANDS = [
+    { ic:'🗣', label:'Say something', sub:'poke the cast', run: () => sendCmd({ type:'nudge' }) },
+    { ic:'⏯', label:'Pause / resume', sub:'toggle', run: () => sendCmd({ type: state.paused ? 'resume':'pause' }) },
+    { ic:'🌙', label:'Energy: Chill', run: () => setEnergyCmd(20) },
+    { ic:'⚖️', label:'Energy: Balanced', run: () => setEnergyCmd(55) },
+    { ic:'🔥', label:'Energy: Hype', run: () => setEnergyCmd(88) },
+    { ic:'🎬', label:'Mode: Auto', run: () => sendCmd({ type:'override_viewers', value:'auto' }) },
+    { ic:'🎧', label:'Mode: Solo (chatty)', run: () => sendCmd({ type:'override_viewers', value:'solo' }) },
+    { ic:'👥', label:'Mode: Viewers (quiet)', run: () => sendCmd({ type:'override_viewers', value:'viewers' }) },
+    { ic:'📋', label:'Copy overlay URL', sub:'for OBS', run: () => { navigator.clipboard?.writeText(location.origin + '/overlay'); toast('Overlay URL copied'); } },
+    { ic:'📑', label:'Export recap', run: () => location.href = '/api/recap' },
+    { ic:'⚙️', label:'Open settings', run: () => location.href = '/settings' },
+  ];
+  function setEnergyCmd(v) { energyEl.value = v; $('energyVal').textContent = v; sendCmd({ type:'set_energy', value:v }); }
+  let palSel = 0, palFiltered = COMMANDS;
+  function openPal() { $('palette').classList.add('open'); $('palInput').value=''; palFiltered = COMMANDS; palSel = 0; renderPal(); $('palInput').focus(); }
+  function closePal() { $('palette').classList.remove('open'); }
+  function renderPal() {
+    $('pal-list').innerHTML = palFiltered.map((c, i) => `<div class="pal-item ${i===palSel?'sel':''}" data-i="${i}"><span class="ic">${c.ic}</span><span>${c.label}</span>${c.sub?`<span class="sub">${c.sub}</span>`:''}</div>`).join('');
+    $('pal-list').querySelectorAll('.pal-item').forEach((el) => { el.onclick = () => { palFiltered[+el.dataset.i].run(); closePal(); }; });
+  }
+  $('palBtn').onclick = openPal;
+  $('palInput').addEventListener('input', (e) => { const q = e.target.value.toLowerCase(); palFiltered = COMMANDS.filter((c) => c.label.toLowerCase().includes(q)); palSel = 0; renderPal(); });
+  $('palInput').addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { palSel = Math.min(palSel+1, palFiltered.length-1); renderPal(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { palSel = Math.max(palSel-1, 0); renderPal(); e.preventDefault(); }
+    else if (e.key === 'Enter') { palFiltered[palSel]?.run(); closePal(); }
+    else if (e.key === 'Escape') closePal();
+  });
+  $('palette').addEventListener('click', (e) => { if (e.target.id === 'palette') closePal(); });
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openPal(); }
+  });
 </script>
 </body>
 </html>

@@ -8,64 +8,72 @@
 <style>
   /* layout only — tokens & components come from theme.css */
   body { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-  #card { width: 640px; max-width: 94vw; margin: 24px 0; padding: 28px 32px; }
-  .sub { color: var(--dim); margin: 0 0 20px; font-size: 14px; }
-  #dots { display: flex; gap: 8px; margin-bottom: 22px; }
-  #dots span { width: 34px; height: 5px; border-radius: 3px; background: var(--border); }
-  #dots span.on { background: var(--accent); }
+  #card { width: 660px; max-width: 94vw; margin: 24px 0; padding: 30px 34px; }
+  .eyebrow { font-size: var(--fs-xs); letter-spacing: .16em; text-transform: uppercase; color: var(--faint); font-weight: 700; }
+  .sub { color: var(--dim); margin: 4px 0 22px; font-size: var(--fs-sm); }
+  #bar { display: flex; gap: 6px; margin-bottom: 24px; }
+  #bar span { height: 5px; flex: 1; border-radius: 3px; background: var(--border); transition: background .3s; }
+  #bar span.on { background: var(--aurora); }
   .step { display: none; }
-  .step.active { display: block; }
-  .choices { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
-  .choice { border: 1px solid var(--border); border-radius: var(--r-md); padding: 12px 14px; cursor: pointer; }
-  .choice:hover { border-color: var(--accent); }
-  .choice.selected { border-color: var(--accent); background: var(--accent-tint); }
+  .step.active { display: block; animation: fade .25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .step > b { font-size: var(--fs-lg); font-weight: 700; letter-spacing: -.01em; display: block; margin-bottom: 4px; }
+  .choices { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+  .choice { border: 1px solid var(--border); border-radius: var(--r-lg); padding: 14px 16px; cursor: pointer; background: var(--glass-2); transition: border-color .15s, background .15s; }
+  .choice:hover { border-color: var(--accent-line); }
+  .choice.selected { border-color: var(--accent); background: var(--accent-soft); }
   .choice b { display: block; margin-bottom: 2px; }
   .choice small { color: var(--dim); }
-  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
-  .test { margin-top: 10px; display: flex; align-items: center; gap: 10px; }
-  nav { display: flex; justify-content: space-between; margin-top: 26px; }
-  details { margin-top: 14px; border: 1px solid var(--border); border-radius: var(--r-md); padding: 10px 14px; }
+  .arche-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .arche-card { border: 1px solid var(--border); border-radius: var(--r-lg); padding: 12px 14px; cursor: pointer; background: var(--glass-2); display: flex; gap: 10px; align-items: center; }
+  .arche-card.selected { border-color: var(--gc); background: color-mix(in srgb, var(--gc) 12%, transparent); }
+  .arche-card .em { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 16px; background: var(--gc); flex: none; }
+  .arche-card .al { font-weight: 650; font-size: var(--fs-sm); }
+  .arche-card .ap { font-size: var(--fs-xs); color: var(--faint); }
+  .test { margin-top: 12px; display: flex; align-items: center; gap: 12px; }
+  nav { display: flex; justify-content: space-between; margin-top: 28px; }
+  details { margin-top: 14px; border: 1px solid var(--border); border-radius: var(--r-lg); padding: 12px 16px; }
   summary { cursor: pointer; color: var(--dim); }
-  #done { text-align: center; padding: 30px 0; display: none; }
-  #done .ghost { font-size: 52px; }
+  #done { text-align: center; padding: 32px 0; display: none; }
+  #done .ghost { font-size: 56px; }
+  /* energy dial */
+  input[type=range].dial { -webkit-appearance: none; appearance: none; width: 100%; height: 8px; border-radius: 999px; background: var(--aurora); outline: none; cursor: pointer; margin-top: 16px; }
+  input[type=range].dial::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 3px solid var(--bg); box-shadow: 0 2px 8px rgba(0,0,0,.5); }
+  .energy-lbls { display: flex; justify-content: space-between; font-size: var(--fs-xs); color: var(--faint); margin-top: 8px; }
+  #energyName { font-weight: 700; font-size: var(--fs-lg); }
 </style>
 </head>
 <body>
 <div id="card" class="card">
-  <h1 class="page-title">👻 Hype Ghost setup</h1>
-  <p class="sub">Your practice chat, configured in a minute. Everything can be changed later in Settings (⚙ on the dashboard).</p>
-  <div id="dots"></div>
+  <div class="eyebrow">👻 Hype Ghost 3.0</div>
+  <h1 class="page-title" style="margin-top:4px">Let's build your room</h1>
+  <p class="sub">Your practice chat, configured in a minute. Everything is changeable later in Settings.</p>
+  <div id="bar"></div>
 
   <!-- Step 1: goal -->
   <div class="step" data-step="0">
-    <b>What are you hoping to get out of Hype Ghost?</b>
+    <b>What do you want from Hype Ghost?</b>
     <div class="choices" id="goal">
       <div class="choice" tabindex="0" data-goal="practice"><b>Practice talking to chat</b><small>Build the habit of narrating and answering chat out loud, so you're sharp when real viewers show up.</small></div>
-      <div class="choice" tabindex="0" data-goal="company"><b>Company on quiet streams</b><small>A chattier companion so streaming to zero never feels like streaming to zero.</small></div>
+      <div class="choice" tabindex="0" data-goal="company"><b>Company on quiet streams</b><small>A chattier room so streaming to zero never feels like streaming to zero.</small></div>
       <div class="choice" tabindex="0" data-goal="vod"><b>Better VODs</b><small>Occasional prompts that give your VODs conversational structure — a bit more hands-off.</small></div>
     </div>
     <p class="hint" id="goalHint"></p>
   </div>
 
-  <!-- Step 2: identity -->
+  <!-- Step 2: first ghost -->
   <div class="step" data-step="1">
-    <b>Give your ghost a name and a personality.</b>
-    <label>Chat name</label>
+    <b>Meet your first ghost.</b>
+    <p class="hint">Pick a vibe (you can add more of the cast later), then name them.</p>
+    <div class="arche-grid" id="arches"></div>
+    <label>Name</label>
     <input type="text" id="botName" maxlength="24" placeholder="Beacon">
-    <label>Personality</label>
-    <textarea id="personality" placeholder="friendly, curious, a little goofy"></textarea>
-    <div class="chips">
-      <span class="chip" tabindex="0" data-p="friendly, curious, a little goofy; loves asking questions about whatever is on screen">Friendly &amp; curious</span>
-      <span class="chip" tabindex="0" data-p="high-energy hype friend; celebrates every small win, big on encouragement, never negative">Hype &amp; energetic</span>
-      <span class="chip" tabindex="0" data-p="dry, deadpan, lightly sarcastic; roasts gently but is secretly very supportive">Dry &amp; sarcastic</span>
-      <span class="chip" tabindex="0" data-p="chill lurker energy; short laid-back messages, vibes along with the stream">Chill lurker</span>
-    </div>
   </div>
 
-  <!-- Step 3: API key -->
+  <!-- Step 3: brain -->
   <div class="step" data-step="2">
     <b>Connect the brain.</b>
-    <label>How should the ghost think?</label>
+    <label>How should the cast think?</label>
     <select id="provider">
       <option value="anthropic">Claude API — best banter (paid, ~$0.20/hr)</option>
       <option value="openai">Local / free — Ollama, LM Studio, or any OpenAI-compatible endpoint ($0)</option>
@@ -78,7 +86,7 @@
       <select id="model"></select>
     </div>
     <div id="oaiFields" style="display:none">
-      <p class="hint">The private/$0 route: install <a href="https://ollama.com" target="_blank">Ollama</a>, run <code>ollama pull qwen2.5vl:7b</code>, done — nothing leaves your PC. (Free cloud tiers work too via their OpenAI-compatible URLs, but they may train on your data — free ≠ private.) Use a <b>vision-capable</b> model so the ghost can see your stream.</p>
+      <p class="hint">The private/$0 route: install <a href="https://ollama.com" target="_blank">Ollama</a>, run <code>ollama pull qwen2.5vl:7b</code>, done — nothing leaves your PC. Use a <b>vision-capable</b> model so the cast can see your stream.</p>
       <label>Endpoint URL</label>
       <input type="text" id="oaiBase" placeholder="http://localhost:11434/v1">
       <label>Model</label>
@@ -86,269 +94,177 @@
       <label>API key (only if the endpoint needs one)</label>
       <input type="password" id="oaiKey">
     </div>
-    <div class="test">
-      <button id="testKey">Test brain</button>
-      <span class="result" id="keyResult"></span>
-    </div>
+    <div class="test"><button id="testKey">Test brain</button><span class="result" id="keyResult"></span></div>
   </div>
 
   <!-- Step 4: OBS -->
   <div class="step" data-step="3">
-    <b>Let the ghost see your stream.</b>
+    <b>Let the cast see your stream.</b>
     <p class="hint">In OBS: <b>Tools → WebSocket Server Settings</b> → enable the server, then copy the password here. This is how Hype Ghost screenshots your live scene to react to it.</p>
     <div class="row">
-      <div>
-        <label>OBS WebSocket URL</label>
-        <input type="text" id="obsUrl" placeholder="ws://127.0.0.1:4455">
-      </div>
-      <div>
-        <label>Password</label>
-        <input type="password" id="obsPassword">
-      </div>
+      <div><label>OBS WebSocket URL</label><input type="text" id="obsUrl" placeholder="ws://127.0.0.1:4455"></div>
+      <div><label>Password</label><input type="password" id="obsPassword"></div>
     </div>
-    <div class="test">
-      <button id="testObs">Test connection</button>
-      <span class="result" id="obsResult"></span>
-    </div>
+    <div class="test"><button id="testObs">Test connection</button><span class="result" id="obsResult"></span></div>
     <p class="hint">OBS not running right now? You can skip this — it reconnects automatically.</p>
   </div>
 
-  <!-- Step 5: cadence -->
+  <!-- Step 5: energy -->
   <div class="step" data-step="4">
-    <b>How chatty should the ghost be?</b>
-    <div class="choices" id="cadence">
-      <div class="choice" tabindex="0" data-solo="60"><b>Chatty</b><small>Averages about a message a minute — with natural bursts and lulls either side.</small></div>
-      <div class="choice" tabindex="0" data-solo="90"><b>Balanced</b><small>Averages about every 90 seconds. Good default.</small></div>
-      <div class="choice" tabindex="0" data-solo="150"><b>Relaxed</b><small>Every 2–3 minutes — present, but leaves you room.</small></div>
-    </div>
-    <label>Or custom (seconds between messages)</label>
-    <input type="number" id="soloSeconds" min="20" max="900">
-    <p class="hint">When real viewers are present the ghost automatically slows to ~4x this gap and shifts to prompts that help you engage the room.</p>
+    <b>Set the room's energy.</b>
+    <p class="hint">One dial for how lively the room feels — it scales how often the cast talks and their whole mood. You can nudge it live on the deck any time.</p>
+    <div style="text-align:center;margin-top:18px"><span id="energyName">Balanced</span> <span style="color:var(--faint)">· <b id="energyNum">55</b></span></div>
+    <input type="range" class="dial" id="energy" min="0" max="100" value="55">
+    <div class="energy-lbls"><span>🌙 Chill</span><span>⚖️ Balanced</span><span>🔥 Hype</span></div>
   </div>
 
   <!-- Step 6: extras -->
   <div class="step" data-step="5">
     <b>Optional extras</b>
     <details>
-      <summary>🎙 Voice awareness — the ghost hears what you say (recommended)</summary>
+      <summary>🎙 Voice awareness — the cast hears what you say (recommended)</summary>
       <p class="hint">Install the free <a href="https://obsproject.com/forum/resources/localvocal-local-live-captions-translation-on-the-go.1769/" target="_blank">LocalVocal</a> OBS plugin (speech-to-text runs 100% locally), add its filter to your mic, and point it at a file or text source:</p>
       <label>Mode</label>
-      <select id="trMode">
-        <option value="off">Off</option>
-        <option value="file">File — tail LocalVocal's .txt/.srt output</option>
-        <option value="textSource">Text source — read via OBS WebSocket</option>
-      </select>
+      <select id="trMode"><option value="off">Off</option><option value="file">File — tail LocalVocal's .txt/.srt output</option><option value="textSource">Text source — read via OBS WebSocket</option></select>
       <label>File path or text source name</label>
       <input type="text" id="trTarget" placeholder="C:/Users/you/captions.srt   or   LocalVocal Captions">
     </details>
     <details>
       <summary>📺 Twitch viewer detection — auto-quiet when real people arrive</summary>
-      <p class="hint">Read-only viewer count check (never touches chat). Create app credentials at <a href="https://dev.twitch.tv/console" target="_blank">dev.twitch.tv/console</a>. Skip this and use the dashboard's manual mode toggle instead.</p>
+      <p class="hint">Read-only viewer count check (never touches chat). Create app credentials at <a href="https://dev.twitch.tv/console" target="_blank">dev.twitch.tv/console</a>. Skip this and use the deck's manual mode toggle instead.</p>
       <label>Channel name</label>
       <input type="text" id="twChannel">
-      <div class="row">
-        <div><label>Client ID</label><input type="text" id="twId"></div>
-        <div><label>Client secret</label><input type="password" id="twSecret"></div>
-      </div>
+      <div class="row"><div><label>Client ID</label><input type="text" id="twId"></div><div><label>Client secret</label><input type="password" id="twSecret"></div></div>
     </details>
-    <p class="hint" style="margin-top:14px">After setup: open Settings → Stream and click <b>Add overlay to OBS</b> to put the chat on your stream and VODs (or add a Browser Source manually: <b><span id="overlayUrl"></span></b>, ~460×600).</p>
+    <p class="hint" style="margin-top:14px">After setup: open Settings → Stream and click <b>Add overlay to OBS</b> to put the chat on your stream and VODs.</p>
   </div>
 
   <div id="done">
     <div class="ghost">👻</div>
-    <h2>You're all set!</h2>
+    <h2>Your room is ready!</h2>
     <p class="sub" id="doneMsg">Saving…</p>
   </div>
 
   <nav>
-    <button id="back">Back</button>
+    <button id="back" class="ghostbtn">Back</button>
     <button id="next" class="primary">Next</button>
   </nav>
 </div>
 
 <script>
   const STEPS = 6;
-  let step = 0;
-  let cfg = null;
-  let apiKeySaved = false;
-  let canRestart = false;
-
+  let step = 0, cfg = null, apiKeySaved = false, canRestart = false;
+  let archetypes = [], palette = {}, chosenArche = null;
   const $ = (id) => document.getElementById(id);
-  const dots = $('dots');
-  for (let i = 0; i < STEPS; i++) dots.appendChild(document.createElement('span'));
-  $('overlayUrl').textContent = location.origin + '/overlay';
+
+  const bar = $('bar');
+  for (let i = 0; i < STEPS; i++) bar.appendChild(document.createElement('span'));
 
   function show() {
     document.querySelectorAll('.step').forEach((el) => el.classList.toggle('active', Number(el.dataset.step) === step));
-    [...dots.children].forEach((d, i) => d.classList.toggle('on', i <= step));
+    [...bar.children].forEach((d, i) => d.classList.toggle('on', i <= step));
     $('back').style.visibility = step === 0 ? 'hidden' : 'visible';
     $('next').textContent = step === STEPS - 1 ? 'Finish setup' : 'Next';
   }
 
-  // ---- prefill from current config ----
   fetch('/api/config').then((r) => r.json()).then((data) => {
-    cfg = data.config;
-    apiKeySaved = data.apiKeySaved;
-    canRestart = data.canRestart;
-    $('model').innerHTML = data.models
-      .map((m) => `<option value="${m.id}">${m.label}</option>`)
-      .join('');
-    $('botName').value = cfg.bot.name;
-    $('personality').value = cfg.bot.personality;
-    if (apiKeySaved) $('apiKey').placeholder = 'saved ✓ — leave blank to keep the current key';
-    $('model').value = cfg.anthropic.model;
-    $('provider').value = cfg.brain.provider;
-    $('oaiBase').value = cfg.brain.openaiBaseUrl;
-    $('oaiModel').value = cfg.brain.openaiModel;
-    $('oaiKey').value = cfg.brain.openaiApiKey;
+    cfg = data.config; apiKeySaved = data.apiKeySaved; canRestart = data.canRestart;
+    archetypes = data.archetypes || []; palette = data.palette || {};
+    $('model').innerHTML = data.models.map((m) => `<option value="${m.id}">${m.label}</option>`).join('');
+    // archetype cards
+    $('arches').innerHTML = archetypes.map((a) => {
+      const hex = (palette[a.color] || {}).hex || '#5ad1ff';
+      return `<div class="arche-card" tabindex="0" data-id="${a.id}" style="--gc:${hex}"><div class="em">${a.emoji}</div><div><div class="al">${a.label}</div><div class="ap">${a.personality.split(';')[0]}</div></div></div>`;
+    }).join('');
+    document.querySelectorAll('.arche-card').forEach((c) => c.onclick = () => chooseArche(c));
+    // default selection: first archetype, name from config
+    chooseArche(document.querySelector('.arche-card'));
+    $('botName').value = (data.cast && data.cast[0] && data.cast[0].name) || cfg.bot.name;
+    $('apiKey').placeholder = apiKeySaved ? 'saved ✓ — leave blank to keep the current key' : 'sk-ant-…';
+    $('model').value = cfg.anthropic.model; $('provider').value = cfg.brain.provider;
+    $('oaiBase').value = cfg.brain.openaiBaseUrl; $('oaiModel').value = cfg.brain.openaiModel; $('oaiKey').value = cfg.brain.openaiApiKey;
     toggleProvider();
-    $('obsUrl').value = cfg.obs.url;
-    $('obsPassword').value = cfg.obs.password;
-    $('soloSeconds').value = cfg.cadence.soloSeconds;
-    markCadence();
+    $('obsUrl').value = cfg.obs.url; $('obsPassword').value = cfg.obs.password;
+    setEnergy(Number.isFinite(cfg.energy) ? cfg.energy : 55);
     $('trMode').value = cfg.transcript.mode;
     $('trTarget').value = cfg.transcript.mode === 'textSource' ? cfg.transcript.textSource : cfg.transcript.file;
-    $('twChannel').value = cfg.twitch.channel;
-    $('twId').value = cfg.twitch.clientId;
-    $('twSecret').value = cfg.twitch.clientSecret;
+    $('twChannel').value = cfg.twitch.channel; $('twId').value = cfg.twitch.clientId; $('twSecret').value = cfg.twitch.clientSecret;
   });
 
-  // ---- goal step ----
-  const GOAL_PRESETS = {
-    practice: { solo: 90, hint: 'Good pick — the ghost will keep a steady conversational pace and ask the occasional question you can answer out loud.' },
-    company: { solo: 60, hint: 'The ghost will lean chattier. You can tune exactly how chatty in a later step.' },
-    vod: { solo: 150, hint: 'The ghost will hang back a bit and prioritize messages that give segments structure.' },
-  };
+  function chooseArche(card) {
+    document.querySelectorAll('.arche-card').forEach((c) => c.classList.remove('selected'));
+    card.classList.add('selected');
+    chosenArche = archetypes.find((a) => a.id === card.dataset.id);
+  }
+  document.querySelectorAll('.arche-card, .choice').forEach; // noop guard
+
+  // goal -> energy default
+  const GOAL = { practice: { e: 55, hint: 'Good pick — a steady conversational pace with the occasional question you can answer out loud.' },
+    company: { e: 78, hint: 'The room will lean lively. Tune it exactly on the next steps.' },
+    vod: { e: 38, hint: 'The cast will hang back a bit and prioritize messages that give segments structure.' } };
   function chooseGoal(c) {
     document.querySelectorAll('#goal .choice').forEach((x) => x.classList.remove('selected'));
     c.classList.add('selected');
-    const preset = GOAL_PRESETS[c.dataset.goal];
-    $('soloSeconds').value = preset.solo;
-    $('goalHint').textContent = preset.hint;
-    markCadence();
+    const p = GOAL[c.dataset.goal]; setEnergy(p.e); $('goalHint').textContent = p.hint;
   }
-  $('goal').addEventListener('click', (e) => {
-    const c = e.target.closest('.choice');
-    if (c) chooseGoal(c);
+  $('goal').addEventListener('click', (e) => { const c = e.target.closest('.choice'); if (c) chooseGoal(c); });
+
+  // energy dial
+  function energyName(v) { return v < 20 ? 'Sleepy' : v < 40 ? 'Chill' : v < 65 ? 'Balanced' : v < 85 ? 'Lively' : 'Electric'; }
+  function setEnergy(v) { $('energy').value = v; $('energyNum').textContent = v; $('energyName').textContent = energyName(v); }
+  $('energy').addEventListener('input', (e) => setEnergy(Number(e.target.value)));
+
+  // keyboard on cards
+  document.addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && document.activeElement.classList?.contains('arche-card')) { e.preventDefault(); document.activeElement.click(); }
+    if ((e.key === 'Enter' || e.key === ' ') && document.activeElement.classList?.contains('choice')) { e.preventDefault(); document.activeElement.click(); }
   });
 
-  // ---- personality chips ----
-  document.querySelectorAll('.chip').forEach((chip) => {
-    chip.addEventListener('click', () => { $('personality').value = chip.dataset.p; });
-  });
-
-  // choices & chips work with Enter/Space for keyboard users
-  document.querySelectorAll('.choice, .chip').forEach((el) => {
-    el.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
-    });
-  });
-
-  // ---- cadence choices <-> custom input ----
-  function markCadence() {
-    const v = String($('soloSeconds').value);
-    document.querySelectorAll('#cadence .choice').forEach((c) => c.classList.toggle('selected', c.dataset.solo === v));
-  }
-  $('cadence').addEventListener('click', (e) => {
-    const c = e.target.closest('.choice');
-    if (!c) return;
-    $('soloSeconds').value = c.dataset.solo;
-    markCadence();
-  });
-  $('soloSeconds').addEventListener('input', markCadence);
-
-  // ---- brain provider toggle + live tests ----
-  function toggleProvider() {
-    const oai = $('provider').value === 'openai';
-    $('anthFields').style.display = oai ? 'none' : '';
-    $('oaiFields').style.display = oai ? '' : 'none';
-  }
+  function toggleProvider() { const oai = $('provider').value === 'openai'; $('anthFields').style.display = oai ? 'none':''; $('oaiFields').style.display = oai ? '':'none'; }
   $('provider').onchange = toggleProvider;
 
   $('testKey').onclick = async () => {
-    const el = $('keyResult');
-    el.className = 'result'; el.textContent = 'testing…';
+    const el = $('keyResult'); el.className = 'result'; el.textContent = 'testing…';
     const body = $('provider').value === 'openai'
-      ? { provider: 'openai', baseUrl: $('oaiBase').value.trim(), model: $('oaiModel').value.trim(), apiKey: $('oaiKey').value.trim() }
+      ? { provider:'openai', baseUrl: $('oaiBase').value.trim(), model: $('oaiModel').value.trim(), apiKey: $('oaiKey').value.trim() }
       : { apiKey: $('apiKey').value.trim(), model: $('model').value };
-    const r = await fetch('/api/test-key', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
-    el.className = 'result ' + (r.ok ? 'ok' : 'err');
-    el.textContent = r.ok ? '✓ works' + (r.note ? ' — ' + r.note : '') : '✗ ' + (r.error || 'failed');
+    const r = await fetch('/api/test-key', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }).then((x)=>x.json()).catch((e)=>({ok:false,error:e.message}));
+    el.className = 'result ' + (r.ok ? 'ok':'err'); el.textContent = r.ok ? '✓ works' + (r.note ? ' — '+r.note : '') : '✗ ' + (r.error || 'failed');
   };
-
   $('testObs').onclick = async () => {
-    const el = $('obsResult');
-    el.className = 'result'; el.textContent = 'testing…';
-    const r = await fetch('/api/test-obs', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: $('obsUrl').value.trim(), password: $('obsPassword').value }),
-    }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
-    el.className = 'result ' + (r.ok ? 'ok' : 'err');
-    el.textContent = r.ok ? `✓ connected — current scene: "${r.scene}"` : '✗ ' + (r.error || 'failed');
+    const el = $('obsResult'); el.className = 'result'; el.textContent = 'testing…';
+    const r = await fetch('/api/test-obs', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url: $('obsUrl').value.trim(), password: $('obsPassword').value }) }).then((x)=>x.json()).catch((e)=>({ok:false,error:e.message}));
+    el.className = 'result ' + (r.ok ? 'ok':'err'); el.textContent = r.ok ? `✓ connected — current scene: "${r.scene}"` : '✗ ' + (r.error || 'failed');
   };
 
-  // ---- navigation + save ----
   $('back').onclick = () => { if (step > 0) { step--; show(); } };
   $('next').onclick = async () => {
     if (step === 2) {
       const oai = $('provider').value === 'openai';
-      if (!oai && !$('apiKey').value.trim() && !apiKeySaved) {
-        $('keyResult').className = 'result err';
-        $('keyResult').textContent = 'an API key is required — the ghost has no brain without it';
-        return;
-      }
-      if (oai && !$('oaiModel').value.trim()) {
-        $('keyResult').className = 'result err';
-        $('keyResult').textContent = 'a model name is required (e.g. qwen2.5vl:7b)';
-        return;
-      }
+      if (!oai && !$('apiKey').value.trim() && !apiKeySaved) { $('keyResult').className='result err'; $('keyResult').textContent='an API key is required — the cast has no brain without it'; return; }
+      if (oai && !$('oaiModel').value.trim()) { $('keyResult').className='result err'; $('keyResult').textContent='a model name is required (e.g. qwen2.5vl:7b)'; return; }
     }
     if (step < STEPS - 1) { step++; show(); return; }
 
-    // Finish: merge wizard fields into the existing config and save.
-    // A blank key field means "keep the saved key" — the server preserves it.
-    cfg.bot = { ...cfg.bot, name: $('botName').value.trim() || 'Beacon', personality: $('personality').value.trim() || 'friendly and curious' };
+    // Finish: build a one-ghost cast from the chosen archetype + name.
+    const a = chosenArche || archetypes[0] || { color:'aqua', personality:'friendly and curious' };
+    const name = $('botName').value.trim() || 'Beacon';
+    cfg.cast = [{ id: name.toLowerCase().replace(/[^a-z0-9]+/g,'-') || 'ghost-1', name, personality: a.personality, color: a.color, archetype: a.id, enabled: true }];
+    cfg.bot = { ...cfg.bot, name, personality: a.personality };
     cfg.anthropic = { ...cfg.anthropic, apiKey: $('apiKey').value.trim(), model: $('model').value };
-    cfg.brain = {
-      ...cfg.brain,
-      provider: $('provider').value,
-      openaiBaseUrl: $('oaiBase').value.trim() || 'http://localhost:11434/v1',
-      openaiModel: $('oaiModel').value.trim(),
-      openaiApiKey: $('oaiKey').value.trim(),
-    };
+    cfg.brain = { ...cfg.brain, provider: $('provider').value, openaiBaseUrl: $('oaiBase').value.trim() || 'http://localhost:11434/v1', openaiModel: $('oaiModel').value.trim(), openaiApiKey: $('oaiKey').value.trim() };
     cfg.obs = { ...cfg.obs, url: $('obsUrl').value.trim() || 'ws://127.0.0.1:4455', password: $('obsPassword').value };
-    cfg.cadence = { ...cfg.cadence, soloSeconds: Math.max(20, Number($('soloSeconds').value) || 90) };
-    const mode = $('trMode').value;
-    const target = $('trTarget').value.trim();
-    cfg.transcript = {
-      ...cfg.transcript,
-      mode: mode !== 'off' && !target ? 'off' : mode,
-      ...(mode === 'file' ? { file: target } : {}),
-      ...(mode === 'textSource' ? { textSource: target } : {}),
-    };
+    cfg.energy = Number($('energy').value);
+    const mode = $('trMode').value, target = $('trTarget').value.trim();
+    cfg.transcript = { ...cfg.transcript, mode: mode !== 'off' && !target ? 'off' : mode, ...(mode === 'file' ? { file: target } : {}), ...(mode === 'textSource' ? { textSource: target } : {}) };
     cfg.twitch = { ...cfg.twitch, channel: $('twChannel').value.trim(), clientId: $('twId').value.trim(), clientSecret: $('twSecret').value.trim() };
 
     $('next').disabled = true;
-    const r = await fetch('/api/config', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(cfg),
-    }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
-    if (!r.ok) {
-      $('next').disabled = false;
-      alert('Saving failed: ' + (r.error || 'unknown error'));
-      return;
-    }
+    const r = await fetch('/api/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cfg) }).then((x)=>x.json()).catch((e)=>({ok:false,error:e.message}));
+    if (!r.ok) { $('next').disabled = false; alert('Saving failed: ' + (r.error || 'unknown error')); return; }
     document.querySelectorAll('.step').forEach((el) => el.classList.remove('active'));
-    document.querySelector('nav').style.display = 'none';
-    dots.style.display = 'none';
-    $('done').style.display = 'block';
-    // Desktop app relaunches itself; headless mode needs a manual restart.
-    $('doneMsg').textContent = r.restarting
-      ? 'Saving and restarting Hype Ghost…'
-      : 'Saved — restart the server to apply your settings.';
+    document.querySelector('nav').style.display = 'none'; bar.style.display = 'none'; $('done').style.display = 'block';
+    $('doneMsg').textContent = r.restarting ? 'Saving and restarting Hype Ghost…' : 'Saved — restart the server to apply your settings.';
     if (r.restarting) setTimeout(() => { location.href = '/'; }, 4000);
   };
 

@@ -1,5 +1,27 @@
 {
   "port": 3777,
+  "theme": {
+    "accent": "violet"
+  },
+  "energy": 55,
+  "cast": [
+    {
+      "id": "beacon",
+      "name": "Beacon",
+      "color": "aqua",
+      "archetype": "curious",
+      "personality": "friendly, curious, a little goofy; loves asking questions about whatever is on screen",
+      "enabled": true
+    },
+    {
+      "id": "wisp",
+      "name": "Wisp",
+      "color": "rose",
+      "archetype": "lurker",
+      "personality": "chill half-lurker; dry one-liners; pretends not to care but clearly does",
+      "enabled": false
+    }
+  ],
   "bot": {
     "name": "Beacon",
     "personality": "friendly, curious, a little goofy; loves asking questions about whatever is on screen",
@@ -24,6 +46,9 @@
     "context": ""
   },
   "talkingPoints": [],
+  "moments": {
+    "enabled": true
+  },
   "brain": {
     "provider": "anthropic",
     "openaiBaseUrl": "http://localhost:11434/v1",
@@ -43,7 +68,9 @@
     "align": "left",
     "fontScale": 1,
     "fadeSeconds": 0,
-    "maxVisible": 6
+    "maxVisible": 6,
+    "theme": "cards",
+    "reactions": true
   },
   "memory": {
     "enabled": true,

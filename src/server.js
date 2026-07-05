@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { loadConfig } from './config.js';
 import { MODELS, messageCost } from './models.js';
+import { resolveCast, GHOST_COLORS, ARCHETYPES } from './cast.js';
 import { ObsCapture } from './obs.js';
 import { Brain } from './brain.js';
 import { TwitchViewers } from './twitch.js';
@@ -46,10 +47,11 @@ export function startServer(opts = {}) {
   // an OpenAI-compatible endpoint just needs a model name.
   const brainReady = usingAnthropic ? Boolean(apiKey) : Boolean(config.brain.openaiModel);
 
-  const personas = [
-    { name: config.bot.name, personality: config.bot.personality },
-    ...(config.bot2.enabled ? [{ name: config.bot2.name, personality: config.bot2.personality }] : []),
-  ];
+  // The cast: 1–4 simulated viewers, resolved from the 3.x `cast` roster (or
+  // migrated from a 2.x bot/bot2 config). Each carries a stage color.
+  const cast = resolveCast(config);
+  const personas = cast.map((c) => ({ name: c.name, personality: c.personality }));
+  const castColor = new Map(cast.map((c) => [c.name, c.hex]));
 
   const obs = new ObsCapture(config.obs.url, config.obs.password, config.obs.screenshotWidth);
   const twitch = new TwitchViewers(config.twitch);
@@ -72,6 +74,9 @@ export function startServer(opts = {}) {
     twitchConfigured: twitch.configured(),
     botName: config.bot.name,
     personas: personas.map((p) => p.name),
+    cast: cast.map((c) => ({ name: c.name, color: c.hex, colorKey: c.colorKey })),
+    energy: Number.isFinite(config.energy) ? config.energy : 55,
+    accent: config.theme?.accent || 'violet',
     chatPerMin: null, // real Twitch chat messages/min (null = not listening)
     nextMessageAt: null,
     busy: false,
@@ -86,6 +91,8 @@ export function startServer(opts = {}) {
 
   const history = []; // {id, author, role: 'bot'|'streamer', text, ts}
   const MAX_HISTORY = 40;
+  const highlights = []; // {label, ts} — clip-worthy moments the cast flagged
+  const MAX_HIGHLIGHTS = 40;
 
   function resolveMode() {
     if (state.viewerOverride === 'solo') return 'solo';
@@ -145,6 +152,11 @@ export function startServer(opts = {}) {
       firstRun: !state.apiKeySet,
       apiKeySaved: Boolean(config.anthropic.apiKey),
       models: MODELS,
+      // The cast editor builds itself from these: the resolved roster (so 2.x
+      // configs show their migrated ghosts), the color palette, and archetypes.
+      cast: cast.map((c) => ({ name: c.name, personality: c.personality, color: c.colorKey })),
+      palette: GHOST_COLORS,
+      archetypes: ARCHETYPES,
       canRestart: Boolean(opts.onConfigSaved),
     });
   });
@@ -206,7 +218,7 @@ export function startServer(opts = {}) {
 
   // Overlay reads only what it needs — never the full config (which holds secrets).
   app.get('/api/overlay-config', (_req, res) => {
-    res.json({ overlay: config.overlay, personas: state.personas });
+    res.json({ overlay: config.overlay, personas: state.personas, cast: state.cast, accent: state.accent });
   });
 
   // Post-stream recap: session notes + timestamped chat log as markdown.
@@ -226,6 +238,12 @@ export function startServer(opts = {}) {
       '## Session notes',
       '',
       sessionNotes || '_(none yet)_',
+      '',
+      '## Moments (VOD chapters)',
+      '',
+      ...(highlights.length
+        ? highlights.map((m) => `- \`${fmt(m.ts)}\` ${m.label}`)
+        : ['_(no clip-worthy moments flagged this session)_']),
       '',
       '## Chat log',
       '',
@@ -290,11 +308,23 @@ export function startServer(opts = {}) {
 
   function pushMessage(role, author, text) {
     const msg = { id: Date.now() + '-' + Math.random().toString(36).slice(2, 7), role, author, text, ts: Date.now() };
-    if (role === 'bot') msg.p = Math.max(0, state.personas.indexOf(author)); // persona index for coloring
+    if (role === 'bot') {
+      msg.p = Math.max(0, state.personas.indexOf(author)); // persona index (kept for back-compat)
+      msg.color = castColor.get(author) || cast[0]?.hex; // stage color for this ghost
+    }
     history.push(msg);
     if (history.length > MAX_HISTORY) history.shift();
     broadcast({ type: 'chat', msg });
     return msg;
+  }
+
+  function pushMoment(label) {
+    const moment = { label: String(label).slice(0, 60), ts: Date.now() };
+    highlights.push(moment);
+    if (highlights.length > MAX_HIGHLIGHTS) highlights.shift();
+    broadcast({ type: 'moment', moment });
+    console.log('[moment]', moment.label);
+    return moment;
   }
 
   function broadcastState() {
@@ -339,6 +369,7 @@ export function startServer(opts = {}) {
         } catch {}
         console.log('[memory] session notes updated:', sessionNotes.replace(/\s+/g, ' ').slice(0, 100) + '…');
       },
+      onMoment: (label) => pushMoment(label),
       getProfile: () => profile,
       setProfile: (next) => {
         profile = next;
@@ -370,7 +401,7 @@ export function startServer(opts = {}) {
       ws.close();
       return;
     }
-    ws.send(JSON.stringify({ type: 'init', state, history }));
+    ws.send(JSON.stringify({ type: 'init', state, history, highlights }));
     ws.on('message', (raw) => {
       let cmd;
       try {
@@ -394,6 +425,11 @@ export function startServer(opts = {}) {
           break;
         case 'nudge':
           loop.nudge();
+          break;
+        case 'set_energy':
+          loop.setEnergy(cmd.value);
+          state.energy = loop.energy;
+          broadcastState();
           break;
         case 'override_viewers':
           if (['auto', 'solo', 'viewers'].includes(cmd.value)) {
