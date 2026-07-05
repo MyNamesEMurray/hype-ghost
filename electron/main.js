@@ -129,6 +129,19 @@ app.whenReady().then(() => {
         app.relaunch();
         app.exit(0);
       },
+      // Settings page "Browse…" → native file dialog (full path, which the
+      // browser's own <input type=file> can't provide).
+      pickFile: async () => {
+        const r = await dialog.showOpenDialog(win, {
+          title: 'Choose the LocalVocal transcript file',
+          properties: ['openFile'],
+          filters: [
+            { name: 'Transcripts', extensions: ['srt', 'txt'] },
+            { name: 'All files', extensions: ['*'] },
+          ],
+        });
+        return r.canceled ? null : r.filePaths[0];
+      },
     });
   } catch (err) {
     dialog.showErrorBox('Hype Ghost failed to start', String(err.message || err));

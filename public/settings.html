@@ -55,6 +55,13 @@
     position: sticky; bottom: 0; background: linear-gradient(transparent, var(--bg) 30%);
     padding: 18px 0 14px; display: flex; gap: 12px; align-items: center;
   }
+  #level { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  #level button { border: none; border-radius: 0; padding: 6px 14px; font-size: 13px; color: var(--dim); }
+  #level button.on { background: var(--accent); color: #14081f; font-weight: 600; }
+  body.simple .adv { display: none !important; }
+  .withbtn { display: flex; gap: 8px; }
+  .withbtn input { flex: 1; }
+  .withbtn button { white-space: nowrap; }
   #saveResult { font-size: 13px; }
   a { color: var(--accent); }
 </style>
@@ -63,6 +70,10 @@
 <div id="page">
   <header>
     <h1>⚙ Settings</h1>
+    <div id="level">
+      <button id="lvlSimple">Simple</button>
+      <button id="lvlAdv">Advanced</button>
+    </div>
     <a class="back" href="/">← Back to dashboard</a>
   </header>
 
@@ -97,9 +108,9 @@
       <div><label>WebSocket URL</label><input type="text" data-path="obs.url"></div>
       <div><label>Password</label><input type="password" data-path="obs.password"></div>
     </div>
-    <label>Screenshot width (px)</label>
-    <input type="number" data-path="obs.screenshotWidth" min="320" max="1920">
-    <p class="hint">Bigger = the ghost reads finer on-screen detail but costs more (image tokens scale with pixels). 800 is the sweet spot.</p>
+    <label class="adv">Screenshot width (px)</label>
+    <input class="adv" type="number" data-path="obs.screenshotWidth" min="320" max="1920">
+    <p class="hint adv">Bigger = the ghost reads finer on-screen detail but costs more (image tokens scale with pixels). 800 is the sweet spot.</p>
     <div class="test"><button id="testObs">Test connection</button><span class="result" id="obsResult"></span></div>
   </section>
 
@@ -113,11 +124,20 @@
       <option value="textSource">Text source — read via OBS WebSocket</option>
     </select>
     <div class="row">
-      <div><label>File path (file mode)</label><input type="text" data-path="transcript.file" placeholder="C:/Users/you/captions.srt"></div>
+      <div>
+        <label>File path (file mode)</label>
+        <div class="withbtn">
+          <input type="text" data-path="transcript.file" placeholder="C:/Users/you/captions.srt">
+          <button id="browseFile">Browse…</button>
+        </div>
+        <p class="hint">Pick the file LocalVocal writes to, or paste the path — either works.</p>
+      </div>
       <div><label>Text source name (text source mode)</label><input type="text" data-path="transcript.textSource"></div>
     </div>
-    <label>How much recent speech the ghost hears (seconds)</label>
-    <input type="number" data-path="cadence.transcriptWindowSeconds" min="30" max="600">
+    <div class="row adv">
+      <div><label>Recent speech window (seconds)</label><input type="number" data-path="cadence.transcriptWindowSeconds" min="30" max="600"></div>
+      <div><label>Check for new speech every (seconds)</label><input type="number" data-path="transcript.pollSeconds" min="1" max="30"></div>
+    </div>
   </section>
 
   <section>
@@ -127,18 +147,18 @@
       <div><label>Solo — avg seconds between messages</label><input type="number" data-path="cadence.soloSeconds" min="20" max="900"></div>
       <div><label>With real viewers — avg seconds</label><input type="number" data-path="cadence.quietSeconds" min="60" max="3600"></div>
     </div>
-    <div class="row">
+    <div class="row adv">
       <div><label>Jitter (0–1)</label><input type="number" data-path="cadence.jitter" min="0" max="1" step="0.05"></div>
       <div><label>Burst chance (0–1)</label><input type="number" data-path="cadence.burstChance" min="0" max="1" step="0.05"></div>
       <div><label>Lull chance (0–1)</label><input type="number" data-path="cadence.lullChance" min="0" max="1" step="0.05"></div>
     </div>
-    <div class="row">
+    <div class="row adv">
       <div><label>Reply delay after you type (s)</label><input type="number" data-path="cadence.replyDelaySeconds" min="2" max="60"></div>
       <div><label>Min gap between screenshots (s)</label><input type="number" data-path="cadence.minScreenshotGapSeconds" min="0" max="300"></div>
     </div>
   </section>
 
-  <section>
+  <section class="adv">
     <h2>📝 Session memory</h2>
     <p class="desc">The ghost keeps compact running notes on the stream so it can call back to earlier moments.</p>
     <div class="check">
@@ -149,7 +169,7 @@
     <input type="number" data-path="memory.updateEvery" min="2" max="20">
   </section>
 
-  <section>
+  <section class="adv">
     <h2>📺 Twitch viewer detection</h2>
     <p class="desc">Optional, read-only viewer count check so the ghost auto-quiets when real people arrive. App credentials at <a href="https://dev.twitch.tv/console" target="_blank">dev.twitch.tv/console</a>.</p>
     <label>Channel name</label>
@@ -162,7 +182,7 @@
     <input type="number" data-path="cadence.viewerPollSeconds" min="30" max="600">
   </section>
 
-  <section>
+  <section class="adv">
     <h2>🔧 Advanced</h2>
     <label>Local server port (dashboard + overlay)</label>
     <input type="number" data-path="port" min="1024" max="65535">
@@ -186,6 +206,30 @@
     let o = obj;
     for (const k of keys.slice(0, -1)) o = o[k] ?? (o[k] = {});
     o[keys.at(-1)] = v;
+  };
+
+  // Simple shows the essentials; Advanced reveals every knob. Sticky per user.
+  function setLevel(adv) {
+    document.body.classList.toggle('simple', !adv);
+    $('lvlSimple').classList.toggle('on', !adv);
+    $('lvlAdv').classList.toggle('on', adv);
+    localStorage.setItem('hg-settings-level', adv ? 'adv' : 'simple');
+  }
+  $('lvlSimple').onclick = () => setLevel(false);
+  $('lvlAdv').onclick = () => setLevel(true);
+  setLevel(localStorage.getItem('hg-settings-level') === 'adv');
+
+  $('browseFile').onclick = async () => {
+    const r = await fetch('/api/pick-file', { method: 'POST' })
+      .then((x) => x.json())
+      .catch((e) => ({ ok: false, error: e.message }));
+    if (r.ok && r.path) {
+      fields.find((f) => f.dataset.path === 'transcript.file').value = r.path;
+      const mode = fields.find((f) => f.dataset.path === 'transcript.mode');
+      if (mode.value === 'off') mode.value = 'file';
+    } else if (!r.ok) {
+      alert(r.error || 'File browsing is only available in the desktop app — paste the path instead.');
+    }
   };
 
   fetch('/api/config').then((r) => r.json()).then(({ config }) => {
@@ -227,8 +271,10 @@
     for (const f of fields) {
       let v;
       if (f.dataset.type === 'bool') v = f.checked;
-      else if (f.type === 'number') v = Number(f.value);
-      else v = f.value.trim();
+      else if (f.type === 'number') {
+        if (f.value === '') continue; // blank number = leave existing value alone
+        v = Number(f.value);
+      } else v = f.value.trim();
       setPath(cfg, f.dataset.path, v);
     }
     if (!cfg.anthropic.apiKey) {

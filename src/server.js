@@ -133,6 +133,18 @@ export function startServer(opts = {}) {
     }
   });
 
+  app.post('/api/pick-file', async (_req, res) => {
+    if (!opts.pickFile) {
+      return res.json({ ok: false, error: 'File browsing is only available in the desktop app — paste the path instead.' });
+    }
+    try {
+      const picked = await opts.pickFile();
+      res.json({ ok: true, path: picked });
+    } catch (err) {
+      res.json({ ok: false, error: err.message });
+    }
+  });
+
   app.post('/api/test-obs', async (req, res) => {
     const probe = new OBSWebSocket();
     try {
