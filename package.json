@@ -1,6 +1,6 @@
 {
   "name": "hype-ghost",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "AI practice chat for streamers — a directable cast of simulated viewers",
   "author": "MyNamesEMurray",
   "type": "module",

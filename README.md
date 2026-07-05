@@ -117,6 +117,18 @@ Two honest notes: your API key is stored **unencrypted** in `%APPDATA%\Hype Ghos
 **unsigned** — they're only as trustworthy as the GitHub account that publishes them.
 Nothing is sent to Twitch except the optional read-only viewer-count check.
 
+## Troubleshooting
+
+**OBS crashes when I switch Scene Collections (but Safe Mode works).**
+This is a crash **inside the third-party [LocalVocal](https://obsproject.com/forum/resources/localvocal-local-live-captions-translation-on-the-go.1769/) plugin**, not Hype Ghost. Hype Ghost never loads into the OBS process — its only OBS footprint is an inert browser-source overlay, which still loads fine in Safe Mode. The crash report points at `obs-localvocal.dll` faulting inside its ggml/whisper backend (`ggml_backend_load_best`) as OBS re-creates LocalVocal's transcription filter while loading the collection (`ChangeSceneCollection → LoadAudioDevice → obs_source_create_internal`). Safe Mode disables third-party plugins, so LocalVocal never loads and the switch succeeds — which is what pinpoints LocalVocal as the cause. Fixes, in order:
+
+1. **Update LocalVocal** to the newest build that matches your OBS version (its OBS-forum resource page / GitHub releases). A LocalVocal built for an older OBS is the usual cause on a newer OBS.
+2. On an **OBS beta/nightly**, LocalVocal may not support it yet — run OBS stable, or remove LocalVocal until a compatible build ships.
+3. **Remove the LocalVocal transcription filter** from your mic in the affected scene collection(s) (right-click the source → Filters → remove it), which stops the crashing backend from loading; re-add it after updating.
+4. In LocalVocal's settings, prefer the **CPU** backend and a smaller model — GPU backend auto-selection (CUDA/Vulkan) is what faults in `ggml_backend_load_best`.
+
+Voice awareness is **optional** in Hype Ghost. If you don't need it, skip LocalVocal entirely (Settings → Voice → Off) and everything else works — you just reply by typing instead of talking out loud.
+
 ## Development
 
 ```
