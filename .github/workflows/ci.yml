@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [v3, main]
+  push:
+    branches: [v3, main]
+
+jobs:
+  check:
+    name: Lint & smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      # --ignore-scripts skips the Electron binary download and native builds
+      # (sharp, etc.). None are needed to syntax-check the source or boot the
+      # headless server, and it keeps CI fast.
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Syntax-check all JS
+        run: |
+          files=$(git ls-files '*.js' '*.mjs')
+          echo "$files"
+          for f in $files; do node --check "$f"; done
+
+      - name: Validate config.example.json
+        run: node -e "JSON.parse(require('fs').readFileSync('config.example.json','utf8')); console.log('config.example.json is valid JSON')"
+
+      - name: Headless server smoke test
+        run: npm run smoke
