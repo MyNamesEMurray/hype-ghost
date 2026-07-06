@@ -195,6 +195,31 @@
           <div><label>Recent speech window (seconds)</label><input type="number" data-path="cadence.transcriptWindowSeconds" min="30" max="600"></div>
           <div><label>Check for new speech every (seconds)</label><input type="number" data-path="transcript.pollSeconds" min="1" max="30"></div>
         </div>
+
+        <div style="margin-top:24px">
+          <h2>🎧 Second channel — party / co-op audio</h2>
+          <p class="desc">A separate audio device (Discord, TeamSpeak, a party call) transcribed by its <b>own</b> LocalVocal filter, so the cast can acknowledge the people you're playing with — kept distinct from your mic. In OBS, add a second LocalVocal <em>Transcription</em> filter to that device's source, output it to a <b>different</b> file or text source than your mic, and point this there.</p>
+          <label>Mode</label>
+          <select data-path="transcript2.mode">
+            <option value="off">Off</option>
+            <option value="file">File — tail a second LocalVocal .txt/.srt output</option>
+            <option value="textSource">Text source — read via OBS WebSocket</option>
+          </select>
+          <div class="row">
+            <div>
+              <label>File path (file mode)</label>
+              <div class="withbtn">
+                <input type="text" data-path="transcript2.file" placeholder="C:/Users/you/party-captions.srt">
+                <button id="browseFile2">Browse…</button>
+              </div>
+              <p class="hint">Must be a <b>different</b> file/source than your mic's, or the two channels merge.</p>
+            </div>
+            <div><label>Text source name (text source mode)</label><input type="text" data-path="transcript2.textSource"></div>
+          </div>
+          <label>Who are these people? (label the cast sees)</label>
+          <input type="text" data-path="transcript2.label" placeholder="e.g. my co-op squad, the Discord crew, Jordan and Alex">
+          <p class="hint">So the cast knows these voices aren't you — it can react to "your teammate" without mistaking them for the streamer.</p>
+        </div>
       </section>
 
       <!-- ============ BEHAVIOR ============ -->
@@ -494,13 +519,15 @@
     el.className = 'result ' + (r.ok ? 'ok':'err');
     el.textContent = r.ok ? (r.created ? `✓ added to scene "${r.scene}" — position it in OBS` : '✓ already in OBS — URL refreshed') : '✗ ' + (r.error || 'failed');
   };
-  $('browseFile').onclick = async () => {
+  async function pickInto(filePath, modePath) {
     const r = await fetch('/api/pick-file', { method:'POST' }).then((x)=>x.json()).catch((e)=>({ok:false,error:e.message}));
     if (r.ok && r.path) {
-      fields.find((f)=>f.dataset.path==='transcript.file').value = r.path;
-      const mode = fields.find((f)=>f.dataset.path==='transcript.mode'); if (mode.value==='off') mode.value='file';
+      fields.find((f)=>f.dataset.path===filePath).value = r.path;
+      const mode = fields.find((f)=>f.dataset.path===modePath); if (mode.value==='off') mode.value='file';
     } else if (!r.ok) { alert(r.error || 'File browsing is only available in the desktop app — paste the path instead.'); }
-  };
+  }
+  $('browseFile').onclick = () => pickInto('transcript.file', 'transcript.mode');
+  $('browseFile2').onclick = () => pickInto('transcript2.file', 'transcript2.mode');
 
   // ---- save ----
   $('save').onclick = async () => {
