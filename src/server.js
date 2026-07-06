@@ -84,6 +84,7 @@ export function startServer(opts = {}) {
     lastHeard: null,
     transcript2Mode: config.transcript2?.mode || 'off',
     lastHeardParty: null,
+    streamInfo: null, // { title, game, source } — live game/title for ghost context
     costMeter: config.app.costMeter !== false,
     tts: { enabled: config.app.tts === true, voice: config.app.ttsVoice, rate: config.app.ttsRate },
     uiLanguage: config.app.uiLanguage || 'en',
@@ -372,6 +373,7 @@ export function startServer(opts = {}) {
     partyFeed,
     hooks: {
       getMode: resolveMode,
+      getStreamInfo: () => state.streamInfo,
       getHistory: () => history,
       onMessage: (speaker, text) => pushMessage('bot', speaker || state.botName, text),
       onSystem: (text) => broadcast({ type: 'system', text }),
@@ -494,6 +496,45 @@ export function startServer(opts = {}) {
     setInterval(poll, config.cadence.viewerPollSeconds * 1000);
   } else {
     console.log('[twitch] not configured — use the Solo/Viewers mode on the dashboard.');
+  }
+
+  // ---------- live stream info (game + title) for ghost context ----------
+  // Twitch is the source of truth for title + category; OBS's Game/Window
+  // Capture provides a game fallback when Twitch isn't configured (or has no
+  // category set). The result feeds every generation so the cast always knows
+  // what's actually being played.
+  const autoInfo = config.stream?.autoInfo !== false;
+  const gameFromObs = config.stream?.gameFromObs !== false;
+  async function refreshStreamInfo() {
+    let title = '';
+    let game = '';
+    let source = null;
+    if (autoInfo && twitch.configured()) {
+      const info = await twitch.getChannelInfo();
+      if (info) {
+        title = info.title || '';
+        game = info.game || '';
+        source = 'twitch';
+      }
+    }
+    if (!game && gameFromObs) {
+      const hint = await obs.getGameHint();
+      if (hint) {
+        game = hint;
+        source = source || 'obs';
+      }
+    }
+    const next = title || game ? { title, game, source } : null;
+    if (JSON.stringify(next) !== JSON.stringify(state.streamInfo)) {
+      state.streamInfo = next;
+      if (next) console.log(`[stream] ${next.game || '(no game)'}${next.title ? ' — "' + next.title + '"' : ''} (${next.source})`);
+      broadcastState();
+    }
+  }
+  if (autoInfo || gameFromObs) {
+    refreshStreamInfo();
+    // Title/category change rarely — a relaxed poll keeps it fresh without cost.
+    setInterval(refreshStreamInfo, Math.max(60, config.cadence.viewerPollSeconds) * 1000 * 1.5);
   }
 
   // ---------- mic transcript polling ----------

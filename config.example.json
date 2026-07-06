@@ -43,7 +43,9 @@
     "uiLanguage": "en"
   },
   "stream": {
-    "context": ""
+    "context": "",
+    "autoInfo": true,
+    "gameFromObs": true
   },
   "talkingPoints": [],
   "moments": {

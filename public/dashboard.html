@@ -36,6 +36,11 @@
 
   /* ---------- the cast (stage) ---------- */
   .rail-h { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .14em; color: var(--faint); font-weight: 700; margin: 2px 2px 8px; display: flex; justify-content: space-between; }
+  .nowplaying { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--glass-2); min-width: 0; }
+  .nowplaying .np-icon { color: var(--accent-2); font-size: 11px; flex: none; }
+  .nowplaying .np-body { min-width: 0; }
+  .nowplaying .np-game { font-weight: 650; font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nowplaying .np-title { font-size: var(--fs-xs); color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #stage { display: flex; flex-direction: column; gap: 8px; }
   .ghost-tile {
     display: flex; align-items: center; gap: 11px; padding: 10px 12px;
@@ -157,6 +162,10 @@
 
   <div class="split">
     <aside>
+      <div id="nowplaying" class="nowplaying" style="display:none">
+        <span class="np-icon">▶</span>
+        <div class="np-body"><div class="np-game"></div><div class="np-title"></div></div>
+      </div>
       <div>
         <div class="rail-h"><span data-i18n="cast">The cast</span><span id="upnext"></span></div>
         <div id="stage"></div>
@@ -369,6 +378,14 @@
     applyAccent(state.accent);
     if (JSON.stringify(cast) !== JSON.stringify(state.cast || [])) { cast = state.cast || []; renderStage(); }
     applyI18n();
+
+    const si = state.streamInfo, np = $('nowplaying');
+    if (si && (si.game || si.title)) {
+      np.style.display = '';
+      np.querySelector('.np-game').textContent = si.game || si.title;
+      np.querySelector('.np-title').textContent = si.game && si.title ? si.title : '';
+      np.title = [si.game, si.title].filter(Boolean).join(' — ');
+    } else np.style.display = 'none';
 
     setOrb('o-obs', state.obsConnected ? 'good' : 'bad', state.obsConnected ? T('obsOk') : T('obsNo'));
     setOrb('o-brain', state.apiKeySet ? 'good' : 'bad', state.apiKeySet ? T('brainOk') : T('brainNo'));

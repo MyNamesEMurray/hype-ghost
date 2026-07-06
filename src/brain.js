@@ -114,6 +114,10 @@ export class Brain {
       `(long-term memory across streams: per-game progress, running jokes, facts about the`,
       `streamer). Use both for continuity — callbacks are what make the chat feel present.`,
       ``,
+      `You may be told the stream's current game/category and title — treat these as ground`,
+      `truth about what is being played, and let them inform your references (get the game's`,
+      `name and vocabulary right; don't contradict them).`,
+      ``,
       `Rules for every message:`,
       `- Write every chat message in ${this.language}.`,
       `- Write like real Twitch chatters: casual, lowercase, imperfect punctuation, no markdown.`,
@@ -138,7 +142,7 @@ export class Brain {
   async generate({
     history, screenshot, staleScreenshot, mode, trigger, transcript, partyTranscript, partyLabel,
     notes, profile, updateNotes, updateProfile, flagMoments, energy, sceneName, streamContext,
-    talkingPoint, allowExchange,
+    streamInfo, talkingPoint, allowExchange,
   }) {
     const names = this.personas.map((p) => p.name);
     const historyText = history.length
@@ -178,8 +182,11 @@ export class Brain {
     } else {
       blocks.push({ text: 'No screenshot is available (OBS not reachable) — go off the conversation instead; do not invent things you cannot see.' });
     }
-    if (sceneName || streamContext) {
+    const hasStreamInfo = streamInfo && (streamInfo.game || streamInfo.title);
+    if (sceneName || streamContext || hasStreamInfo) {
       const bits = [];
+      if (streamInfo?.game) bits.push(`Currently playing (${streamInfo.source === 'twitch' ? 'Twitch category' : 'detected from OBS'}): ${streamInfo.game}`);
+      if (streamInfo?.title) bits.push(`Stream title: "${streamInfo.title}"`);
       if (sceneName) bits.push(`Current OBS scene name: "${sceneName}"`);
       if (streamContext) bits.push(`About this stream (from the streamer): ${streamContext}`);
       blocks.push({ text: bits.join('\n') });

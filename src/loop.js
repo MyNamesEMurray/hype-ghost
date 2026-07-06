@@ -280,6 +280,7 @@ export class GhostLoop {
         energy: this.energy,
         sceneName: this.lastSceneName || undefined,
         streamContext: this.config.stream?.context || undefined,
+        streamInfo: this.hooks.getStreamInfo ? this.hooks.getStreamInfo() : undefined,
         talkingPoint,
         allowExchange,
       });

@@ -165,6 +165,20 @@
           <label for="ovReactions">Flash a ✨ pop on the overlay when the cast flags a clip-worthy moment</label>
         </div>
         <p class="hint">Overlay changes apply after Save &amp; restart (refresh the browser source in OBS if needed).</p>
+
+        <div style="margin-top:22px">
+          <h2>🎮 Stream info for the cast</h2>
+          <p class="desc">Give the cast the ground truth about what you're playing, so they get the game and title right in every message.</p>
+          <div class="check">
+            <input type="checkbox" id="autoInfo" data-path="stream.autoInfo" data-type="bool">
+            <label for="autoInfo">Pull live game + stream title from Twitch <span style="color:var(--faint)">(needs your Twitch channel + app credentials under App → Twitch)</span></label>
+          </div>
+          <div class="check">
+            <input type="checkbox" id="gameFromObs" data-path="stream.gameFromObs" data-type="bool">
+            <label for="gameFromObs">Detect the game from an OBS Game/Window Capture source <span style="color:var(--faint)">(fallback when Twitch has no category set)</span></label>
+          </div>
+        </div>
+
         <label class="adv">Screenshot width (px)</label>
         <input class="adv" type="number" data-path="obs.screenshotWidth" min="320" max="1920">
         <p class="hint adv">Bigger = the cast reads finer on-screen detail but costs more (image tokens scale with pixels). 800 is the sweet spot.</p>

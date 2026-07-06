@@ -112,4 +112,36 @@ export class ObsCapture {
       return null;
     }
   }
+
+  /**
+   * Best-effort guess of the game/app being played, read from a Game/Window
+   * Capture source's captured window. OBS has no true "game" concept, so this
+   * is a fallback for when Twitch category isn't available. Its `window`
+   * setting looks like "Window Title:WindowClass:game.exe" — we prefer the
+   * human-readable title, else the executable name. Returns null if there's no
+   * such source or nothing is captured.
+   */
+  async getGameHint() {
+    try {
+      await this.ensureConnected();
+    } catch {
+      this.connected = false;
+      return null;
+    }
+    try {
+      const { inputs } = await this.obs.call('GetInputList');
+      const cap = inputs.find((i) => /game_capture|window_capture/i.test(i.inputKind || ''));
+      if (!cap) return null;
+      const { inputSettings } = await this.obs.call('GetInputSettings', { inputName: cap.inputName });
+      const win = inputSettings.window;
+      if (typeof win !== 'string' || !win.includes(':')) return null;
+      const parts = win.split(':');
+      const title = parts[0].trim();
+      if (title) return title.slice(0, 60);
+      const exe = (parts[parts.length - 1] || '').replace(/\.exe$/i, '').trim();
+      return exe ? exe.slice(0, 60) : null;
+    } catch {
+      return null; // request-level error — connection is still fine
+    }
+  }
 }
