@@ -90,6 +90,8 @@ Quit Hype Ghost.
 | `app.costMeter` | Show the live session cost readout in the deck's top bar (default true). |
 | `bot.language` | Language the whole cast chats in (default English). |
 | `stream.context` | Standing context about your stream (game, format, vibe) the cast always knows. It also sees your current OBS scene name automatically. |
+| `stream.autoInfo` | Pull your **live game/category and stream title from Twitch** and feed them to the cast every message (default true). Uses your Twitch channel + app credentials (`twitch.*`). Works even while offline, since Twitch keeps your set title/category. |
+| `stream.gameFromObs` | Fallback: guess the game from an OBS **Game/Window Capture** source's captured window when Twitch has no category (default true). |
 | `talkingPoints` | Topics you want covered; the cast works one in occasionally when it fits naturally. |
 | `anthropic.apiKey` | Anthropic API key (console.anthropic.com), or set `ANTHROPIC_API_KEY` env var. |
 | `anthropic.model` | `claude-sonnet-5` is the sweet spot; `claude-haiku-4-5` ~3x cheaper, `claude-opus-4-8` ~3x pricier and chattiest. |
