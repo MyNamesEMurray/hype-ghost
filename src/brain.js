@@ -104,6 +104,12 @@ export class Brain {
       `Treat it as the streamer talking to chat: follow up naturally, never quote it verbatim`,
       `or correct its errors.`,
       ``,
+      `You may ALSO be given a separate "party audio" transcript: OTHER people the streamer`,
+      `is playing with (co-op partners, a Discord or party call). These are DIFFERENT people`,
+      `from the streamer — you can react to them or acknowledge them ("lol your teammate called`,
+      `it", "tell Jordan nice shot"), but the streamer is still the center of the room. Never`,
+      `confuse the party audio for the streamer's own words.`,
+      ``,
       `You may be given "session notes" (memory of THIS stream) and a "viewer profile"`,
       `(long-term memory across streams: per-game progress, running jokes, facts about the`,
       `streamer). Use both for continuity — callbacks are what make the chat feel present.`,
@@ -130,8 +136,9 @@ export class Brain {
    * @returns {Promise<{messages: Array<{speaker:string, text:string}>, notes: string|null, profile: string|null, moment: string|null, usage: object}>}
    */
   async generate({
-    history, screenshot, staleScreenshot, mode, trigger, transcript, notes, profile,
-    updateNotes, updateProfile, flagMoments, energy, sceneName, streamContext, talkingPoint, allowExchange,
+    history, screenshot, staleScreenshot, mode, trigger, transcript, partyTranscript, partyLabel,
+    notes, profile, updateNotes, updateProfile, flagMoments, energy, sceneName, streamContext,
+    talkingPoint, allowExchange,
   }) {
     const names = this.personas.map((p) => p.name);
     const historyText = history.length
@@ -180,6 +187,7 @@ export class Brain {
     if (profile) blocks.push({ text: `Viewer profile (long-term memory from previous streams):\n${profile}` });
     if (notes) blocks.push({ text: `Session notes (what has happened earlier this stream):\n${notes}` });
     if (transcript) blocks.push({ text: `Mic transcript — what the streamer said out loud recently (auto-generated, may contain errors):\n"${transcript}"` });
+    if (partyTranscript) blocks.push({ text: `Party audio — what ${partyLabel || 'the people the streamer is playing with'} said recently on a separate channel (NOT the streamer; auto-generated, may contain errors):\n"${partyTranscript}"` });
 
     const pointInstruction = talkingPoint
       ? `\n\nIf it can be done naturally this message, steer toward this topic the streamer wants covered: "${talkingPoint}". If it would feel forced, skip it.`

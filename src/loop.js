@@ -18,11 +18,12 @@
  *   addUsage(usage)      -> token usage for the cost meter
  */
 export class GhostLoop {
-  constructor({ config, brain, obs, transcriptFeed, hooks }) {
+  constructor({ config, brain, obs, transcriptFeed, partyFeed, hooks }) {
     this.config = config;
     this.brain = brain;
     this.obs = obs;
     this.feed = transcriptFeed;
+    this.partyFeed = partyFeed; // second LocalVocal channel: co-op / party audio
     this.hooks = hooks;
 
     this.paused = false;
@@ -31,6 +32,7 @@ export class GhostLoop {
     this.nextMessageAt = null;
     this.energy = Number.isFinite(config.energy) ? config.energy : 55; // 0–100 live mood dial
     this.lastMomentAt = 0; // rate floor for clip-worthy "moment" flags
+    this.lastPartyNudgeAt = 0; // rate floor for party-channel nudges
 
     this.timer = null;
     this.pendingTrigger = 'timer';
@@ -114,6 +116,24 @@ export class GhostLoop {
   onStreamerMessage() {
     this.lastStreamerActivityAt = Date.now();
     this.scheduleNext((this.config.cadence.replyDelaySeconds ?? 6) * 1000, 'reply');
+  }
+
+  /**
+   * Someone on the PARTY channel spoke (a co-op partner / Discord call) — a
+   * different person than the streamer. This is ambient context, so it never
+   * uses the streamer voice-reply path. To let the cast acknowledge it promptly
+   * without hijacking the conversation, give a gentle, rate-limited nudge: if
+   * nothing is already due soon, pull the next message in. Continuous party
+   * chatter can't spam past minPartyNudgeGapSeconds.
+   */
+  onPartySpeech() {
+    if (this.paused || this.busy) return;
+    const minGapMs = (this.config.cadence.minPartyNudgeGapSeconds ?? 45) * 1000;
+    if (Date.now() - this.lastPartyNudgeAt < minGapMs) return;
+    const soonMs = 16_000;
+    if (this.nextMessageAt && this.nextMessageAt - Date.now() <= soonMs) return; // already coming
+    this.lastPartyNudgeAt = Date.now();
+    this.scheduleNext(soonMs + Math.random() * 6000);
   }
 
   /**
@@ -236,7 +256,11 @@ export class GhostLoop {
         Date.now() - this.lastMomentAt > 45_000;
 
       // Only speech the model hasn't seen yet (15s overlap for continuity).
-      const transcript = this.feed.getWindow(this.lastGenAt ? this.lastGenAt - 15_000 : 0);
+      // Both channels use the same "since" mark so co-op audio stays in step
+      // with the streamer's mic.
+      const sinceTs = this.lastGenAt ? this.lastGenAt - 15_000 : 0;
+      const transcript = this.feed.getWindow(sinceTs);
+      const partyTranscript = this.partyFeed ? this.partyFeed.getWindow(sinceTs) : '';
       this.lastGenAt = Date.now();
 
       const result = await this.brain.generate({
@@ -246,6 +270,8 @@ export class GhostLoop {
         mode: this.hooks.getMode(),
         trigger,
         transcript: transcript || undefined,
+        partyTranscript: partyTranscript || undefined,
+        partyLabel: this.config.transcript2?.label || undefined,
         notes: this.hooks.getNotes() || undefined,
         profile: this.hooks.getProfile() || undefined,
         updateNotes,

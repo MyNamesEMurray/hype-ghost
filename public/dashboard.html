@@ -147,6 +147,7 @@
       <span class="orb" id="o-brain"><span class="dot"></span><span class="lbl" data-i18n="brain">Brain</span></span>
       <span class="orb" id="o-viewers"><span class="dot"></span><span class="lbl" data-i18n="viewers">Viewers</span></span>
       <span class="orb" id="o-mic"><span class="dot"></span><span class="lbl" data-i18n="mic">Mic</span></span>
+      <span class="orb" id="o-party" style="display:none"><span class="dot"></span><span class="lbl" data-i18n="party">Party</span></span>
       <span class="orb" id="o-chat" style="display:none"><span class="dot"></span><span class="lbl" data-i18n="chat">Chat</span></span>
     </div>
     <span id="cost"></span>
@@ -239,7 +240,7 @@
       emptyTitle:'The stage is set.', emptyBody:'Your cast is warming up — the first message lands in a moment. Say something to get the room going.',
       typing:'the cast is typing…', placeholder:'Talk to your chat… they will answer', paused:'paused', autoPaused:'auto-paused · OBS gone',
       next:'up next', obsOk:'OBS connected', obsNo:'OBS offline', brainOk:'Brain ready', brainNo:'No brain', viewersManual:'manual',
-      micOff:'off', micQuiet:'quiet', micWait:'waiting', chatQuiet:'quiet', chatActive:'active', lost:'Connection lost — reconnecting…',
+      micOff:'off', micQuiet:'quiet', micWait:'waiting', party:'Party', partyQuiet:'quiet', partyWait:'waiting', chatQuiet:'quiet', chatActive:'active', lost:'Connection lost — reconnecting…',
       msgs:'msgs', watching:'watching', idle:'idle', noMoments:'No moments yet — the cast flags clip-worthy plays here.' },
     es: { brain:'Cerebro', viewers:'Espectadores', mic:'Micro', chat:'Chat', cast:'El elenco', energy:'Energía',
       chill:'Tranqui', balanced:'Normal', hype:'Máx', room:'Sala', modeAuto:'Auto', modeSolo:'Solo', modeViewers:'Público',
@@ -247,7 +248,7 @@
       emptyTitle:'Todo listo.', emptyBody:'Tu elenco se prepara — el primer mensaje llega enseguida. Di algo para animar la sala.',
       typing:'el elenco escribe…', placeholder:'Habla con tu chat… te responderán', paused:'en pausa', autoPaused:'pausa automática · sin OBS',
       next:'siguiente', obsOk:'OBS conectado', obsNo:'OBS desconectado', brainOk:'Cerebro listo', brainNo:'Sin cerebro', viewersManual:'manual',
-      micOff:'apagado', micQuiet:'silencio', micWait:'esperando', chatQuiet:'tranquilo', chatActive:'activo', lost:'Conexión perdida — reconectando…',
+      micOff:'apagado', micQuiet:'silencio', micWait:'esperando', party:'Grupo', partyQuiet:'silencio', partyWait:'esperando', chatQuiet:'tranquilo', chatActive:'activo', lost:'Conexión perdida — reconectando…',
       msgs:'msjs', watching:'mirando', idle:'inactivo', noMoments:'Aún no hay momentos — el elenco marcará jugadas destacadas aquí.' },
   };
   let L = STR.en;
@@ -377,6 +378,12 @@
     if (!state.transcriptMode || state.transcriptMode === 'off') setOrb('o-mic', '', T('micOff'));
     else if (heard) setOrb('o-mic', 'good', state.lastHeard.text.slice(0, 24));
     else setOrb('o-mic', '', state.lastHeard ? T('micQuiet') : T('micWait'));
+    if (state.transcript2Mode && state.transcript2Mode !== 'off') {
+      $('o-party').style.display = '';
+      const pheard = state.lastHeardParty && Date.now() - state.lastHeardParty.ts < 15000;
+      if (pheard) setOrb('o-party', 'good', '🎧 ' + state.lastHeardParty.text.slice(0, 22));
+      else setOrb('o-party', '', state.lastHeardParty ? T('partyQuiet') : T('partyWait'));
+    } else { $('o-party').style.display = 'none'; }
     if (state.chatPerMin !== null) { $('o-chat').style.display = ''; const a = state.chatPerMin >= 2; setOrb('o-chat', a ? 'good' : '', `${a ? T('chatActive') : T('chatQuiet')} · ${state.chatPerMin}/m`); }
 
     // mode segmented

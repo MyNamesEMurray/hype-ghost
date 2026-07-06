@@ -89,6 +89,13 @@
     "textSource": "LocalVocal Captions",
     "pollSeconds": 2
   },
+  "transcript2": {
+    "mode": "off",
+    "file": "",
+    "textSource": "Party Captions",
+    "pollSeconds": 2,
+    "label": "the people the streamer is playing with (co-op partners / a Discord or party call)"
+  },
   "cadence": {
     "soloSeconds": 120,
     "quietSeconds": 480,
@@ -99,6 +106,7 @@
     "minVoiceReplyGapSeconds": 35,
     "viewerPollSeconds": 60,
     "transcriptWindowSeconds": 120,
-    "minScreenshotGapSeconds": 25
+    "minScreenshotGapSeconds": 25,
+    "minPartyNudgeGapSeconds": 45
   }
 }

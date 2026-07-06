@@ -82,6 +82,8 @@ export function startServer(opts = {}) {
     busy: false,
     transcriptMode: config.transcript.mode,
     lastHeard: null,
+    transcript2Mode: config.transcript2?.mode || 'off',
+    lastHeardParty: null,
     costMeter: config.app.costMeter !== false,
     tts: { enabled: config.app.tts === true, voice: config.app.ttsVoice, rate: config.app.ttsRate },
     uiLanguage: config.app.uiLanguage || 'en',
@@ -346,12 +348,28 @@ export function startServer(opts = {}) {
     },
   });
 
+  // ---------- party transcript (a SECOND LocalVocal channel for co-op audio) ----------
+  // A separate audio device (Discord/party/co-op) transcribed by its own LocalVocal
+  // filter. Unlike the streamer's mic, this is OTHER people — it never triggers a
+  // "the streamer answered me" reply; it's ambient context the cast can acknowledge.
+  const partyFeed = new TranscriptFeed({
+    ...config.transcript2,
+    windowSeconds: config.cadence.transcriptWindowSeconds,
+    obs,
+    onSpeech: (line) => {
+      state.lastHeardParty = { text: line, ts: Date.now() };
+      broadcastState();
+      loop.onPartySpeech();
+    },
+  });
+
   // ---------- the ghost ----------
   const loop = new GhostLoop({
     config,
     brain,
     obs,
     transcriptFeed,
+    partyFeed,
     hooks: {
       getMode: resolveMode,
       getHistory: () => history,
@@ -483,6 +501,10 @@ export function startServer(opts = {}) {
     transcriptFeed.start();
   } else {
     console.log('[transcript] off — enable voice awareness in Settings → Voice to let the ghost hear you.');
+  }
+  if (state.transcript2Mode !== 'off') {
+    partyFeed.start();
+    console.log('[transcript] party channel on — a second LocalVocal source is being read for co-op audio.');
   }
 
   // ---------- start ----------

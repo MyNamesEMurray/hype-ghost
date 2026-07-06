@@ -70,6 +70,12 @@ Quit Hype Ghost.
   to your mic source, output to a text file or a (hidden) text source, and point the wizard's
   voice-awareness step (or the `transcript` config section) at it. Then answering the ghost
   out loud *is* replying.
+- **Party / co-op audio (second channel):** streaming alongside friends? Route their audio
+  (Discord/TeamSpeak/party chat) to a separate OBS source, add a *second* LocalVocal
+  Transcription filter to it, output to a **different** file/text source than your mic, and
+  point Settings → Voice → **Second channel** (`transcript2`) at it. The cast then hears your
+  co-op partners as *other people* — it can acknowledge them ("nice shot Jordan") without ever
+  mistaking them for you. It's ambient context, so it never triggers a "you answered me" reply.
 
 ## Config reference
 
@@ -92,6 +98,7 @@ Quit Hype Ghost.
 | `obs.screenshotWidth` | Screenshot width in px (default 800). Image tokens scale with pixels (w×h÷750) — JPEG quality has no effect on tokens. |
 | `twitch.*` | *(Optional)* App credentials + channel, used **read-only** for live viewer count. Without it, use the dashboard's manual mode toggle. |
 | `transcript.mode` | `off`, `file` (tail LocalVocal's .txt/.srt output), or `textSource` (poll a text source over OBS WebSocket). |
+| `transcript2.*` | *(Optional)* A **second** transcription channel for party/co-op audio (a separate audio device with its own LocalVocal filter). Same `mode`/`file`/`textSource`/`pollSeconds` as `transcript`, plus `label` — how the cast refers to those people (e.g. "my co-op squad"). Treated as *other people*, never as the streamer. |
 | `cadence.soloSeconds` / `quietSeconds` | Average gap between messages when alone / when real viewers are present. |
 | `cadence.jitter`, `burstChance`, `lullChance` | Natural rhythm: ±jitter on normal gaps, occasional quick bursts (0.3–0.6x) and long lulls (1.6–3x). |
 | `cadence.minScreenshotGapSeconds` | Skip re-screenshotting on quick follow-ups (default 25). |
