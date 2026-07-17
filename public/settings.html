@@ -171,7 +171,7 @@
           <p class="desc">Give the cast the ground truth about what you're playing, so they get the game and title right in every message.</p>
           <div class="check">
             <input type="checkbox" id="autoInfo" data-path="stream.autoInfo" data-type="bool">
-            <label for="autoInfo">Pull live game + stream title from Twitch <span style="color:var(--faint)">(needs your Twitch channel + app credentials under App → Twitch)</span></label>
+            <label for="autoInfo">Pull live game + stream title from Twitch <span style="color:var(--faint)">(needs only your Twitch channel under App → Twitch — keyless via DecAPI, or your own app credentials if set)</span></label>
           </div>
           <div class="check">
             <input type="checkbox" id="gameFromObs" data-path="stream.gameFromObs" data-type="bool">
@@ -322,14 +322,18 @@
 
         <div class="adv" style="margin-top:22px">
           <h2>📺 Twitch viewer detection</h2>
-          <p class="desc">Read-only awareness of your real audience — never posts, never affects metrics.</p>
+          <p class="desc">Read-only awareness of your real audience — never posts, never affects metrics. Your channel name alone enables everything here; no developer app needed.</p>
           <label>Channel name</label>
           <input type="text" data-path="twitch.channel">
           <div class="check">
             <input type="checkbox" id="chatAware" data-path="twitch.chatAwareness" data-type="bool">
             <label for="chatAware">Chat awareness — hang back when real chat is active (anonymous read-only listener, needs only the channel name)</label>
           </div>
-          <p class="hint">Viewer-count detection additionally needs app credentials from <a href="https://dev.twitch.tv/console" target="_blank">dev.twitch.tv/console</a>:</p>
+          <div class="check">
+            <input type="checkbox" id="decapi" data-path="twitch.decapi" data-type="bool">
+            <label for="decapi">Keyless viewer count + stream info via <a href="https://decapi.me" target="_blank">DecAPI</a> <span style="color:var(--faint)">(community-run Twitch proxy; only your public channel name is sent to it)</span></label>
+          </div>
+          <p class="hint">Prefer talking to Twitch directly? App credentials from <a href="https://dev.twitch.tv/console" target="_blank">dev.twitch.tv/console</a> switch to the official API and are used instead when set:</p>
           <div class="row">
             <div><label>Client ID</label><input type="text" data-path="twitch.clientId"></div>
             <div><label>Client secret</label><input type="password" data-path="twitch.clientSecret"></div>

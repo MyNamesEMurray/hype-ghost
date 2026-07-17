@@ -84,7 +84,8 @@
     "clientId": "",
     "clientSecret": "",
     "channel": "",
-    "chatAwareness": true
+    "chatAwareness": true,
+    "decapi": true
   },
   "transcript": {
     "mode": "off",

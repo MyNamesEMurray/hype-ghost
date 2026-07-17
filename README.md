@@ -91,7 +91,7 @@ Quit Hype Ghost.
 | `app.costMeter` | Show the live session cost readout in the deck's top bar (default true). |
 | `bot.language` | Language the whole cast chats in (default English). |
 | `stream.context` | Standing context about your stream (game, format, vibe) the cast always knows. It also sees your current OBS scene name automatically. |
-| `stream.autoInfo` | Pull your **live game/category and stream title from Twitch** and feed them to the cast every message (default true). Uses your Twitch channel + app credentials (`twitch.*`). Works even while offline, since Twitch keeps your set title/category. |
+| `stream.autoInfo` | Pull your **live game/category and stream title from Twitch** and feed them to the cast every message (default true). Needs only your Twitch channel name (`twitch.channel`) — keyless via DecAPI, or your own app credentials if set. Works even while offline, since Twitch keeps your set title/category. |
 | `stream.gameFromObs` | Fallback: guess the game from an OBS **Game/Window Capture** source's captured window when Twitch has no category (default true). |
 | `talkingPoints` | Topics you want covered; the cast works one in occasionally when it fits naturally. |
 | `anthropic.apiKey` | Anthropic API key (console.anthropic.com), or set `ANTHROPIC_API_KEY` env var. |
@@ -99,7 +99,9 @@ Quit Hype Ghost.
 | `bot.name` / `bot.personality` | Legacy single-ghost fields, kept in sync with `cast[0]` for backward compatibility. |
 | `obs.url` / `obs.password` | OBS WebSocket (default port 4455). |
 | `obs.screenshotWidth` | Screenshot width in px (default 800). Image tokens scale with pixels (w×h÷750) — JPEG quality has no effect on tokens. |
-| `twitch.*` | *(Optional)* App credentials + channel, used **read-only** for live viewer count. Without it, use the dashboard's manual mode toggle. |
+| `twitch.channel` | *(Optional)* Your channel name — on its own it enables **read-only** viewer detection, chat awareness, and live game/title context, no developer app needed. Without it, use the dashboard's manual mode toggle. |
+| `twitch.decapi` | Fetch viewer count + stream info keylessly via [DecAPI](https://decapi.me), a community-run Twitch API proxy (default true). Only your public channel name is sent to it. Set false to opt out. |
+| `twitch.clientId` / `clientSecret` | *(Optional, power users)* App credentials from dev.twitch.tv — when set, the official Helix API is used directly instead of DecAPI. |
 | `transcript.mode` | `off`, `file` (tail LocalVocal's .txt/.srt output), or `textSource` (poll a text source over OBS WebSocket). |
 | `transcript2.*` | *(Optional)* A **second** transcription channel for party/co-op audio (a separate audio device with its own LocalVocal filter). Same `mode`/`file`/`textSource`/`pollSeconds` as `transcript`, plus `label` — how the cast refers to those people (e.g. "my co-op squad"). Treated as *other people*, never as the streamer. |
 | `cadence.soloSeconds` / `quietSeconds` | Average gap between messages when alone / when real viewers are present. |
@@ -125,7 +127,10 @@ connections from foreign origins, so other websites can't peek at your chat or t
 Two honest notes: your API key is stored **unencrypted** in `%APPDATA%\Hype Ghost\config.json`
 (treat that folder like a password, and note it survives uninstall), and auto-updates are
 **unsigned** — they're only as trustworthy as the GitHub account that publishes them.
-Nothing is sent to Twitch except the optional read-only viewer-count check.
+Nothing is sent to Twitch except the optional read-only viewer-count check. If a Twitch
+channel is set without app credentials, your (public) channel name is sent to
+[DecAPI](https://decapi.me) — a community-run, read-only Twitch API proxy — to fetch the
+viewer count and stream title/category; set `twitch.decapi: false` to opt out.
 
 ## Troubleshooting
 
