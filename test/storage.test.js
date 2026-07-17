@@ -62,9 +62,18 @@ test('migrateDataFiles into the same dir is a no-op', () => {
 });
 
 test('dataFilePaths covers every file factory reset must delete', () => {
-  const p = dataFilePaths('/x');
-  for (const key of ['configPath', 'notesPath', 'sessionPath', 'profilePath', 'logPath']) {
-    assert.ok(p[key].startsWith(path.resolve('/x')), key);
+  const dir = tmp();
+  const p = dataFilePaths(dir);
+  const expected = {
+    configPath: 'config.json',
+    notesPath: 'session-notes.txt',
+    sessionPath: 'session.json',
+    profilePath: 'profile.md',
+    logPath: 'hype-ghost.log',
+  };
+  for (const [key, name] of Object.entries(expected)) {
+    assert.equal(path.dirname(p[key]), dir, key);
+    assert.equal(path.basename(p[key]), name, key);
   }
 });
 
