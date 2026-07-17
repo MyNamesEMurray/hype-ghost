@@ -26,6 +26,14 @@
   .iconbtn { padding: 8px 11px; border-radius: var(--r-md); }
   .kbd { font-size: 10px; border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; color: var(--faint); margin-left: 6px; }
 
+  /* ---------- preview-mode banner (wizard skipped, no brain configured) ---------- */
+  #previewBar {
+    display: flex; align-items: center; justify-content: center; gap: 10px; flex: none;
+    padding: 8px 16px; font-size: var(--fs-sm);
+    background: var(--accent-soft); border-bottom: 1px solid var(--accent-line);
+  }
+  #previewBar a { color: var(--accent-2); font-weight: 650; }
+
   /* ---------- body split ---------- */
   .split { flex: 1; display: flex; min-height: 0; }
   aside {
@@ -160,6 +168,11 @@
     <button class="iconbtn ghostbtn" onclick="location.href='/settings'" title="Settings">⚙</button>
   </header>
 
+  <div id="previewBar" style="display:none">
+    <span>👻 <span data-i18n="previewBody">Preview mode — your cast has no brain yet, so the room stays quiet.</span></span>
+    <a href="/settings" data-i18n="previewCta">Connect one in Settings</a>
+  </div>
+
   <div class="split">
     <aside>
       <div id="nowplaying" class="nowplaying" style="display:none">
@@ -246,7 +259,8 @@
       typing:'the cast is typing…', placeholder:'Talk to your chat… they will answer', paused:'paused', autoPaused:'auto-paused · OBS gone',
       next:'up next', obsOk:'OBS connected', obsNo:'OBS offline', brainOk:'Brain ready', brainNo:'No brain', viewersManual:'manual',
       micOff:'off', micQuiet:'quiet', micWait:'waiting', party:'Party', partyQuiet:'quiet', partyWait:'waiting', chatQuiet:'quiet', chatActive:'active', lost:'Connection lost — reconnecting…',
-      msgs:'msgs', watching:'watching', idle:'idle', noMoments:'No moments yet — the cast flags clip-worthy plays here.' },
+      msgs:'msgs', watching:'watching', idle:'idle', noMoments:'No moments yet — the cast flags clip-worthy plays here.',
+      previewBody:'Preview mode — your cast has no brain yet, so the room stays quiet.', previewCta:'Connect one in Settings' },
     es: { brain:'Cerebro', viewers:'Espectadores', mic:'Micro', chat:'Chat', cast:'El elenco', energy:'Energía',
       chill:'Tranqui', balanced:'Normal', hype:'Máx', room:'Sala', modeAuto:'Auto', modeSolo:'Solo', modeViewers:'Público',
       say:'Di algo', pause:'Pausar', resume:'Reanudar', moments:'Momentos', recap:'Exportar', send:'Enviar', you:'Tú',
@@ -254,7 +268,8 @@
       typing:'el elenco escribe…', placeholder:'Habla con tu chat… te responderán', paused:'en pausa', autoPaused:'pausa automática · sin OBS',
       next:'siguiente', obsOk:'OBS conectado', obsNo:'OBS desconectado', brainOk:'Cerebro listo', brainNo:'Sin cerebro', viewersManual:'manual',
       micOff:'apagado', micQuiet:'silencio', micWait:'esperando', party:'Grupo', partyQuiet:'silencio', partyWait:'esperando', chatQuiet:'tranquilo', chatActive:'activo', lost:'Conexión perdida — reconectando…',
-      msgs:'msjs', watching:'mirando', idle:'inactivo', noMoments:'Aún no hay momentos — el elenco marcará jugadas destacadas aquí.' },
+      msgs:'msjs', watching:'mirando', idle:'inactivo', noMoments:'Aún no hay momentos — el elenco marcará jugadas destacadas aquí.',
+      previewBody:'Modo vista previa — tu elenco aún no tiene cerebro, así que la sala sigue en silencio.', previewCta:'Conéctalo en Ajustes' },
   };
   let L = STR.en;
   const T = (k) => (L[k] ?? STR.en[k] ?? k);
@@ -447,6 +462,7 @@
 
     setOrb('o-obs', state.obsConnected ? 'good' : 'bad', state.obsConnected ? T('obsOk') : T('obsNo'));
     setOrb('o-brain', state.apiKeySet ? 'good' : 'bad', state.apiKeySet ? T('brainOk') : T('brainNo'));
+    $('previewBar').style.display = state.apiKeySet ? 'none' : '';
     if (!state.twitchConfigured && state.viewerOverride === 'auto' && state.chatPerMin === null) setOrb('o-viewers', '', T('viewersManual'));
     else setOrb('o-viewers', state.mode === 'viewers' ? 'good' : '', `${state.realViewers ?? '?'} · ${state.mode}`);
     const heard = state.lastHeard && Date.now() - state.lastHeard.ts < 15000;
