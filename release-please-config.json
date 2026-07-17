@@ -4,6 +4,8 @@
   "draft": true,
   "include-v-in-tag": true,
   "packages": {
-    ".": {}
+    ".": {
+      "include-component-in-tag": false
+    }
   }
 }
