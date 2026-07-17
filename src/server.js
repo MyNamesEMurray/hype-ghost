@@ -11,7 +11,7 @@ import { MODELS, messageCost } from './models.js';
 import { resolveCast, GHOST_COLORS, ARCHETYPES, ACCENT_COLORS } from './cast.js';
 import { ObsCapture } from './obs.js';
 import { Brain } from './brain.js';
-import { TwitchViewers } from './twitch.js';
+import { TwitchViewers, DecApi } from './twitch.js';
 import { TwitchChat } from './twitchchat.js';
 import { TranscriptFeed } from './transcript.js';
 import { GhostLoop } from './loop.js';
@@ -55,6 +55,11 @@ export function startServer(opts = {}) {
 
   const obs = new ObsCapture(config.obs.url, config.obs.password, config.obs.screenshotWidth);
   const twitch = new TwitchViewers(config.twitch);
+  // Keyless fallback: with only a channel name (no dev-app credentials),
+  // stream info + viewer count come from DecAPI instead of Helix.
+  const decapi = new DecApi({ channel: config.twitch.channel, enabled: config.twitch.decapi !== false });
+  // Helix wins when credentials are set; DecAPI otherwise; null = manual mode.
+  const viewerSource = twitch.configured() ? twitch : decapi.configured() ? decapi : null;
   const brain = new Brain({
     brain: config.brain,
     anthropic: config.anthropic,
@@ -71,7 +76,7 @@ export function startServer(opts = {}) {
     mode: 'solo',
     obsConnected: false,
     apiKeySet: brainReady,
-    twitchConfigured: twitch.configured(),
+    twitchConfigured: Boolean(viewerSource), // automatic viewer detection available
     botName: config.bot.name,
     personas: personas.map((p) => p.name),
     cast: cast.map((c) => ({ name: c.name, color: c.hex, colorKey: c.colorKey })),
@@ -585,10 +590,10 @@ export function startServer(opts = {}) {
     }, 30_000);
   }
 
-  // ---------- twitch viewer polling ----------
-  if (twitch.configured()) {
+  // ---------- twitch viewer polling (Helix, or keyless DecAPI) ----------
+  if (viewerSource) {
     const poll = async () => {
-      const count = await twitch.getViewerCount();
+      const count = await viewerSource.getViewerCount();
       if (count !== null) {
         const prevMode = resolveMode();
         state.realViewers = count;
@@ -603,8 +608,9 @@ export function startServer(opts = {}) {
     };
     poll();
     setInterval(poll, config.cadence.viewerPollSeconds * 1000);
+    console.log(`[twitch] viewer detection via ${viewerSource === twitch ? 'Helix (app credentials)' : 'DecAPI (keyless)'}.`);
   } else {
-    console.log('[twitch] not configured — use the Solo/Viewers mode on the dashboard.');
+    console.log('[twitch] no channel configured — use the Solo/Viewers mode on the dashboard.');
   }
 
   // ---------- live stream info (game + title) for ghost context ----------
@@ -619,8 +625,10 @@ export function startServer(opts = {}) {
     let title = '';
     let game = '';
     let source = null;
-    if (autoInfo && twitch.configured()) {
-      const info = await twitch.getChannelInfo();
+    // Same tiering as viewer polling: Helix if credentialed, else DecAPI.
+    const infoSource = twitch.configured() ? twitch : decapi.configured() ? decapi : null;
+    if (autoInfo && infoSource) {
+      const info = await infoSource.getChannelInfo();
       if (info) {
         title = info.title || '';
         game = info.game || '';

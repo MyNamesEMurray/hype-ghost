@@ -130,11 +130,11 @@
       <input type="text" id="trTarget" placeholder="C:/Users/you/captions.srt   or   LocalVocal Captions">
     </details>
     <details>
-      <summary>📺 Twitch viewer detection — auto-quiet when real people arrive</summary>
-      <p class="hint">Read-only viewer count check (never touches chat). Create app credentials at <a href="https://dev.twitch.tv/console" target="_blank">dev.twitch.tv/console</a>. Skip this and use the deck's manual mode toggle instead.</p>
+      <summary>📺 Twitch — auto-quiet when real people arrive</summary>
+      <p class="hint">Read-only, never touches your chat or metrics. <b>Just your channel name</b> enables viewer detection, chat awareness, and live game/title context (keyless, via the community-run <a href="https://decapi.me" target="_blank">DecAPI</a>). Power users can add app credentials from <a href="https://dev.twitch.tv/console" target="_blank">dev.twitch.tv/console</a> to use the official API directly — entirely optional.</p>
       <label>Channel name</label>
       <input type="text" id="twChannel">
-      <div class="row"><div><label>Client ID</label><input type="text" id="twId"></div><div><label>Client secret</label><input type="password" id="twSecret"></div></div>
+      <div class="row"><div><label>Client ID (optional)</label><input type="text" id="twId"></div><div><label>Client secret (optional)</label><input type="password" id="twSecret"></div></div>
     </details>
     <p class="hint" style="margin-top:14px">After setup: open Settings → Stream and click <b>Add overlay to OBS</b> to put the chat on your stream and VODs.</p>
   </div>
