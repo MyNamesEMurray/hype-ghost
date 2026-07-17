@@ -31,7 +31,7 @@ npm run smoke
 
 ## Branch model
 
-**Branch off `main`, PR into `main`.** `main` is the only long-lived branch — the trunk and the released line the installer/auto-updater builds from; released states are pinned by `vX.Y.Z` tags, and older lines (1.x/2.x/the retired `v3` integration branch) live in `main`'s history. Feature branches are `claude/<topic>` or `feature/<topic>`. Releasing = bump `package.json`, update `RELEASE_NOTES.md`, tag `vX.Y.Z`, push the tag (or run the Release workflow manually) — it builds and publishes the installer.
+**Branch off `main`, PR into `main`.** `main` is the only long-lived branch — the trunk and the released line the installer/auto-updater builds from; released states are pinned by `vX.Y.Z` tags, and older lines (1.x/2.x/the retired `v3` integration branch) live in `main`'s history. Feature branches are `claude/<topic>` or `feature/<topic>`. Commit subjects use conventional prefixes (`feat:`/`fix:`/`chore:`/`docs:`…) — release automation computes versions and the changelog from them. Releasing = merge the standing release-please PR (it bumps the version, tags, and CI builds + publishes the installer); the Release workflow also remains manually runnable as a fallback.
 
 ## Architecture
 
