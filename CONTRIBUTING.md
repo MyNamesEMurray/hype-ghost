@@ -5,7 +5,8 @@
 - **`v3`** — the integration branch for 3.x. All feature work targets `v3`.
 - **`main`** — the released/stable line the installer and auto-updater build from.
   `v3` merges into `main` at release time.
-- **`v2`, `v1.4-baseline`** — historical release lines; leave them as-is.
+- Older release lines (1.x, 2.x) live in `main`'s history and the `v1.x` tags — there are
+  no standing historical branches.
 - **Feature branches** — `claude/<topic>` or `feature/<topic>`, branched off `v3`,
   one focused PR each into `v3`.
 
