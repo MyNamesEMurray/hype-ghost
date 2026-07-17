@@ -18,6 +18,7 @@
 
   .layout { display: flex; gap: 22px; align-items: flex-start; }
   nav#nav { width: 190px; flex: none; display: flex; flex-direction: column; gap: 3px; position: sticky; top: 20px; }
+  nav#nav .navsep { height: 1px; background: var(--border); margin: 8px 6px; }
   nav#nav button { display: flex; align-items: center; gap: 10px; text-align: left; border: none; background: transparent; padding: 10px 13px; border-radius: var(--r-md); color: var(--dim); font-weight: 550; }
   nav#nav button:hover { background: rgba(255,255,255,.04); color: var(--text); }
   nav#nav button.on { background: var(--accent-soft); color: var(--text); }
@@ -72,6 +73,8 @@
       <button class="tabbtn" data-tab="behavior">💬 <span>Behavior</span></button>
       <button class="tabbtn" data-tab="look">🎨 <span>Look</span></button>
       <button class="tabbtn" data-tab="app">🔧 <span>App</span></button>
+      <div class="navsep"></div>
+      <button class="tabbtn" data-tab="about">👻 <span>About</span></button>
     </nav>
 
     <div id="content">
@@ -350,6 +353,33 @@
           <p class="hint">If you change this, update the overlay Browser Source URL in OBS to match (or click "Add overlay to OBS" again after restarting).</p>
         </div>
       </section>
+
+      <!-- ============ ABOUT ============ -->
+      <section class="card" data-tab="about">
+        <h2>👻 About Hype Ghost</h2>
+        <p class="desc">Version <b id="aboutVersion">…</b> · <a href="https://github.com/MyNamesEMurray/hype-ghost" target="_blank">GitHub</a> · <a href="https://github.com/MyNamesEMurray/hype-ghost/releases" target="_blank">Release notes</a> · <a href="https://github.com/MyNamesEMurray/hype-ghost/issues" target="_blank">Report a problem</a></p>
+
+        <label>What it is</label>
+        <p class="hint">A local-only cast of simulated AI viewers that watches your stream and chats with you — so you practice talking to chat even when nobody is watching. Updates install automatically from GitHub Releases (toggle on the App tab).</p>
+
+        <label>The honesty rules</label>
+        <p class="hint">Every cast message is labeled 🤖 AI, and the overlay carries a permanent "simulated viewers, not real people" watermark — real viewers and VOD watchers are never misled. Nothing ever posts to your Twitch chat or affects stream metrics; all Twitch access is read-only.</p>
+
+        <label>Privacy</label>
+        <p class="hint">Stream screenshots and (if enabled) your mic transcript go to the brain you chose — the Anthropic API, or your own local/OpenAI-compatible endpoint — to write messages, and nowhere else. Speech-to-text runs entirely locally inside OBS. With Twitch features on and no app credentials, your (public) channel name is sent to DecAPI. The app's server binds to 127.0.0.1 only. Your API key is stored unencrypted in the config file below — treat that folder like a password.</p>
+
+        <label>Your data lives at</label>
+        <p class="hint"><code id="aboutConfigPath">…</code> — settings (config.json), session memory, chat history, and the cross-stream profile.</p>
+
+        <div style="margin-top:22px">
+          <h2 style="color:var(--bad)">Danger zone</h2>
+          <p class="desc">Reset Hype Ghost to factory defaults: permanently deletes your settings (including the API key), session memory, chat history, and the cast's cross-stream profile, then restarts into the setup wizard.</p>
+          <div class="test">
+            <button id="factoryReset" style="border-color:var(--bad);color:var(--bad)">Reset to factory defaults…</button>
+            <span class="result" id="resetResult"></span>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 </div>
@@ -499,6 +529,8 @@
       if (f.dataset.type === 'bool') f.checked = v !== false;
       else if (v !== undefined && v !== null) f.value = v;
     }
+    $('aboutVersion').textContent = 'v' + (data.version || '?');
+    $('aboutConfigPath').textContent = data.configPath || '';
     if (apiKeySaved) $('apiKeyField').placeholder = 'saved ✓ — leave blank to keep the current key';
     const saved = 'saved ✓ — leave blank to keep';
     if (data.openaiKeySaved) fields.find((f) => f.dataset.path === 'brain.openaiApiKey').placeholder = saved;
@@ -628,6 +660,25 @@
   }
   $('browseFile').onclick = () => pickInto('transcript.file', 'transcript.mode');
   $('browseFile2').onclick = () => pickInto('transcript2.file', 'transcript2.mode');
+
+  // ---- factory reset ----
+  $('factoryReset').onclick = async () => {
+    const el = $('resetResult');
+    const sure = confirm(
+      'Reset Hype Ghost to factory defaults?\n\n' +
+      'This permanently deletes your settings (including the API key), session memory, chat history, and the cast’s cross-stream profile, then restarts into the setup wizard.\n\n' +
+      'This cannot be undone.'
+    );
+    if (!sure) return;
+    el.className = 'result'; el.textContent = 'resetting…';
+    $('factoryReset').disabled = true;
+    const r = await fetch('/api/factory-reset', { method: 'POST' }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
+    if (!r.ok) { $('factoryReset').disabled = false; el.className = 'result err'; el.textContent = '✗ ' + (r.error || 'failed'); return; }
+    try { localStorage.clear(); } catch {} // page prefs (tab, simple/advanced) go too
+    el.className = 'result ok';
+    el.textContent = r.restarting ? '✓ reset — restarting into the setup wizard…' : '✓ reset — restart the server to finish.';
+    if (r.restarting) setTimeout(() => { location.href = '/'; }, 4000);
+  };
 
   // ---- save ----
   $('save').onclick = async () => {
