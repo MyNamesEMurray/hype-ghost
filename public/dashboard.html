@@ -274,13 +274,68 @@
   function initial(name) { return (name || '?').trim().charAt(0).toUpperCase(); }
   function colorOf(name) { const g = cast.find((c) => c.name === name); return g ? g.color : 'var(--ghost)'; }
 
-  function speak(text) {
-    if (!state.tts || !state.tts.enabled || !('speechSynthesis' in window)) return;
+  // ---------- TTS ----------
+  // Two playback paths: with a chosen output device, audio comes as WAV from
+  // the server (SAPI) and plays through an <audio> element, which supports
+  // setSinkId — the browser's speechSynthesis can't pick a device, so it
+  // remains the default-device path (and the fallback when synth fails).
+  let sinkCache = null; // label -> deviceId, resolved once per session
+  async function resolveSink(label) {
+    if (!label || !navigator.mediaDevices?.enumerateDevices) return null;
+    if (!sinkCache) {
+      try {
+        sinkCache = new Map(
+          (await navigator.mediaDevices.enumerateDevices())
+            .filter((d) => d.kind === 'audiooutput')
+            .map((d) => [d.label, d.deviceId])
+        );
+      } catch { sinkCache = new Map(); }
+    }
+    return sinkCache.get(label) ?? null;
+  }
+
+  const ttsQueue = [];
+  let ttsBusy = false;
+  async function playNextTts() {
+    if (ttsBusy || !ttsQueue.length) return;
+    ttsBusy = true;
+    const text = ttsQueue.shift();
+    try {
+      const res = await fetch('/api/tts/speak', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+      if (!res.ok) throw new Error('synth unavailable');
+      const url = URL.createObjectURL(await res.blob());
+      const audio = new Audio(url);
+      const sink = await resolveSink(state.tts.outputDevice);
+      if (sink && audio.setSinkId) await audio.setSinkId(sink).catch(() => {});
+      await new Promise((done) => {
+        audio.onended = audio.onerror = () => { URL.revokeObjectURL(url); done(); };
+        audio.play().catch(() => { URL.revokeObjectURL(url); done(); });
+      });
+    } catch {
+      speakBrowser(text); // degrade to the default-device engine
+    } finally {
+      ttsBusy = false;
+      playNextTts();
+    }
+  }
+
+  function speakBrowser(text) {
+    if (!('speechSynthesis' in window)) return;
     const u = new SpeechSynthesisUtterance(text);
     const v = speechSynthesis.getVoices().find((v) => v.name === state.tts.voice);
     if (v) u.voice = v;
     u.rate = state.tts.rate || 1;
     speechSynthesis.speak(u);
+  }
+
+  function speak(text) {
+    if (!state.tts || !state.tts.enabled) return;
+    if (state.tts.engine === 'sapi' && state.tts.outputDevice) {
+      ttsQueue.push(text);
+      playNextTts();
+    } else {
+      speakBrowser(text);
+    }
   }
 
   function clearEmpty() { const e = $('empty'); if (e) e.remove(); }
