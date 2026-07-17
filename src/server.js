@@ -40,6 +40,9 @@ const appVersion = (() => {
  * @param {() => void} [opts.onPauseChanged]  pause state changed (host should refresh tray)
  * @param {(err: Error) => void} [opts.onFatal]  unrecoverable server error (e.g. port in use)
  * @param {() => Promise<string|null>} [opts.pickFile]  native file dialog (desktop app only)
+ * @param {{info: () => Object, pickFolder: () => Promise<string|null>, setDir: (dir: string|null) => string[]}} [opts.storage]
+ *   data-folder card (desktop app only): current location, native folder dialog, migrate + repoint
+ * @param {string[]} [opts.resetPaths]   extra files factory reset must delete (storage pointer, log, stale default-dir copies)
  * @returns {{ port: number, pause(): void, resume(): void, isPaused(): boolean }}
  */
 export function startServer(opts = {}) {
@@ -312,7 +315,7 @@ export function startServer(opts = {}) {
   // confirms before calling; this endpoint is the point of no return.
   app.post('/api/factory-reset', (_req, res) => {
     try {
-      for (const p of [configPath, notesPath, sessionPath, profilePath]) {
+      for (const p of [configPath, notesPath, sessionPath, profilePath, ...(opts.resetPaths ?? [])]) {
         try {
           rmSync(p, { force: true });
         } catch {}
@@ -323,6 +326,37 @@ export function startServer(opts = {}) {
         if (opts.onConfigSaved) opts.onConfigSaved();
         else console.log('[config] restart the server to finish the reset.');
       }, 400);
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // ---------- storage (Settings → About): where the data files live ----------
+  // Moving the folder is desktop-only: the host (Electron) owns the native
+  // folder dialog, the file migration, and the pointer — the server just
+  // fronts it and relaunches, exactly like a config save.
+  app.get('/api/storage', (_req, res) => {
+    if (!opts.storage) {
+      return res.json({ supported: false, dir: path.dirname(configPath) });
+    }
+    res.json({ supported: true, ...opts.storage.info() });
+  });
+
+  app.post('/api/storage/move', async (req, res) => {
+    if (!opts.storage || !opts.onConfigSaved) {
+      return res.json({ ok: false, error: 'Moving the data folder is only available in the desktop app.' });
+    }
+    try {
+      // reset: back to the default location; otherwise ask for a folder.
+      let dir = null;
+      if (!req.body?.reset) {
+        dir = await opts.storage.pickFolder();
+        if (!dir) return res.json({ ok: false, cancelled: true });
+      }
+      const copied = opts.storage.setDir(dir);
+      console.log(`[storage] data folder ${dir ? 'moved to ' + dir : 'reset to default'} (${copied.length} file(s) copied).`);
+      res.json({ ok: true, copied, restarting: true });
+      setTimeout(() => opts.onConfigSaved(), 400);
     } catch (err) {
       res.status(500).json({ ok: false, error: err.message });
     }

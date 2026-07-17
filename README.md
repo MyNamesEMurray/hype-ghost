@@ -38,7 +38,9 @@ first.
 
 **[⬇ Download the latest installer](https://github.com/MyNamesEMurray/hype-ghost/releases/latest)** — grab
 `Hype Ghost Setup <version>.exe`. Windows SmartScreen will warn because the installer is
-unsigned; click **More info → Run anyway**. You'll need your own
+unsigned; click **More info → Run anyway**. The installer is a normal wizard: pick where the
+program goes (per-user by default — no admin needed — or per-machine), desktop/start-menu
+shortcuts included, and auto-updates keep working either way. You'll need your own
 [Anthropic API key](https://console.anthropic.com) (~$0.20/hour of streaming) and OBS 28+.
 
 (Building from source instead? Run the installer out of `dist/` after `npm run dist`.) On first launch, a **setup wizard**
@@ -67,6 +69,11 @@ Quit Hype Ghost.
 - **Settings → About** shows the app version, the honesty/privacy rules at a glance, where
   your data lives, and **Reset to factory defaults** — wipes all settings and memory, then
   re-runs the setup wizard.
+- **Data folder:** settings, session memory, the cross-stream profile, and the app log
+  (`hype-ghost.log`, rotating) live in `%APPDATA%\Hype Ghost` by default. **Settings →
+  About → Move data folder…** relocates all of it to any folder you like (another drive, a
+  synced folder); files are copied over, a small `storage.json` pointer in the default
+  folder remembers the location, and **Back to default location** undoes it.
 - **Voice awareness:** install the
   [LocalVocal](https://obsproject.com/forum/resources/localvocal-local-live-captions-translation-on-the-go.1769/)
   OBS plugin (local whisper.cpp — audio never leaves your PC), add its Transcription filter

@@ -6,6 +6,8 @@ import path from 'node:path';
 import os from 'node:os';
 import { startServer } from '../src/server.js';
 import { loadConfig } from '../src/config.js';
+import { POINTER_FILE, dataFilePaths, migrateDataFiles, resolveDataDir, setDataDir } from '../src/storage.js';
+import { FileLog } from '../src/logfile.js';
 
 // Resource posture: this app shares a machine with OBS and a game. Software
 // rendering is plenty for our simple UI and keeps VRAM/GPU cycles for the
@@ -30,11 +32,18 @@ if (!gotLock) {
   app.on('second-instance', () => showWindow());
 }
 
-// Installed app: config lives in %APPDATA%/Hype Ghost (writable, survives updates).
-// Dev (npm start): use the project folder so hacking on it stays simple.
-const dataDir = app.isPackaged ? app.getPath('userData') : packageRoot;
-const configPath = path.join(dataDir, 'config.json');
-const notesPath = path.join(dataDir, 'session-notes.txt');
+// Installed app: data lives in %APPDATA%/Hype Ghost (writable, survives
+// updates) — unless a storage.json pointer there redirects everything to a
+// user-chosen folder (Settings → About → Storage). The pointer always stays
+// in the default dir so it can be found before anything else is known.
+// Dev (npm start): the project folder, so hacking on it stays simple.
+const defaultDataDir = app.isPackaged ? app.getPath('userData') : packageRoot;
+const { dir: dataDir, custom: customDataDir } = resolveDataDir(defaultDataDir);
+const { configPath, notesPath, sessionPath, profilePath, logPath } = dataFilePaths(dataDir);
+
+// A tray-resident app has no visible console — keep a rotating file log next
+// to the data for bug reports. Packaged only: dev has a real terminal.
+if (app.isPackaged && !SMOKE) new FileLog(logPath).hookConsole();
 
 let win = null;
 let tray = null;
@@ -159,7 +168,37 @@ app.whenReady().then(() => {
     server = startServer({
       configPath,
       notesPath,
+      sessionPath,
+      profilePath,
       publicDir: path.join(packageRoot, 'public'),
+      // Settings → About → Storage: shows where the data lives and moves it.
+      // Files are copied (originals stay as a fallback), the pointer is
+      // rewritten, and the usual relaunch picks up the new location.
+      storage: {
+        info: () => ({
+          dir: dataDir,
+          defaultDir: defaultDataDir,
+          custom: customDataDir,
+          logFile: app.isPackaged ? path.basename(logPath) : null,
+        }),
+        pickFolder: async () => {
+          const parent = win && !win.isDestroyed() ? win : undefined;
+          const r = await dialog.showOpenDialog(parent, {
+            title: 'Choose the Hype Ghost data folder',
+            properties: ['openDirectory', 'createDirectory'],
+            defaultPath: dataDir,
+          });
+          return r.canceled ? null : r.filePaths[0];
+        },
+        setDir: (dir) => {
+          const copied = migrateDataFiles(dataDir, dir ?? defaultDataDir);
+          setDataDir(defaultDataDir, dir);
+          return copied;
+        },
+      },
+      // Factory reset must also clear the pointer, the active log, and any
+      // stale copies left in the default dir from before a folder move.
+      resetPaths: [path.join(defaultDataDir, POINTER_FILE), logPath, ...Object.values(dataFilePaths(defaultDataDir))],
       // The setup wizard saved a new config — restart the whole app to apply it.
       onConfigSaved: () => {
         quitting = true;
