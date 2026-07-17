@@ -1,18 +1,20 @@
 {
   "name": "hype-ghost",
-  "version": "1.5.1",
-  "description": "AI practice chat for streamers",
+  "version": "3.1.0",
+  "description": "AI practice chat for streamers — a directable cast of simulated viewers",
+  "author": "MyNamesEMurray",
   "type": "module",
   "main": "electron/main.js",
   "scripts": {
     "start": "electron .",
-    "serve": "node src/cli.js",
     "test": "node --test",
+    "serve": "node src/cli.js",
+    "smoke": "node scripts/smoke.mjs",
     "icons": "node scripts/make-icons.mjs",
     "dist": "electron-builder --win"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",

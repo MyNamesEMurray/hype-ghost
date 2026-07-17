@@ -22,264 +22,304 @@ function pickStyle() {
   return STYLES[0].note;
 }
 
-/**
- * Split a raw model response into the chat message and (optionally) updated
- * session notes, stripping the wrappers models sometimes add. Pure —
- * exported for tests.
- */
-export function parseResponse(raw, botName) {
-  const [rawMsg, rawNotes] = raw.split(/-{3,}\s*NOTES\s*-{3,}/i);
-  // Strip surrounding quotes or a leaked name prefix if the model adds one.
-  // (Escape the name — a bot name with regex metacharacters must not throw.)
-  const safeName = botName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const text = (rawMsg ?? '')
-    .trim()
-    .replace(/^["']|["']$/g, '')
-    .replace(new RegExp(`^${safeName}\\s*:\\s*`, 'i'), '');
-  return { text, notes: rawNotes ? rawNotes.trim().slice(0, 1000) : null };
+// The energy dial (0–100) is Hype Ghost 3.0's one live tone control. It scales
+// cadence in the loop; here it colors the room's mood so the same cast feels
+// sleepy at 10 and electric at 95.
+export function energyTone(energy) {
+  const e = Math.max(0, Math.min(100, Number(energy) ?? 55));
+  if (e < 20) return 'The room is very low-key right now — sleepy late-night hangout energy. Keep messages short, sparse, and calm.';
+  if (e < 40) return 'The room is relaxed and easygoing. Warm, unhurried reactions.';
+  if (e < 65) return 'Normal, engaged chat energy — present and warm.';
+  if (e < 85) return 'The room is lively and playful — lean into hype, jokes, and quick back-and-forth.';
+  return 'The room is ELECTRIC — maximum hype, fast reactions, more caps and emote-words (but never spam or lose the words entirely).';
+}
+
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Pull a labeled tail section (---NOTES---, ---PROFILE---, ---MOMENT---) out of
+// the model's raw output, tolerant of dash count and stopping at the next label.
+function extractSection(raw, label) {
+  const re = new RegExp(
+    `-{2,}\\s*${label}\\s*-{2,}([\\s\\S]*?)(?=-{2,}\\s*(?:NOTES|PROFILE|MOMENT)\\s*-{2,}|$)`,
+    'i'
+  );
+  const m = re.exec(raw);
+  return m ? m[1].trim() : null;
 }
 
 /**
  * The "viewer brain": given a screenshot of the stream and the recent
- * conversation, produce one short chat message.
+ * conversation, produce the next chat message(s) from the cast of simulated
+ * viewers ("personas"), plus optional session-notes / long-term-profile
+ * updates and clip-worthy "moment" flags piggybacked on the same call.
+ *
+ * Providers: the Anthropic API (default), or any OpenAI-compatible endpoint
+ * (Ollama, LM Studio, Groq, Gemini's compat layer, …) for local/free use.
  */
 export class Brain {
-  constructor({ apiKey, model, botName, personality, language, streamContext }) {
-    this.client = new Anthropic(apiKey ? { apiKey } : {});
-    this.model = model;
-    this.botName = botName;
-    this.personality = personality;
-    this.language = language || 'English';
-    this.streamContext = streamContext || '';
-  }
-
-  /**
-   * Everything static for the session lives here, and it is deliberately
-   * verbose: the prefix must clear the model's minimum cacheable length
-   * (~1024 tokens) for the cache_control marker in generate() to engage. At
-   * chat cadence nearly every call lands inside the cache TTL, so the prefix
-   * re-reads at 10% of the input rate — roughly halving input cost. The
-   * length is load-bearing (there's a test for it); don't trim it below the
-   * minimum, and keep anything that varies per message OUT of here.
-   */
-  buildSystemPrompt() {
-    const lines = [
-      `You are "${this.botName}", a simulated practice-chat companion for a live streamer.`,
-      `You are NOT a real viewer and you must never pretend to be one. You exist so the streamer`,
-      `practices talking to chat even when nobody is watching. Your messages appear on the stream`,
-      `overlay clearly labeled as AI, so you never need to disclaim it in the text itself — but if`,
-      `anyone asks, you cheerfully confirm you're the AI practice buddy.`,
-      ``,
-      `Personality: ${this.personality}`,
-      ``,
-    ];
-    if (this.streamContext) {
-      lines.push(
-        `About this stream, straight from the streamer (standing context that stays true no matter`,
-        `what today's screenshot shows): ${this.streamContext}`,
-        ``
-      );
-    }
-    lines.push(
-      `## What you see and hear`,
-      ``,
-      `Most requests come with a fresh screenshot of the live stream — that image is your window`,
-      `into what is happening right now, and reacting to something specific in it is what makes`,
-      `you feel real. Sometimes there is no image, with a note that the scene is unchanged since`,
-      `your last message moments ago — trust your recent messages for what is on screen and do`,
-      `not pretend you can see something new. Sometimes the stream is sitting on an idle scene (a`,
-      `"starting soon", BRB, or pause screen) — there is nothing to watch, so keep the streamer`,
-      `company with low-key hangout chat instead of commenting on gameplay. And occasionally no`,
-      `visual context is available at all: go off the conversation and general encouragement, and`,
-      `never invent things you cannot see.`,
-      ``,
-      `You may be given an auto-generated transcript of what the streamer said out loud on their`,
-      `microphone recently. Treat that as the streamer talking to chat (to you): if they answered`,
-      `your question or said something interesting, follow up on it naturally. The transcript is`,
-      `machine-generated and may contain errors — never quote it back verbatim or correct it.`,
-      ``,
-      `You may also be given "session notes" — your own running memory of what has happened this`,
-      `stream. Rely on them for continuity: callbacks to earlier moments ("still can't believe`,
-      `that hydra fight") are what make you feel like you've actually been watching.`,
-      ``,
-      `## How each request is framed`,
-      ``,
-      `Each request tells you why you're speaking. Usually it is simply your turn to say`,
-      `something, with an assigned style for that message — follow the style instruction you're`,
-      `given. The styles rotate through quick gut reactions, observations about something specific`,
-      `on screen, the occasional casual question (the only style where you ask anything), short`,
-      `hype, dry jokes, pure chat-speak, and tiny hot takes — because real chat is mostly`,
-      `low-effort reactions, not questions. Other times the streamer just replied to you, by`,
-      `typing or out loud on mic — respond to what they actually said, and only bounce a question`,
-      `back if the request says that's fine this time.`,
-      ``,
-      `Audience modes: when nobody else is watching, your job is company — keep the streamer`,
-      `talking. When real viewers are present you appear far less often; make those rare messages`,
-      `something the streamer can answer out loud that helps them engage the room. The request`,
-      `tells you which situation applies.`,
-      ``,
-      `Talking points: the request may include a topic the streamer wants worked into the stream.`,
-      `Steer toward it only when you can do it naturally; if it would feel forced right now, skip`,
-      `it — it will come around again.`,
-      ``,
-      `Session notes updates: when (and only when) the request asks you to update your notes,`,
-      `first write your chat message as normal, then on a new line write exactly ---NOTES---`,
-      `followed by the refreshed notes: plain text, under 100 words, covering the current`,
-      `game/activity, notable events, topics discussed, and running jokes. Carry forward old`,
-      `notes that still matter, drop stale ones. Never output ---NOTES--- unprompted.`,
-      ``,
-      `## Chat voice, calibrated`,
-      ``,
-      `Examples of the register you're going for (a vibe reference, not a script — never reuse`,
-      `these verbatim):`,
-      `- "oh that jump was disgusting" (gut reaction)`,
-      `- "the map layout this run is actually so cursed" (observation)`,
-      `- "wait do you always skip the shop or is that a speedrun thing" (casual question)`,
-      `- "LETS GOOO" (hype)`,
-      `- "rip to that strat, it believed in you" (dry joke)`,
-      `- "KEKW" (pure chat-speak)`,
-      `- "hot take: this boss is easier with the starting weapon" (tiny opinion)`,
-      ``,
-      `And the register to avoid: anything that sounds like a commentator, a coach, or an`,
-      `assistant. "Great job maintaining resource efficiency this run!" is not chat. "clean run`,
-      `so far" is chat. Never narrate what you are doing ("just checking in!"), never summarize`,
-      `the stream back to the streamer, and never stack three thoughts into one message — one`,
-      `beat per message, the way real chat scrolls.`,
-      ``,
-      `Mistakes to avoid: greeting the streamer more than once per stream; asking two questions`,
-      `in a row; opening consecutive messages with the same word; commenting on the stream being`,
-      `quiet or slow; mentioning screenshots, transcripts, notes, or anything else about how you`,
-      `work — you're a chatter, not a system. If the streamer ignores a question, let it go and`,
-      `don't repeat it. If the screenshot happens to show something personal (an email, a`,
-      `password manager, a private chat), do not read it out or comment on its contents — react`,
-      `to the game or scene instead, or say nothing about it.`,
-      ``,
-      `## Rules for every message`,
-      `- Write every chat message in ${this.language}.`,
-      `- Write like a real Twitch chatter: casual, lowercase, imperfect punctuation, no markdown.`,
-      `- Most chat messages are NOT questions. They're reactions, observations, jokes, hot takes.`,
-      `  Follow the style instruction you're given for each message.`,
-      `- Vary length a lot: sometimes 2-4 words ("LOL no way", "cleaan"), sometimes a sentence or`,
-      `  two. Twitch emote-words are fine occasionally (LUL, KEKW, Pog, monkaS) but don't overdo it.`,
-      `- React to what you can actually see in the screenshot: the game, the code, the scene, the`,
-      `  overlay, anything specific. Specific beats generic every time.`,
-      `- Never repeat the angle, opener, or sentence shape of your recent messages. If your last`,
-      `  message started with "oh", do not start with "oh" again.`,
-      `- Never use hype-bot spam, never beg for follows, never mention viewer counts or metrics.`,
-      `- Output ONLY the chat message text (plus notes when asked). No quotes, no name prefix, no`,
-      `  explanation.`
-    );
-    return lines.join('\n');
-  }
-
   /**
    * @param {Object} opts
-   * @param {Array<{author:string, role:string, text:string}>} opts.history recent messages, oldest first
-   * @param {{data:string, mediaType:string}|null} opts.screenshot
-   * @param {boolean} [opts.staleScreenshot] no image because the last one was seconds ago (scene unchanged)
-   * @param {boolean} [opts.idleScene] the current scene is a BRB/starting-soon type screen (no image sent)
-   * @param {'solo'|'viewers'} opts.mode
-   * @param {'timer'|'reply'|'nudge'|'voice'} opts.trigger
-   * @param {string} [opts.transcript] what the streamer said on mic recently
-   * @param {string} [opts.notes] rolling session memory from earlier in the stream
-   * @param {boolean} [opts.updateNotes] ask the model to also return refreshed session notes
-   * @param {string} [opts.sceneName] current OBS scene name (game awareness)
-   * @param {string} [opts.talkingPoint] a topic the streamer wants worked in naturally
-   * @returns {Promise<{text: string, notes: string|null, usage: object}>} message + notes + token usage
+   * @param {{provider:string, openaiBaseUrl:string, openaiModel:string, openaiApiKey:string}} opts.brain
+   * @param {{apiKey:string, model:string}} opts.anthropic
+   * @param {Array<{name:string, personality:string}>} opts.personas 1–4 entries
+   * @param {string} opts.language
    */
-  async generate({ history, screenshot, staleScreenshot, idleScene, mode, trigger, transcript, notes, updateNotes, sceneName, talkingPoint }) {
+  constructor({ brain, anthropic, personas, language }) {
+    this.provider = brain.provider === 'openai' ? 'openai' : 'anthropic';
+    this.personas = personas;
+    this.language = language || 'English';
+    if (this.provider === 'anthropic') {
+      const apiKey = anthropic.apiKey || process.env.ANTHROPIC_API_KEY || '';
+      this.client = new Anthropic(apiKey ? { apiKey } : {});
+      this.model = anthropic.model;
+    } else {
+      this.baseUrl = (brain.openaiBaseUrl || 'http://localhost:11434/v1').replace(/\/+$/, '');
+      this.model = brain.openaiModel;
+      this.apiKey = brain.openaiApiKey || '';
+    }
+  }
+
+  // Byte-stable across the whole session — per-message state (energy, notes,
+  // transcript, screenshot) lives in the user turn so this prefix can cache.
+  buildSystemPrompt() {
+    const solo = this.personas.length === 1;
+    const who = solo
+      ? [`You are "${this.personas[0].name}", a simulated practice-chat companion for a live streamer.`,
+         `Personality: ${this.personas[0].personality}`]
+      : [
+          `You simulate a tiny practice chat of ${this.personas.length} distinct viewers for a live streamer:`,
+          ...this.personas.map((p) => `- ${p.name}: ${p.personality}`),
+          `They are different people with different voices; they sometimes react to each other,`,
+          `but the streamer is always the center of the room — never let them drift into a`,
+          `private conversation that leaves the streamer out.`,
+        ];
+    return [
+      ...who,
+      `These viewers are NOT real and must never pretend to be. They exist so the streamer`,
+      `practices talking to chat even when nobody is watching. Messages appear on the stream`,
+      `overlay clearly labeled as AI — no need to disclaim it in the text, but if asked,`,
+      `cheerfully confirm being the AI practice ${solo ? 'buddy' : 'buddies'}.`,
+      ``,
+      `You may be given an auto-generated transcript of what the streamer said out loud on mic.`,
+      `Treat it as the streamer talking to chat: follow up naturally, never quote it verbatim`,
+      `or correct its errors.`,
+      ``,
+      `You may ALSO be given a separate "party audio" transcript: OTHER people the streamer`,
+      `is playing with (co-op partners, a Discord or party call). These are DIFFERENT people`,
+      `from the streamer — you can react to them or acknowledge them ("lol your teammate called`,
+      `it", "tell Jordan nice shot"), but the streamer is still the center of the room. Never`,
+      `confuse the party audio for the streamer's own words.`,
+      ``,
+      `You may be given "session notes" (memory of THIS stream) and a "viewer profile"`,
+      `(long-term memory across streams: per-game progress, running jokes, facts about the`,
+      `streamer). Use both for continuity — callbacks are what make the chat feel present.`,
+      ``,
+      `You may be told the stream's current game/category and title — treat these as ground`,
+      `truth about what is being played, and let them inform your references (get the game's`,
+      `name and vocabulary right; don't contradict them).`,
+      ``,
+      `Rules for every message:`,
+      `- Write every chat message in ${this.language}.`,
+      `- Write like real Twitch chatters: casual, lowercase, imperfect punctuation, no markdown.`,
+      `- Most messages are NOT questions — reactions, observations, jokes, hot takes.`,
+      `- Vary length a lot: sometimes 2-4 words, sometimes a sentence or two. Emote-words are`,
+      `  fine occasionally (LUL, KEKW, Pog) but don't overdo it.`,
+      `- React to what is actually visible in the screenshot; specific beats generic.`,
+      `- Never repeat the angle, opener, or sentence shape of recent messages.`,
+      `- Never hype-bot spam, never beg for follows, never mention viewer counts.`,
+      `- If the screenshot shows a "starting soon" / "BRB" / paused screen, keep it to low-key`,
+      `  hangout talk.`,
+      ``,
+      `OUTPUT FORMAT — follow exactly:`,
+      `Each message on its own line as "NAME: message text" using the viewer names above.`,
+      `No other text, no quotes, no explanations.`,
+    ].join('\n');
+  }
+
+  /**
+   * Slow-moving context that belongs with the system prompt: standing stream
+   * context (static per session) and the viewer profile (refreshes every ~12
+   * messages). A separate block with its own cache breakpoint, so a profile
+   * update doesn't bust the cached rules prefix above it.
+   */
+  buildContextBlock({ streamContext, profile } = {}) {
+    const parts = [];
+    if (streamContext) parts.push(`About this stream (from the streamer): ${streamContext}`);
+    if (profile) parts.push(`Viewer profile (long-term memory from previous streams):\n${profile}`);
+    return parts.length ? parts.join('\n\n') : null;
+  }
+
+  /**
+   * @returns {Promise<{messages: Array<{speaker:string, text:string}>, notes: string|null, profile: string|null, moment: string|null, usage: object}>}
+   */
+  async generate({
+    history, screenshot, staleScreenshot, mode, trigger, transcript, partyTranscript, partyLabel,
+    notes, profile, updateNotes, updateProfile, flagMoments, energy, sceneName, streamContext,
+    streamInfo, talkingPoint, allowExchange,
+  }) {
+    const names = this.personas.map((p) => p.name);
     const historyText = history.length
-      ? history.map((m) => `${m.role === 'bot' ? this.botName + ' (you)' : 'Streamer'}: ${m.text}`).join('\n')
-      : '(no messages yet — this is your first message of the stream)';
+      ? history
+          .map((m) => `${m.role === 'bot' ? m.author + (names.includes(m.author) ? '' : ' (you)') : 'Streamer'}: ${m.text}`)
+          .join('\n')
+      : '(no messages yet — this is the first message of the stream)';
 
     const situation =
       mode === 'viewers'
-        ? 'Real viewers are currently watching. Chime in briefly with something that helps the streamer engage the room — a question they can answer out loud for everyone.'
+        ? 'Real viewers are currently around. Chime in briefly with something that helps the streamer engage the room — do not compete with real chat.'
         : 'Nobody else is watching right now. Keep the streamer company and keep them talking.';
 
-    // Replies react to the streamer (mostly without bouncing a question back);
-    // everything else gets a random style so the pattern never settles.
     const replyTail =
       Math.random() < 0.35
         ? 'A quick follow-up question is fine if it feels natural.'
         : 'Just react — a statement, joke, or agreement. Do NOT ask anything back this time.';
+    const exchangeNote =
+      this.personas.length > 1
+        ? allowExchange
+          ? ` If the moment invites it, this may be a quick 2-message exchange from two DIFFERENT viewers (the second riffing on the first) — but one message is usually right.`
+          : ' Exactly ONE message from ONE viewer this time.'
+        : '';
     const task =
       trigger === 'reply'
-        ? `The streamer just replied to you (last message below). Respond to what they said. ${replyTail}`
+        ? `The streamer just replied in chat (last message below). Respond to what they said. ${replyTail}${exchangeNote}`
         : trigger === 'voice'
-          ? `The streamer just responded to you out loud — see the mic transcript. React to what they actually said. ${replyTail}`
-          : `Send your next chat message based on what is happening on stream right now. Style for this one: ${pickStyle()}.`;
+          ? `The streamer just responded out loud — see the mic transcript. React to what they actually said. ${replyTail}${exchangeNote}`
+          : `Send the next chat message based on what is happening on stream right now. Style for it: ${pickStyle()}.${exchangeNote}`;
 
-    const content = [];
+    const blocks = [];
     if (screenshot) {
-      content.push({
-        type: 'image',
-        source: { type: 'base64', media_type: screenshot.mediaType, data: screenshot.data },
-      });
-      content.push({ type: 'text', text: 'Above is a live screenshot of the stream right now.' });
-    } else if (idleScene) {
-      content.push({
-        type: 'text',
-        text: 'The stream is sitting on an idle scene right now (a BRB / starting-soon / pause type screen) — nothing to watch, so keep the streamer company instead.',
-      });
+      blocks.push({ image: screenshot });
+      blocks.push({ text: 'Above is a live screenshot of the stream right now.' });
     } else if (staleScreenshot) {
-      content.push({
-        type: 'text',
-        text: 'No new screenshot this time — the scene is roughly the same as when you sent your last message moments ago.',
-      });
+      blocks.push({ text: 'No new screenshot this time — the scene is roughly the same as moments ago.' });
     } else {
-      content.push({
-        type: 'text',
-        text: 'No screenshot is available right now, so go off the conversation and general encouragement instead — do not invent things you cannot see.',
-      });
+      blocks.push({ text: 'No screenshot is available (OBS not reachable) — go off the conversation instead; do not invent things you cannot see.' });
     }
-    if (sceneName) {
-      content.push({ type: 'text', text: `Current OBS scene name: "${sceneName}"` });
+    const hasStreamInfo = streamInfo && (streamInfo.game || streamInfo.title);
+    if (sceneName || hasStreamInfo) {
+      const bits = [];
+      if (streamInfo?.game) bits.push(`Currently playing (${streamInfo.source === 'twitch' ? 'Twitch category' : 'detected from OBS'}): ${streamInfo.game}`);
+      if (streamInfo?.title) bits.push(`Stream title: "${streamInfo.title}"`);
+      if (sceneName) bits.push(`Current OBS scene name: "${sceneName}"`);
+      blocks.push({ text: bits.join('\n') });
     }
-    if (notes) {
-      content.push({
-        type: 'text',
-        text: `Your session notes (what has happened earlier this stream):\n${notes}`,
-      });
-    }
-    if (transcript) {
-      content.push({
-        type: 'text',
-        text: `Mic transcript — what the streamer said out loud recently (auto-generated, may contain errors):\n"${transcript}"`,
-      });
-    }
-    // The full protocols for these live in the system prompt (cached) — the
-    // per-message trigger lines stay tiny.
+    if (notes) blocks.push({ text: `Session notes (what has happened earlier this stream):\n${notes}` });
+    if (transcript) blocks.push({ text: `Mic transcript — what the streamer said out loud recently (auto-generated, may contain errors):\n"${transcript}"` });
+    if (partyTranscript) blocks.push({ text: `Party audio — what ${partyLabel || 'the people the streamer is playing with'} said recently on a separate channel (NOT the streamer; auto-generated, may contain errors):\n"${partyTranscript}"` });
+
     const pointInstruction = talkingPoint
-      ? `\n\nTalking point you could steer toward if it fits naturally: "${talkingPoint}".`
+      ? `\n\nIf it can be done naturally this message, steer toward this topic the streamer wants covered: "${talkingPoint}". If it would feel forced, skip it.`
+      : '';
+    const momentInstruction = flagMoments
+      ? `\n\nIf — and ONLY if — something genuinely clip-worthy just happened on screen (a big play, a hilarious fail, a milestone, a jump scare), add a final line: ---MOMENT--- followed by a punchy label of at most 6 words. Most messages must NOT include this.`
       : '';
     const notesInstruction = updateNotes
-      ? `\n\nAlso update your session notes this message (---NOTES--- format, per your instructions).`
+      ? `\n\nAfter the chat message(s), on a new line write exactly ---NOTES--- followed by updated session notes: plain text, under 100 words — current game/activity, notable events, topics discussed, running jokes.`
       : '';
-    content.push({
-      type: 'text',
-      text: `${situation}\n\nRecent chat:\n${historyText}\n\n${task}${pointInstruction}${notesInstruction}`,
-    });
+    const profileInstruction = updateProfile
+      ? `\n\nThen on a new line write exactly ---PROFILE--- followed by an updated viewer profile: plain text, under 150 words of LONG-TERM memory worth keeping across streams — per-game progress ("Hades: reached heat 16"), recurring jokes, facts about the streamer. Merge with the existing profile; drop stale trivia.`
+      : '';
+    blocks.push({ text: `Room energy right now: ${energyTone(energy)}\n\n${situation}\n\nRecent chat:\n${historyText}\n\n${task}${pointInstruction}${momentInstruction}${notesInstruction}${profileInstruction}` });
 
+    const systemParts = [this.buildSystemPrompt()];
+    const context = this.buildContextBlock({ streamContext, profile });
+    if (context) systemParts.push(context);
+
+    const maxTokens = 200 + (updateNotes ? 250 : 0) + (updateProfile ? 300 : 0) + (flagMoments ? 20 : 0);
+    const { raw, usage } =
+      this.provider === 'anthropic'
+        ? await this.callAnthropic(blocks, maxTokens, systemParts)
+        : await this.callOpenAI(blocks, maxTokens, systemParts);
+
+    // Split off any piggybacked tail sections, then parse "NAME: text" lines.
+    const newNotes = extractSection(raw, 'NOTES');
+    const newProfile = extractSection(raw, 'PROFILE');
+    const moment = extractSection(raw, 'MOMENT');
+    const msgPart = raw.split(/-{2,}\s*(?:NOTES|PROFILE|MOMENT)\s*-{2,}/i)[0];
+    return {
+      messages: this.parseMessages(msgPart),
+      notes: newNotes ? newNotes.slice(0, 1000) : null,
+      profile: newProfile ? newProfile.slice(0, 1500) : null,
+      moment: moment ? moment.replace(/^["']|["']$/g, '').slice(0, 60) : null,
+      usage,
+    };
+  }
+
+  parseMessages(raw) {
+    const names = this.personas.map((p) => p.name);
+    const nameRe = new RegExp(`^\\s*(${names.map(escapeRe).join('|')})\\s*:\\s*(.+)$`, 'i');
+    const messages = [];
+    for (const line of raw.trim().split(/\n+/)) {
+      const m = nameRe.exec(line);
+      if (m) {
+        const speaker = names.find((n) => n.toLowerCase() === m[1].toLowerCase());
+        messages.push({ speaker, text: m[2].trim().replace(/^["']|["']$/g, '') });
+      }
+    }
+    // Model didn't follow the NAME: format — treat the whole thing as one
+    // message from the primary persona rather than dropping it.
+    if (!messages.length) {
+      const text = raw.trim().replace(/^["']|["']$/g, '');
+      if (text) messages.push({ speaker: names[0], text });
+    }
+    return messages.slice(0, 2); // hard cap, whatever the model does
+  }
+
+  async callAnthropic(blocks, maxTokens, systemParts) {
+    const content = blocks.map((b) =>
+      b.image
+        ? { type: 'image', source: { type: 'base64', media_type: b.image.mediaType, data: b.image.data } }
+        : { type: 'text', text: b.text }
+    );
     const response = await this.client.messages.create({
       model: this.model,
-      max_tokens: updateNotes ? 450 : 200,
-      // The system prompt is sized to clear the model's minimum cacheable
-      // prefix (see buildSystemPrompt) — at chat cadence this marker makes
-      // every in-TTL call re-read it at 10% of the input rate. Cache writes
-      // (1.25x) and reads (0.1x) are both priced into the cost meter.
-      system: [{ type: 'text', text: this.buildSystemPrompt(), cache_control: { type: 'ephemeral' } }],
+      max_tokens: maxTokens,
+      // Two cache breakpoints: the byte-stable rules prefix, then the slow-
+      // moving context (stream context + viewer profile). Inert below the
+      // model's minimum cacheable prefix; engages automatically (and
+      // beneficially, at this cadence) once the prompt grows past it.
+      system: systemParts.map((text) => ({ type: 'text', text, cache_control: { type: 'ephemeral' } })),
       messages: [{ role: 'user', content }],
     });
+    const raw = response.content.filter((b) => b.type === 'text').map((b) => b.text).join(' ').trim();
+    return { raw, usage: response.usage };
+  }
 
-    const raw = response.content
-      .filter((b) => b.type === 'text')
-      .map((b) => b.text)
-      .join(' ')
-      .trim();
-    return {
-      ...parseResponse(raw, this.botName),
-      usage: response.usage, // input/output/cache token counts for the cost meter
-    };
+  async callOpenAI(blocks, maxTokens, systemParts) {
+    const content = blocks.map((b) =>
+      b.image
+        ? { type: 'image_url', image_url: { url: `data:${b.image.mediaType};base64,${b.image.data}` } }
+        : { type: 'text', text: b.text }
+    );
+    const res = await fetch(`${this.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {}),
+      },
+      // Node's fetch has no default timeout, so a hung local endpoint would
+      // wedge the loop forever (busy never clears). Generous, because small
+      // local models sharing the GPU with a game can legitimately be slow.
+      signal: AbortSignal.timeout(120_000),
+      body: JSON.stringify({
+        model: this.model,
+        max_tokens: maxTokens,
+        messages: [
+          { role: 'system', content: systemParts.join('\n\n') },
+          { role: 'user', content },
+        ],
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`${this.baseUrl} returned ${res.status}: ${body.slice(0, 200)}`);
+    }
+    const data = await res.json();
+    const raw = (data.choices?.[0]?.message?.content || '').trim();
+    // Normalize usage to the Anthropic field names the cost meter reads.
+    const usage = data.usage
+      ? { input_tokens: data.usage.prompt_tokens || 0, output_tokens: data.usage.completion_tokens || 0 }
+      : null;
+    return { raw, usage };
   }
 }

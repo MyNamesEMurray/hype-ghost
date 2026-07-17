@@ -5,9 +5,8 @@
  *
  * Owns: the message timer (with trigger threading), the busy flag, manual
  * and automatic pause, the voice-reply debounce (with rate floor), the
- * screenshot gap/scene tracking, session-notes cadence, the auto-pause
- * dead-man switch that stops API spend when OBS goes away, and the API
- * failure circuit breaker that stops retrying a broken key/account.
+ * screenshot gap/scene tracking, session-notes cadence, and the auto-pause
+ * dead-man switch that stops API spend when OBS goes away.
  *
  * The host provides context via hooks:
  *   getMode()            -> 'solo' | 'viewers'
@@ -18,45 +17,41 @@
  *   getNotes()/setNotes(s) -> rolling session memory persistence
  *   addUsage(usage)      -> token usage for the cost meter
  */
-
-// Scene names that unambiguously mean "nothing is happening on screen", so
-// the screenshot (the biggest token cost per message) is skipped entirely.
-// Conservative on purpose: a false positive silently blinds the ghost on a
-// real scene, so bare words like "pause" or "break" are NOT matched ("no
-// pause run", "Breakout") — only clear idle-screen phrases.
-const IDLE_SCENE_RE =
-  /\bbrb\b|be right back|starting soon|stream starting|ending soon|stream ending|\bintermission\b|\bafk\b|\boffline\b|\bintro\b|\boutro\b/i;
-
-// Consecutive generation failures before the circuit breaker pauses the
-// ghost instead of retrying a broken key/account forever.
-const FAIL_STREAK_LIMIT = 5;
-
 export class GhostLoop {
-  constructor({ config, brain, obs, transcriptFeed, hooks }) {
+  constructor({ config, brain, obs, transcriptFeed, partyFeed, hooks }) {
     this.config = config;
     this.brain = brain;
     this.obs = obs;
     this.feed = transcriptFeed;
+    this.partyFeed = partyFeed; // second LocalVocal channel: co-op / party audio
     this.hooks = hooks;
 
     this.paused = false;
-    this.autoPaused = false; // paused by the app, not the user
-    this.pauseReason = null; // 'obs' | 'api' | 'cost' when autoPaused
+    this.autoPaused = false; // paused by the dead-man switch, not the user
     this.busy = false;
     this.nextMessageAt = null;
+    this.energy = Number.isFinite(config.energy) ? config.energy : 55; // 0–100 live mood dial
+    this.lastMomentAt = 0; // rate floor for clip-worthy "moment" flags
+    this.lastPartyNudgeAt = 0; // rate floor for party-channel nudges
 
     this.timer = null;
     this.pendingTrigger = 'timer';
+    this.droppedTrigger = null; // reply/nudge that landed mid-generation, owed a retry
     this.lastShotAt = 0;
+    this.lastShotData = null; // last frame sent, for static-scene dedupe
     this.lastSceneName = null;
     this.lastGenAt = 0;
     this.botMessageCount = 0;
-    this.failStreak = 0; // consecutive generation failures
 
     this.voiceReplyTimer = null;
     this.voiceRepliedTo = null; // bot message id already answered by voice
     this.lastVoiceReplyAt = 0;
     this.voiceBusyRetries = 0;
+
+    // Banter cap: a two-message persona exchange is allowed at most once per
+    // stretch of streamer activity — the streamer is the show.
+    this.lastStreamerActivityAt = Date.now();
+    this.lastExchangeAt = 0;
 
     this.obsFailSince = null; // start of the current OBS-unreachable streak
     this.resumeWatcher = null;
@@ -70,10 +65,29 @@ export class GhostLoop {
     return {
       paused: this.paused,
       autoPaused: this.autoPaused,
-      pauseReason: this.pauseReason,
       busy: this.busy,
       nextMessageAt: this.nextMessageAt,
+      energy: this.energy,
     };
+  }
+
+  /**
+   * The energy dial (0–100) is the streamer's one live tone control. Low energy
+   * stretches the gaps between messages (calm room); high energy tightens them
+   * (electric room). It also flows to the brain to color the cast's mood.
+   */
+  setEnergy(value) {
+    const next = Math.max(0, Math.min(100, Math.round(Number(value))));
+    if (!Number.isFinite(next) || next === this.energy) return;
+    this.energy = next;
+    if (!this.paused && !this.busy) this.scheduleNext(); // re-pace to the new mood
+    else this.hooks.onState();
+  }
+
+  // Map energy to a cadence multiplier: 0 → ~1.7x the gaps (sleepy),
+  // 100 → ~0.45x (rapid-fire), 55 → ~0.9x (a touch livelier than baseline).
+  energyMultiplier() {
+    return 1.7 - (this.energy / 100) * 1.25;
   }
 
   isPaused() {
@@ -83,7 +97,7 @@ export class GhostLoop {
   pause() {
     this.paused = true;
     this.autoPaused = false;
-    this.pauseReason = null;
+    this.droppedTrigger = null;
     this.stopResumeWatcher();
     this.scheduleNext();
   }
@@ -91,25 +105,8 @@ export class GhostLoop {
   resume() {
     this.paused = false;
     this.autoPaused = false;
-    this.pauseReason = null;
-    this.failStreak = 0; // a manual resume is a fresh chance
     this.stopResumeWatcher();
     this.scheduleNext(3000);
-  }
-
-  /**
-   * Pause on the app's initiative (dead-man switch, API failure breaker,
-   * cost cap) with a reason the dashboard can show and a system notice.
-   */
-  pauseFor(reason, message) {
-    this.paused = true;
-    this.autoPaused = true;
-    this.pauseReason = reason;
-    clearTimeout(this.timer);
-    this.timer = null;
-    this.nextMessageAt = null;
-    this.hooks.onSystem(message);
-    this.hooks.onState();
   }
 
   nudge() {
@@ -120,7 +117,26 @@ export class GhostLoop {
 
   /** The streamer typed a message — answer it soon, with the reply prompt. */
   onStreamerMessage() {
+    this.lastStreamerActivityAt = Date.now();
     this.scheduleNext((this.config.cadence.replyDelaySeconds ?? 6) * 1000, 'reply');
+  }
+
+  /**
+   * Someone on the PARTY channel spoke (a co-op partner / Discord call) — a
+   * different person than the streamer. This is ambient context, so it never
+   * uses the streamer voice-reply path. To let the cast acknowledge it promptly
+   * without hijacking the conversation, give a gentle, rate-limited nudge: if
+   * nothing is already due soon, pull the next message in. Continuous party
+   * chatter can't spam past minPartyNudgeGapSeconds.
+   */
+  onPartySpeech() {
+    if (this.paused || this.busy) return;
+    const minGapMs = (this.config.cadence.minPartyNudgeGapSeconds ?? 45) * 1000;
+    if (Date.now() - this.lastPartyNudgeAt < minGapMs) return;
+    const soonMs = 16_000;
+    if (this.nextMessageAt && this.nextMessageAt - Date.now() <= soonMs) return; // already coming
+    this.lastPartyNudgeAt = Date.now();
+    this.scheduleNext(soonMs + Math.random() * 6000);
   }
 
   /**
@@ -131,6 +147,7 @@ export class GhostLoop {
    * reply isn't silently dropped (and marked answered) mid-generation.
    */
   onSpeech() {
+    this.lastStreamerActivityAt = Date.now();
     const minGapMs = (this.config.cadence.minVoiceReplyGapSeconds ?? 35) * 1000;
     const last = this.hooks.getHistory().at(-1);
     const answerable =
@@ -153,12 +170,7 @@ export class GhostLoop {
       }
       return;
     }
-    // Re-validate the history tail: the 8s debounce window may have seen the
-    // streamer type a message — then the typed-reply trigger owns the
-    // response, and a voice reply would double up (or mark the wrong id).
-    const last = this.hooks.getHistory().at(-1);
-    if (!last || last.role !== 'bot' || last.id === this.voiceRepliedTo) return;
-    this.voiceRepliedTo = last.id;
+    this.voiceRepliedTo = this.hooks.getHistory().at(-1)?.id ?? null;
     this.lastVoiceReplyAt = Date.now();
     clearTimeout(this.timer);
     this.timer = null;
@@ -179,7 +191,7 @@ export class GhostLoop {
     } else {
       factor = 1 + (Math.random() * 2 - 1) * c.jitter; // normal: ± jitter
     }
-    return Math.max(15, base * factor) * 1000;
+    return Math.max(12, base * factor * this.energyMultiplier()) * 1000;
   }
 
   scheduleNext(msOverride, trigger = 'timer') {
@@ -201,7 +213,15 @@ export class GhostLoop {
   }
 
   async speak(trigger) {
-    if (this.paused || this.busy) return;
+    if (this.paused) return;
+    if (this.busy) {
+      // A reply or nudge that fires while a generation is in flight must not
+      // be silently dropped — the streamer is waiting on it. Hold the trigger;
+      // the in-flight generation's finally block re-schedules it soon. (Voice
+      // never lands here: fireVoiceReply has its own busy-retry loop.)
+      if (trigger !== 'timer') this.droppedTrigger = trigger;
+      return;
+    }
     this.busy = true;
     this.hooks.onState();
     try {
@@ -210,27 +230,26 @@ export class GhostLoop {
       const minShotGapMs = (this.config.cadence.minScreenshotGapSeconds ?? 25) * 1000;
       let screenshot = null;
       let staleScreenshot = false;
-      let idleScene = false;
       if (Date.now() - this.lastShotAt < minShotGapMs) {
         staleScreenshot = true;
       } else {
-        // Scene name first (a cheap local call): it distinguishes "OBS is
-        // gone" from a failed screenshot request, and idle scenes (BRB /
-        // starting soon) skip the image entirely — nothing on them is worth
-        // ~480 image tokens, and they're exactly when streams idle longest.
-        const sceneName = await this.obs.getSceneName();
-        if (sceneName === null) {
+        screenshot = await this.obs.screenshot();
+        if (screenshot) {
+          this.lastShotAt = Date.now();
+          this.lastSceneName = screenshot.sceneName ?? this.lastSceneName;
+          this.obsFailSince = null;
+          // Static scenes (BRB / "starting soon" / pause screens) encode to
+          // byte-identical JPEGs — don't pay the biggest token cost per
+          // message to resend a frame the model has already seen.
+          if (screenshot.data === this.lastShotData) {
+            screenshot = null;
+            staleScreenshot = true;
+          } else {
+            this.lastShotData = screenshot.data;
+          }
+        } else {
           this.obsFailSince = this.obsFailSince ?? Date.now();
           if (this.maybeAutoPause()) return;
-        } else {
-          this.obsFailSince = null;
-          this.lastSceneName = sceneName;
-          if (IDLE_SCENE_RE.test(sceneName)) {
-            idleScene = true;
-          } else {
-            screenshot = await this.obs.screenshot();
-            if (screenshot) this.lastShotAt = Date.now();
-          }
         }
       }
 
@@ -246,49 +265,84 @@ export class GhostLoop {
 
       const memory = this.config.memory;
       const updateNotes = memory.enabled && (this.botMessageCount + 1) % memory.updateEvery === 0;
+      const updateProfile =
+        memory.enabled && (this.botMessageCount + 1) % (memory.profileEvery ?? 12) === 0;
+      const allowExchange = this.lastStreamerActivityAt > this.lastExchangeAt;
+      // Moment flags only make sense on a fresh frame, and no faster than once
+      // every 45s so a single big play doesn't spam the highlight reel.
+      const flagMoments =
+        this.config.moments?.enabled !== false &&
+        Boolean(screenshot) &&
+        Date.now() - this.lastMomentAt > 45_000;
 
       // Only speech the model hasn't seen yet (15s overlap for continuity).
-      const transcript = this.feed.getWindow(this.lastGenAt ? this.lastGenAt - 15_000 : 0);
+      // Both channels use the same "since" mark so co-op audio stays in step
+      // with the streamer's mic.
+      const sinceTs = this.lastGenAt ? this.lastGenAt - 15_000 : 0;
+      const transcript = this.feed.getWindow(sinceTs);
+      const partyTranscript = this.partyFeed ? this.partyFeed.getWindow(sinceTs) : '';
       this.lastGenAt = Date.now();
 
       const result = await this.brain.generate({
         history: this.hooks.getHistory().slice(-14),
         screenshot,
         staleScreenshot,
-        idleScene,
         mode: this.hooks.getMode(),
         trigger,
         transcript: transcript || undefined,
+        partyTranscript: partyTranscript || undefined,
+        partyLabel: this.config.transcript2?.label || undefined,
         notes: this.hooks.getNotes() || undefined,
+        profile: this.hooks.getProfile() || undefined,
         updateNotes,
+        updateProfile,
+        flagMoments,
+        energy: this.energy,
         sceneName: this.lastSceneName || undefined,
+        streamContext: this.config.stream?.context || undefined,
+        streamInfo: this.hooks.getStreamInfo ? this.hooks.getStreamInfo() : undefined,
         talkingPoint,
+        allowExchange,
       });
-      this.failStreak = 0;
 
       if (result.usage) this.hooks.addUsage(result.usage);
-      if (result.text) {
-        this.hooks.onMessage(result.text);
+      const [first, second] = result.messages || [];
+      if (first?.text) {
+        this.hooks.onMessage(first.speaker, first.text);
         this.botMessageCount++;
       }
+      if (second?.text) {
+        // A persona exchange: release the riff after a human-ish beat, and
+        // spend the banter allowance until the streamer engages again.
+        this.lastExchangeAt = Date.now();
+        setTimeout(() => {
+          if (this.paused) return;
+          this.hooks.onMessage(second.speaker, second.text);
+          this.botMessageCount++;
+        }, 4000 + Math.random() * 5000);
+      }
       if (result.notes) this.hooks.setNotes(result.notes);
+      if (result.profile) this.hooks.setProfile(result.profile);
+      if (result.moment && this.hooks.onMoment) {
+        this.lastMomentAt = Date.now();
+        this.hooks.onMoment(result.moment);
+      }
     } catch (err) {
       console.error('[ghost] generation failed:', err.message);
-      this.failStreak++;
       this.hooks.onSystem(`Message generation failed: ${err.message}`);
-      // Circuit breaker: a revoked key, exhausted credits, or a long outage
-      // shouldn't produce an error message every cadence tick forever.
-      if (this.failStreak >= FAIL_STREAK_LIMIT) {
-        this.pauseFor(
-          'api',
-          `Message generation has failed ${this.failStreak} times in a row — the ghost paused itself to avoid wasted API calls. Check your API key and credits, then resume from the dashboard.`
-        );
-      }
     } finally {
       this.busy = false;
-      // A reply timer set while this generation was in flight survives —
-      // only fall back to the normal cadence if nothing sooner is pending.
-      if (this.timer === null && !this.paused) this.scheduleNext();
+      const dropped = this.droppedTrigger;
+      this.droppedTrigger = null;
+      if (!this.paused) {
+        // A reply timer set while this generation was in flight survives; a
+        // reply/nudge that fired into the busy guard gets its retry here.
+        // Only fall back to the normal cadence if nothing sooner is owed.
+        if (this.timer === null) {
+          if (dropped) this.scheduleNext(3000 + Math.random() * 3000, dropped);
+          else this.scheduleNext();
+        }
+      }
       this.hooks.onState();
     }
   }
@@ -305,10 +359,13 @@ export class GhostLoop {
     if (!app.autoPause || this.autoPaused) return false;
     const limitMs = (app.autoPauseMinutes ?? 10) * 60_000;
     if (!this.obsFailSince || Date.now() - this.obsFailSince < limitMs) return false;
-    this.pauseFor(
-      'obs',
+    this.paused = true;
+    this.autoPaused = true;
+    this.nextMessageAt = null;
+    this.hooks.onSystem(
       `OBS has been unreachable for ${app.autoPauseMinutes ?? 10} minutes — the ghost auto-paused to save API costs. It resumes when OBS is back (or resume manually).`
     );
+    this.hooks.onState();
     this.resumeWatcher = setInterval(async () => {
       try {
         await this.obs.ensureConnected();
@@ -318,7 +375,6 @@ export class GhostLoop {
       this.stopResumeWatcher();
       this.paused = false;
       this.autoPaused = false;
-      this.pauseReason = null;
       this.obsFailSince = null;
       this.hooks.onSystem('OBS is back — the ghost resumed.');
       this.scheduleNext(5000);

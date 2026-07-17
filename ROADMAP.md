@@ -1,6 +1,38 @@
 # Hype Ghost Roadmap 👻
 
-Planning document for the 2.0 release and beyond. Order within a phase ≠ commitment.
+Planning document. Order within a phase ≠ commitment.
+
+## Shipped in 3.0 — "The Green Room"
+
+A ground-up reimagining of the interface and a jump from two ghosts to a directable cast.
+
+- ✅ **The Cast** — 1–4 ghosts (was max 2), each with a name, personality archetype, and
+  assignable stage color. Full roster editor (Settings → Cast); the brain, loop, overlay, and
+  deck all generalized from the hardcoded bot/bot2 pair. 2.x configs migrate automatically.
+- ✅ **Command Deck** — the dashboard reimagined into a stage (cast avatars that breathe when
+  active), a live feed with avatars, ambient status orbs, and a session clock — nothing like
+  the 2.x sidebar + list.
+- ✅ **Energy dial** — one live control on the deck scales cadence *and* mood (🌙 → 🔥),
+  wired through the loop's interval math and the brain's tone. Presets + a real-time slider.
+- ✅ **Moments** — the cast flags clip-worthy plays (piggybacked on the generation call) into
+  a deck highlight reel, an optional overlay ✨ pop, and VOD chapter markers in the recap.
+- ✅ **Command palette** — ⌘/Ctrl-K quick actions (pause, energy, mode, copy overlay URL,
+  recap, settings).
+- ✅ **New design language** — glass/aurora studio-at-night theme, accent theming
+  (violet/cyan/emerald/amber/magenta), per-ghost colors, purposeful motion, reduced-motion
+  safe. Written up in [DESIGN.md](DESIGN.md).
+- ✅ **Reimagined overlay & setup** — overlay gains per-ghost color spines, a `compact` style,
+  and moment pops (keeping the mandatory AI badge + watermark); setup becomes an archetype +
+  energy flow.
+
+## Ideas beyond 3.0
+
+- **Per-ghost attention** — one ghost watches gameplay closely, another lurks; distinct
+  screenshot/transcript weighting per persona.
+- **Scene-aware casts** — swap energy/behavior presets per OBS scene (BRB vs. gameplay).
+- ✅ **Moment clipping** — a flagged moment saves the OBS replay buffer when one is running (`moments.saveReplay`).
+- **Deck analytics** — a richer post-stream view than the markdown recap.
+- **Code signing / distribution** — kill the SmartScreen warning (cert ~$100+/yr) or MS Store.
 
 ## Shipped in 1.x
 
@@ -13,6 +45,27 @@ Planning document for the 2.0 release and beyond. Order within a phase ≠ commi
 - ✅ **Auto-pause dead-man switch** (1.5.0) — stops API spend when OBS has been gone for N minutes; auto-resumes.
 - ✅ **Security hardening** (1.5.0) — WebSocket origin allowlist, Host-header check, API key never leaves the server, external links open in the real browser.
 - ✅ **Design system** (1.5.0) — shared theme.css + written design language (DESIGN.md).
+
+## Shipped in 2.0 (v2 branch)
+
+- ✅ **Dual AI chatters** — second persona (Settings → Ghost), single-call generation with a
+  chosen speaker or a staggered 2-message exchange; banter cap: one exchange per stretch of
+  streamer activity. Persona colors on dashboard + overlay (blue/pink).
+- ✅ **Local & free brains** — provider setting (Settings → Brain, wizard step): Claude API,
+  or any OpenAI-compatible endpoint (Ollama/LM Studio local, free cloud tiers).
+- ✅ **Cross-stream memory** — model-maintained `profile.md` (per-game progress, running
+  jokes), refreshed every ~12 messages, never goes stale.
+- ✅ **Real Twitch chat awareness** — anonymous read-only IRC listener; ghost hangs back when
+  real chat is active (≥2 msgs/min), not merely when viewers exist.
+- ✅ **TTS co-host** — ghost messages spoken via local Windows voices (Settings → App).
+- ✅ **Post-stream recap** — markdown export (dashboard → Export recap).
+- ✅ **Overlay customization** — alignment, text size, fade-out, density. *(Emote images
+  excluded: third-party emote sets carry licensing baggage.)*
+- ✅ **UI translation, part 1** — dashboard in English/Spanish (Settings → App); framework in
+  place for more languages.
+- ✅ **Resource posture** — software rendering (GPU stays with the game/OBS), below-normal
+  process priority, renderer destroyed when closed to tray (unless TTS), visibility-gated
+  UI timers.
 
 ## 2.0 — "The room gets real"
 

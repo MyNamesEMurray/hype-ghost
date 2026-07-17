@@ -1,45 +1,40 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
+    branches: [v3, main]
+  push:
+    branches: [v3, main]
 
 jobs:
-  test:
-    # windows-latest because Windows is the shipping target (tray, NSIS,
-    # %APPDATA% paths) — the tests themselves are platform-agnostic.
-    runs-on: windows-latest
-    timeout-minutes: 15
+  check:
+    name: Lint & smoke
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - run: npm test
-      # Smoke mode boots the full Electron app headless, fetches the
-      # dashboard, and exits 0/1 — the closest thing to an e2e check.
-      - run: npm start
-        env:
-          HG_SMOKE: '1'
+      - uses: actions/checkout@v5
 
-  # Installer build on tags only — keeps releases reproducible from CI
-  # instead of a local machine. Uploaded as an artifact (not auto-published).
-  installer:
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: windows-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: '24'
           cache: npm
-      - run: npm ci
-      - run: npx electron-builder --win --publish never
-      - uses: actions/upload-artifact@v4
-        with:
-          name: installer
-          path: dist/*.exe
+
+      # --ignore-scripts skips the Electron binary download and native builds
+      # (sharp, etc.). None are needed to syntax-check the source or boot the
+      # headless server, and it keeps CI fast.
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Syntax-check all JS
+        run: |
+          files=$(git ls-files '*.js' '*.mjs')
+          echo "$files"
+          for f in $files; do node --check "$f"; done
+
+      - name: Validate config.example.json
+        run: node -e "JSON.parse(require('fs').readFileSync('config.example.json','utf8')); console.log('config.example.json is valid JSON')"
+
+      - name: Run tests
+        run: npm test
+
+      - name: Headless server smoke test
+        run: npm run smoke

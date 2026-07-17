@@ -7,347 +7,590 @@
 <link rel="stylesheet" href="/theme.css">
 <style>
   /* layout only — tokens & components come from theme.css */
-  body { min-height: 100vh; display: flex; justify-content: center; }
-  #page { width: 680px; max-width: 94vw; padding: 24px 0 60px; }
-  header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  body { min-height: 100vh; }
+  #shell { max-width: 940px; margin: 0 auto; padding: 26px 20px 90px; }
+  header { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
   header .page-title { flex: 1; }
-  a.back { color: var(--dim); text-decoration: none; font-size: 14px; }
-  a.back:hover { color: var(--accent); }
-  #level { display: flex; border: 1px solid var(--border); border-radius: var(--r-ctl); overflow: hidden; }
-  #level button { border: none; border-radius: 0; padding: 6px 14px; }
-  #level button.on { background: var(--accent); color: var(--on-accent); font-weight: 600; }
-  #tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+  a.back { color: var(--dim); font-size: var(--fs-sm); }
+  #level { display: flex; border: 1px solid var(--border); border-radius: var(--r-full); overflow: hidden; }
+  #level button { border: none; border-radius: 0; padding: 7px 15px; background: transparent; font-size: var(--fs-sm); }
+  #level button.on { background: var(--accent-soft); color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
+
+  .layout { display: flex; gap: 22px; align-items: flex-start; }
+  nav#nav { width: 190px; flex: none; display: flex; flex-direction: column; gap: 3px; position: sticky; top: 20px; }
+  nav#nav button { display: flex; align-items: center; gap: 10px; text-align: left; border: none; background: transparent; padding: 10px 13px; border-radius: var(--r-md); color: var(--dim); font-weight: 550; }
+  nav#nav button:hover { background: rgba(255,255,255,.04); color: var(--text); }
+  nav#nav button.on { background: var(--accent-soft); color: var(--text); }
+  #content { flex: 1; min-width: 0; }
+
   body.simple .adv { display: none !important; }
-  section { display: none; margin-bottom: 14px; }
+  section { display: none; }
   section.active { display: block; }
-  section .desc { font-size: var(--fs-sm); color: var(--dim); margin: 0 0 8px; }
-  .test { margin-top: 10px; display: flex; align-items: center; gap: 10px; }
+  section .desc { font-size: var(--fs-sm); color: var(--dim); margin: 0 0 14px; }
+  .test { margin-top: 12px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+  /* cast editor */
+  #cast { display: flex; flex-direction: column; gap: 14px; }
+  .ghost-card { border: 1px solid var(--border); border-radius: var(--r-lg); padding: 16px; background: var(--glass-2); position: relative; }
+  .ghost-card .gc-top { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+  .ghost-card .av { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; color: var(--bg); flex: none; }
+  .ghost-card .gc-name { flex: 1; }
+  .ghost-card .gc-name input { margin: 0; }
+  .ghost-card .rm { flex: none; padding: 6px 10px; }
+  .swatches { display: flex; gap: 8px; margin: 4px 0 2px; }
+  .swatch { width: 26px; height: 26px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
+  .swatch.on { border-color: #fff; box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px currentColor; }
+  .arche { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 8px; }
+  #addGhost { margin-top: 2px; }
+
+  .accent-row { display: flex; gap: 10px; margin-top: 6px; }
+  .accent-dot { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
+  .accent-dot.on { border-color: #fff; box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px currentColor; }
+
   #savebar {
-    position: sticky; bottom: 0; background: linear-gradient(transparent, var(--bg) 30%);
-    padding: 18px 0 14px; display: flex; gap: 12px; align-items: center;
+    position: fixed; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(transparent, var(--bg) 40%);
+    padding: 26px 20px 18px; display: flex; gap: 14px; align-items: center; justify-content: center;
   }
+  #savebar .inner { width: 940px; max-width: 100%; display: flex; gap: 14px; align-items: center; }
 </style>
 </head>
 <body>
-<div id="page">
+<div id="shell">
   <header>
     <h1 class="page-title">⚙ Settings</h1>
-    <div id="level">
-      <button id="lvlSimple">Simple</button>
-      <button id="lvlAdv">Advanced</button>
-    </div>
-    <a class="back" href="/">← Back to dashboard</a>
+    <div id="level"><button id="lvlSimple">Simple</button><button id="lvlAdv">Advanced</button></div>
+    <a class="back" href="/">← Back to the deck</a>
   </header>
 
-  <div id="tabs">
-    <button class="tab" data-tab="ghost">👻 Ghost</button>
-    <button class="tab" data-tab="brain">🧠 Brain</button>
-    <button class="tab" data-tab="stream">📷 Stream</button>
-    <button class="tab" data-tab="voice">🎙 Voice</button>
-    <button class="tab" data-tab="behavior">💬 Behavior</button>
-    <button class="tab" data-tab="app">🔧 App</button>
-  </div>
+  <div class="layout">
+    <nav id="nav">
+      <button class="tabbtn on" data-tab="cast">👻 <span>Cast</span></button>
+      <button class="tabbtn" data-tab="brain">🧠 <span>Brain</span></button>
+      <button class="tabbtn" data-tab="stream">📷 <span>Stream</span></button>
+      <button class="tabbtn" data-tab="voice">🎙 <span>Voice</span></button>
+      <button class="tabbtn" data-tab="behavior">💬 <span>Behavior</span></button>
+      <button class="tabbtn" data-tab="look">🎨 <span>Look</span></button>
+      <button class="tabbtn" data-tab="app">🔧 <span>App</span></button>
+    </nav>
 
-  <!-- ============ GHOST ============ -->
-  <section class="card" data-tab="ghost">
-    <h2>👻 Ghost</h2>
-    <p class="desc">Who shows up in your chat, and what they know about your stream.</p>
-    <label>Chat name</label>
-    <input type="text" data-path="bot.name" maxlength="24">
-    <label>Personality</label>
-    <textarea data-path="bot.personality"></textarea>
-    <label>Chat language</label>
-    <input type="text" data-path="bot.language" list="langs" placeholder="English">
-    <datalist id="langs">
-      <option>English</option><option>Spanish</option><option>Portuguese</option>
-      <option>French</option><option>German</option><option>Japanese</option><option>Korean</option>
-    </datalist>
-    <p class="hint">The ghost writes all messages in this language.</p>
-    <label>About your stream (optional)</label>
-    <textarea data-path="stream.context" placeholder="e.g. Variety streamer, mostly roguelikes; chill vibes; currently doing a Hades 100% run"></textarea>
-    <p class="hint">Standing context the ghost always knows — game, format, vibe. It also sees your current OBS scene name automatically.</p>
-    <label>Talking points (one per line, optional)</label>
-    <textarea id="talkingPoints" placeholder="ask me about the new PC build&#10;remind viewers about the charity stream Saturday"></textarea>
-    <p class="hint">Topics you want covered — the ghost works one in occasionally, only when it fits naturally.</p>
-  </section>
+    <div id="content">
+      <!-- ============ CAST ============ -->
+      <section class="card active" data-tab="cast">
+        <h2>👻 The cast</h2>
+        <p class="desc">Your simulated viewers — up to four, each with their own voice and stage color. They react to your stream and to each other, but you're always the show.</p>
+        <div id="cast"></div>
+        <button id="addGhost">+ Add a ghost</button>
 
-  <!-- ============ BRAIN ============ -->
-  <section class="card" data-tab="brain">
-    <h2>🧠 Brain</h2>
-    <p class="desc">Messages are generated with the Claude API — keys at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>.</p>
-    <label>Anthropic API key</label>
-    <input type="password" data-path="anthropic.apiKey" id="apiKeyField">
-    <label>Model</label>
-    <select data-path="anthropic.model" id="modelSelect"></select>
-    <div class="test"><button id="testKey">Test key</button><span class="result" id="keyResult"></span></div>
-    <div class="check adv">
-      <input type="checkbox" id="costMeter" data-path="app.costMeter" data-type="bool">
-      <label for="costMeter">Show the session cost meter on the dashboard</label>
-    </div>
-  </section>
+        <label style="margin-top:22px">Chat language</label>
+        <input type="text" data-path="bot.language" list="langs" placeholder="English">
+        <datalist id="langs">
+          <option>English</option><option>Spanish</option><option>Portuguese</option>
+          <option>French</option><option>German</option><option>Japanese</option><option>Korean</option>
+        </datalist>
+        <p class="hint">The whole cast writes their messages in this language.</p>
 
-  <!-- ============ STREAM ============ -->
-  <section class="card" data-tab="stream">
-    <h2>📷 Stream (OBS)</h2>
-    <p class="desc">How the ghost sees your stream. OBS → Tools → WebSocket Server Settings.</p>
-    <div class="row">
-      <div><label>WebSocket URL</label><input type="text" data-path="obs.url"></div>
-      <div><label>Password</label><input type="password" data-path="obs.password"></div>
-    </div>
-    <div class="test"><button id="testObs">Test connection</button><span class="result" id="obsResult"></span></div>
-    <label style="margin-top:18px">On-stream overlay</label>
-    <div class="test" style="margin-top:2px"><button id="installOverlay">Add overlay to OBS</button><span class="result" id="overlayResult"></span></div>
-    <p class="hint">Creates a "Hype Ghost Overlay" browser source in your current scene (position/resize it in OBS, copy it to other scenes as needed). Manual URL: <b><span id="overlayUrl"></span></b>, ~460×600.</p>
-    <label class="adv">Screenshot width (px)</label>
-    <input class="adv" type="number" data-path="obs.screenshotWidth" min="320" max="1920">
-    <p class="hint adv">Bigger = the ghost reads finer on-screen detail but costs more (image tokens scale with pixels). 800 is the sweet spot.</p>
-  </section>
+        <label>About your stream (optional)</label>
+        <textarea data-path="stream.context" placeholder="e.g. Variety streamer, mostly roguelikes; chill vibes; currently doing a Hades 100% run"></textarea>
+        <p class="hint">Standing context the cast always knows — game, format, vibe. They also see your current OBS scene name automatically.</p>
 
-  <!-- ============ VOICE ============ -->
-  <section class="card" data-tab="voice">
-    <h2>🎙 Voice awareness</h2>
-    <p class="desc">Local mic transcription via the <a href="https://obsproject.com/forum/resources/localvocal-local-live-captions-translation-on-the-go.1769/" target="_blank">LocalVocal</a> OBS plugin, so answering out loud is replying.</p>
-    <label>Mode</label>
-    <select data-path="transcript.mode">
-      <option value="off">Off</option>
-      <option value="file">File — tail LocalVocal's .txt/.srt output</option>
-      <option value="textSource">Text source — read via OBS WebSocket</option>
-    </select>
-    <div class="row">
-      <div>
-        <label>File path (file mode)</label>
-        <div class="withbtn">
-          <input type="text" data-path="transcript.file" placeholder="C:/Users/you/captions.srt">
-          <button id="browseFile">Browse…</button>
+        <label>Talking points (one per line, optional)</label>
+        <textarea id="talkingPoints" placeholder="ask me about the new PC build&#10;remind viewers about the charity stream Saturday"></textarea>
+        <p class="hint">Topics you want covered — the cast works one in occasionally, only when it fits naturally.</p>
+      </section>
+
+      <!-- ============ BRAIN ============ -->
+      <section class="card" data-tab="brain">
+        <h2>🧠 Brain</h2>
+        <p class="desc">What generates the cast's messages.</p>
+        <label>Provider</label>
+        <select data-path="brain.provider" id="providerSel">
+          <option value="anthropic">Claude API — best quality (paid, ~$0.20/hr)</option>
+          <option value="openai">Local / OpenAI-compatible — Ollama, LM Studio, free tiers ($0)</option>
+        </select>
+        <p class="hint">Local (Ollama) is the <b>private</b> and $0 option — nothing leaves your PC, but small models banter simpler and share your GPU with the game. Free cloud tiers are the <b>budget</b> option — they may train on your data; free ≠ private.</p>
+        <div id="anthFields">
+          <label>Anthropic API key</label>
+          <input type="password" data-path="anthropic.apiKey" id="apiKeyField">
+          <p class="hint">Keys at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>.</p>
+          <label>Model</label>
+          <select data-path="anthropic.model" id="modelSelect"></select>
         </div>
-        <p class="hint">Pick the file LocalVocal writes to, or paste the path — either works.</p>
-      </div>
-      <div><label>Text source name (text source mode)</label><input type="text" data-path="transcript.textSource"></div>
-    </div>
-    <div class="row adv">
-      <div><label>Recent speech window (seconds)</label><input type="number" data-path="cadence.transcriptWindowSeconds" min="30" max="600"></div>
-      <div><label>Check for new speech every (seconds)</label><input type="number" data-path="transcript.pollSeconds" min="1" max="30"></div>
-    </div>
-  </section>
+        <div id="oaiFields">
+          <label>Endpoint URL</label>
+          <input type="text" data-path="brain.openaiBaseUrl" placeholder="http://localhost:11434/v1">
+          <div class="row">
+            <div><label>Model</label><input type="text" data-path="brain.openaiModel" placeholder="qwen2.5vl:7b"></div>
+            <div><label>API key (only if the endpoint needs one)</label><input type="password" data-path="brain.openaiApiKey"></div>
+          </div>
+          <p class="hint">Use a <b>vision-capable</b> model (qwen2.5vl, gemma3, llama3.2-vision) so the cast can see your stream. For Ollama: <code>ollama pull qwen2.5vl:7b</code>.</p>
+        </div>
+        <div class="test"><button id="testKey">Test brain</button><span class="result" id="keyResult"></span></div>
+        <div class="check adv">
+          <input type="checkbox" id="costMeter" data-path="app.costMeter" data-type="bool">
+          <label for="costMeter">Show the session cost meter in the top bar</label>
+        </div>
+      </section>
 
-  <!-- ============ BEHAVIOR ============ -->
-  <section class="card" data-tab="behavior">
-    <h2>💬 Cadence</h2>
-    <p class="desc">How often the ghost talks. Real rhythm: normal gaps ± jitter, occasional quick bursts and long lulls.</p>
-    <div class="row">
-      <div><label>Solo — avg seconds between messages</label><input type="number" data-path="cadence.soloSeconds" min="20" max="900"></div>
-      <div><label>With real viewers — avg seconds</label><input type="number" data-path="cadence.quietSeconds" min="60" max="3600"></div>
-    </div>
-    <div class="row adv">
-      <div><label>Jitter (0–1)</label><input type="number" data-path="cadence.jitter" min="0" max="1" step="0.05"></div>
-      <div><label>Burst chance (0–1)</label><input type="number" data-path="cadence.burstChance" min="0" max="1" step="0.05"></div>
-      <div><label>Lull chance (0–1)</label><input type="number" data-path="cadence.lullChance" min="0" max="1" step="0.05"></div>
-    </div>
-    <div class="row adv">
-      <div><label>Reply delay after you type (s)</label><input type="number" data-path="cadence.replyDelaySeconds" min="2" max="60"></div>
-      <div><label>Min gap between voice replies (s)</label><input type="number" data-path="cadence.minVoiceReplyGapSeconds" min="0" max="300"></div>
-      <div><label>Min gap between screenshots (s)</label><input type="number" data-path="cadence.minScreenshotGapSeconds" min="0" max="300"></div>
-    </div>
-    <div class="adv" style="margin-top:20px">
-      <h2>📝 Session memory</h2>
-      <p class="desc">The ghost keeps compact running notes on the stream so it can call back to earlier moments.</p>
-      <div class="check">
-        <input type="checkbox" id="memEnabled" data-path="memory.enabled" data-type="bool">
-        <label for="memEnabled">Enable session memory</label>
-      </div>
-      <label>Refresh notes every N messages</label>
-      <input type="number" data-path="memory.updateEvery" min="2" max="20">
-    </div>
-  </section>
+      <!-- ============ STREAM ============ -->
+      <section class="card" data-tab="stream">
+        <h2>📷 Stream (OBS)</h2>
+        <p class="desc">How the cast sees your stream. OBS → Tools → WebSocket Server Settings.</p>
+        <div class="row">
+          <div><label>WebSocket URL</label><input type="text" data-path="obs.url"></div>
+          <div><label>Password</label><input type="password" data-path="obs.password"></div>
+        </div>
+        <div class="test"><button id="testObs">Test connection</button><span class="result" id="obsResult"></span></div>
 
-  <!-- ============ APP ============ -->
-  <section class="card" data-tab="app">
-    <h2>🔧 App</h2>
-    <div class="check">
-      <input type="checkbox" id="autoUpdate" data-path="app.autoUpdate" data-type="bool">
-      <label for="autoUpdate">Update automatically (checks GitHub for new versions at launch)</label>
-    </div>
-    <div class="check">
-      <input type="checkbox" id="autoPause" data-path="app.autoPause" data-type="bool">
-      <label for="autoPause">Auto-pause when OBS is gone (stops API spend if you forget the app in the tray)</label>
-    </div>
-    <label class="adv">Auto-pause after OBS unreachable for (minutes)</label>
-    <input class="adv" type="number" data-path="app.autoPauseMinutes" min="2" max="120">
-    <p class="hint adv">The ghost resumes automatically when OBS comes back. Practicing with OBS open never pauses — only OBS being closed counts.</p>
-    <label class="adv">Pause when session cost reaches ($)</label>
-    <input class="adv" type="number" data-path="app.costCapDollars" min="0" max="1000" step="0.5">
-    <p class="hint adv">0 = no cap. When this session's API spend crosses the cap, the ghost pauses itself with a notice — resume from the dashboard to keep going anyway.</p>
-    <div class="adv" style="margin-top:20px">
-      <h2>📺 Twitch viewer detection</h2>
-      <p class="desc">Optional, read-only viewer count check so the ghost auto-quiets when real people arrive. App credentials at <a href="https://dev.twitch.tv/console" target="_blank">dev.twitch.tv/console</a>.</p>
-      <label>Channel name</label>
-      <input type="text" data-path="twitch.channel">
-      <div class="row">
-        <div><label>Client ID</label><input type="text" data-path="twitch.clientId"></div>
-        <div><label>Client secret</label><input type="password" data-path="twitch.clientSecret"></div>
-      </div>
-      <label>Poll every (seconds)</label>
-      <input type="number" data-path="cadence.viewerPollSeconds" min="30" max="600">
-    </div>
-    <div class="adv" style="margin-top:20px">
-      <h2>Advanced</h2>
-      <label>Local server port (dashboard + overlay)</label>
-      <input type="number" data-path="port" min="1024" max="65535">
-      <p class="hint">If you change this, update the overlay Browser Source URL in OBS to match (or click "Add overlay to OBS" again after restarting).</p>
-    </div>
-  </section>
+        <label style="margin-top:20px">On-stream overlay</label>
+        <div class="test" style="margin-top:2px"><button id="installOverlay">Add overlay to OBS</button><span class="result" id="overlayResult"></span></div>
+        <p class="hint">Creates a "Hype Ghost Overlay" browser source in your current scene. Manual URL: <b><span id="overlayUrl"></span></b>, ~460×620.</p>
+        <div class="row">
+          <div>
+            <label>Overlay style</label>
+            <select data-path="overlay.theme"><option value="cards">Cards — bubbles with a color spine</option><option value="compact">Compact — clean text lines</option></select>
+          </div>
+          <div>
+            <label>Alignment</label>
+            <select data-path="overlay.align"><option value="left">Left</option><option value="right">Right</option></select>
+          </div>
+        </div>
+        <div class="row">
+          <div><label>Text size (0.5–2)</label><input type="number" data-path="overlay.fontScale" min="0.5" max="2" step="0.1"></div>
+          <div><label>Fade after (s, 0 = never)</label><input type="number" data-path="overlay.fadeSeconds" min="0" max="300"></div>
+          <div><label>Max messages</label><input type="number" data-path="overlay.maxVisible" min="2" max="12"></div>
+        </div>
+        <div class="check">
+          <input type="checkbox" id="ovReactions" data-path="overlay.reactions" data-type="bool">
+          <label for="ovReactions">Flash a ✨ pop on the overlay when the cast flags a clip-worthy moment</label>
+        </div>
+        <p class="hint">Overlay changes apply live when you save — no restart, no browser-source refresh needed.</p>
 
-  <div id="savebar">
-    <button id="save" class="primary">Save &amp; restart</button>
-    <span class="result" id="saveResult"></span>
+        <div style="margin-top:22px">
+          <h2>🎮 Stream info for the cast</h2>
+          <p class="desc">Give the cast the ground truth about what you're playing, so they get the game and title right in every message.</p>
+          <div class="check">
+            <input type="checkbox" id="autoInfo" data-path="stream.autoInfo" data-type="bool">
+            <label for="autoInfo">Pull live game + stream title from Twitch <span style="color:var(--faint)">(needs your Twitch channel + app credentials under App → Twitch)</span></label>
+          </div>
+          <div class="check">
+            <input type="checkbox" id="gameFromObs" data-path="stream.gameFromObs" data-type="bool">
+            <label for="gameFromObs">Detect the game from an OBS Game/Window Capture source <span style="color:var(--faint)">(fallback when Twitch has no category set)</span></label>
+          </div>
+        </div>
+
+        <label class="adv">Screenshot width (px)</label>
+        <input class="adv" type="number" data-path="obs.screenshotWidth" min="320" max="1920">
+        <p class="hint adv">Bigger = the cast reads finer on-screen detail but costs more (image tokens scale with pixels). 800 is the sweet spot.</p>
+      </section>
+
+      <!-- ============ VOICE ============ -->
+      <section class="card" data-tab="voice">
+        <h2>🎙 Voice awareness</h2>
+        <p class="desc">Local mic transcription via the <a href="https://obsproject.com/forum/resources/localvocal-local-live-captions-translation-on-the-go.1769/" target="_blank">LocalVocal</a> OBS plugin, so answering out loud is replying. It's third-party — keep it updated to match your OBS version (an outdated build can crash OBS, e.g. when switching Scene Collections). Optional: leave this Off to reply by typing.</p>
+        <label>Mode</label>
+        <select data-path="transcript.mode">
+          <option value="off">Off</option>
+          <option value="file">File — tail LocalVocal's .txt/.srt output</option>
+          <option value="textSource">Text source — read via OBS WebSocket</option>
+        </select>
+        <div class="row">
+          <div>
+            <label>File path (file mode)</label>
+            <div class="withbtn">
+              <input type="text" data-path="transcript.file" placeholder="C:/Users/you/captions.srt">
+              <button id="browseFile">Browse…</button>
+            </div>
+            <p class="hint">Pick the file LocalVocal writes to, or paste the path — either works.</p>
+          </div>
+          <div><label>Text source name (text source mode)</label><input type="text" data-path="transcript.textSource"></div>
+        </div>
+        <div class="row adv">
+          <div><label>Recent speech window (seconds)</label><input type="number" data-path="cadence.transcriptWindowSeconds" min="30" max="600"></div>
+          <div><label>Check for new speech every (seconds)</label><input type="number" data-path="transcript.pollSeconds" min="1" max="30"></div>
+        </div>
+
+        <div style="margin-top:24px">
+          <h2>🎧 Second channel — party / co-op audio</h2>
+          <p class="desc">A separate audio device (Discord, TeamSpeak, a party call) transcribed by its <b>own</b> LocalVocal filter, so the cast can acknowledge the people you're playing with — kept distinct from your mic. In OBS, add a second LocalVocal <em>Transcription</em> filter to that device's source, output it to a <b>different</b> file or text source than your mic, and point this there.</p>
+          <label>Mode</label>
+          <select data-path="transcript2.mode">
+            <option value="off">Off</option>
+            <option value="file">File — tail a second LocalVocal .txt/.srt output</option>
+            <option value="textSource">Text source — read via OBS WebSocket</option>
+          </select>
+          <div class="row">
+            <div>
+              <label>File path (file mode)</label>
+              <div class="withbtn">
+                <input type="text" data-path="transcript2.file" placeholder="C:/Users/you/party-captions.srt">
+                <button id="browseFile2">Browse…</button>
+              </div>
+              <p class="hint">Must be a <b>different</b> file/source than your mic's, or the two channels merge.</p>
+            </div>
+            <div><label>Text source name (text source mode)</label><input type="text" data-path="transcript2.textSource"></div>
+          </div>
+          <label>Who are these people? (label the cast sees)</label>
+          <input type="text" data-path="transcript2.label" placeholder="e.g. my co-op squad, the Discord crew, Jordan and Alex">
+          <p class="hint">So the cast knows these voices aren't you — it can react to "your teammate" without mistaking them for the streamer.</p>
+        </div>
+      </section>
+
+      <!-- ============ BEHAVIOR ============ -->
+      <section class="card" data-tab="behavior">
+        <h2>💬 Cadence &amp; energy</h2>
+        <p class="desc">How often the cast talks. The <b>energy dial</b> on the deck scales this live; these are the baselines it scales around. Cadence changes apply live on save.</p>
+        <div class="row">
+          <div><label>Default energy (0–100)</label><input type="number" data-path="energy" min="0" max="100"></div>
+          <div><label>Solo — avg seconds between messages</label><input type="number" data-path="cadence.soloSeconds" min="20" max="900"></div>
+          <div><label>With real viewers — avg seconds</label><input type="number" data-path="cadence.quietSeconds" min="60" max="3600"></div>
+        </div>
+        <div class="row adv">
+          <div><label>Jitter (0–1)</label><input type="number" data-path="cadence.jitter" min="0" max="1" step="0.05"></div>
+          <div><label>Burst chance (0–1)</label><input type="number" data-path="cadence.burstChance" min="0" max="1" step="0.05"></div>
+          <div><label>Lull chance (0–1)</label><input type="number" data-path="cadence.lullChance" min="0" max="1" step="0.05"></div>
+        </div>
+        <div class="row adv">
+          <div><label>Reply delay after you type (s)</label><input type="number" data-path="cadence.replyDelaySeconds" min="2" max="60"></div>
+          <div><label>Min gap between voice replies (s)</label><input type="number" data-path="cadence.minVoiceReplyGapSeconds" min="0" max="300"></div>
+          <div><label>Min gap between screenshots (s)</label><input type="number" data-path="cadence.minScreenshotGapSeconds" min="0" max="300"></div>
+        </div>
+
+        <div style="margin-top:22px">
+          <h2>✨ Moments</h2>
+          <p class="desc">The cast flags genuinely clip-worthy plays — a highlight reel on the deck and VOD chapters in your recap.</p>
+          <div class="check">
+            <input type="checkbox" id="momentsOn" data-path="moments.enabled" data-type="bool">
+            <label for="momentsOn">Flag clip-worthy moments</label>
+          </div>
+          <div class="check">
+            <input type="checkbox" id="momentClip" data-path="moments.saveReplay" data-type="bool">
+            <label for="momentClip">Also save the OBS replay buffer on each moment <span style="color:var(--faint)">(needs the replay buffer running in OBS — turns flags into actual clips)</span></label>
+          </div>
+        </div>
+
+        <div class="adv" style="margin-top:22px">
+          <h2>📝 Session memory</h2>
+          <p class="desc">The cast keeps compact running notes so they can call back to earlier moments.</p>
+          <div class="check">
+            <input type="checkbox" id="memEnabled" data-path="memory.enabled" data-type="bool">
+            <label for="memEnabled">Enable session memory</label>
+          </div>
+          <label>Refresh notes every N messages</label>
+          <input type="number" data-path="memory.updateEvery" min="2" max="20">
+        </div>
+      </section>
+
+      <!-- ============ LOOK ============ -->
+      <section class="card" data-tab="look">
+        <h2>🎨 Look</h2>
+        <p class="desc">The deck's accent color (your — the human's — color across the app). The cast keep their own stage colors, set per-ghost on the Cast tab.</p>
+        <label>Accent</label>
+        <div class="accent-row" id="accentRow"></div>
+        <input type="hidden" data-path="theme.accent" id="accentField">
+        <label style="margin-top:20px">Interface language</label>
+        <select data-path="app.uiLanguage">
+          <option value="en">English</option>
+          <option value="es">Español</option>
+        </select>
+        <p class="hint">Applies to the deck. The cast's chat language is separate (Cast tab).</p>
+      </section>
+
+      <!-- ============ APP ============ -->
+      <section class="card" data-tab="app">
+        <h2>🔧 App</h2>
+        <div class="check">
+          <input type="checkbox" id="autoUpdate" data-path="app.autoUpdate" data-type="bool">
+          <label for="autoUpdate">Update automatically (checks GitHub for new versions at launch)</label>
+        </div>
+        <div class="check">
+          <input type="checkbox" id="autoPause" data-path="app.autoPause" data-type="bool">
+          <label for="autoPause">Auto-pause when OBS is gone (stops API spend if you forget the app in the tray)</label>
+        </div>
+        <label class="adv">Auto-pause after OBS unreachable for (minutes)</label>
+        <input class="adv" type="number" data-path="app.autoPauseMinutes" min="2" max="120">
+        <p class="hint adv">The cast resumes automatically when OBS comes back. Practicing with OBS open never pauses — only OBS being closed counts.</p>
+        <div class="check">
+          <input type="checkbox" id="tts" data-path="app.tts" data-type="bool">
+          <label for="tts">🔊 Speak cast messages aloud (Windows voices, fully local)</label>
+        </div>
+        <div class="row">
+          <div><label>Voice</label><select data-path="app.ttsVoice" id="ttsVoice"><option value="">(system default)</option></select></div>
+          <div><label>Speed (0.5–2)</label><input type="number" data-path="app.ttsRate" min="0.5" max="2" step="0.1"></div>
+        </div>
+        <p class="hint">Speech plays from the deck window, which stays loaded in the background while TTS is on. Route it to your headphones — not your stream mix — unless you want chat audible on the VOD.</p>
+
+        <div class="adv" style="margin-top:22px">
+          <h2>📺 Twitch viewer detection</h2>
+          <p class="desc">Read-only awareness of your real audience — never posts, never affects metrics.</p>
+          <label>Channel name</label>
+          <input type="text" data-path="twitch.channel">
+          <div class="check">
+            <input type="checkbox" id="chatAware" data-path="twitch.chatAwareness" data-type="bool">
+            <label for="chatAware">Chat awareness — hang back when real chat is active (anonymous read-only listener, needs only the channel name)</label>
+          </div>
+          <p class="hint">Viewer-count detection additionally needs app credentials from <a href="https://dev.twitch.tv/console" target="_blank">dev.twitch.tv/console</a>:</p>
+          <div class="row">
+            <div><label>Client ID</label><input type="text" data-path="twitch.clientId"></div>
+            <div><label>Client secret</label><input type="password" data-path="twitch.clientSecret"></div>
+          </div>
+          <label>Poll every (seconds)</label>
+          <input type="number" data-path="cadence.viewerPollSeconds" min="30" max="600">
+        </div>
+        <div class="adv" style="margin-top:22px">
+          <h2>Advanced</h2>
+          <label>Local server port (deck + overlay)</label>
+          <input type="number" data-path="port" min="1024" max="65535">
+          <p class="hint">If you change this, update the overlay Browser Source URL in OBS to match (or click "Add overlay to OBS" again after restarting).</p>
+        </div>
+      </section>
+    </div>
   </div>
 </div>
+
+<div id="savebar"><div class="inner">
+  <button id="save" class="primary">Save changes</button>
+  <span class="result" id="saveResult"></span>
+</div></div>
 
 <script>
   const $ = (id) => document.getElementById(id);
   const fields = [...document.querySelectorAll('[data-path]')];
-  let cfg = null;
-  let apiKeySaved = false;
-  let canRestart = false;
+  let cfg = null, apiKeySaved = false, canRestart = false;
+  let palette = {}, archetypes = [], castData = [];
+
+  let ACCENTS = {}; // accent hex values come from /api/config
+  function applyAccent(name) {
+    const a = ACCENTS[name] || ACCENTS.violet;
+    if (!a) return;
+    const r = document.documentElement.style;
+    r.setProperty('--accent', a.accent); r.setProperty('--accent-2', a.accent2); r.setProperty('--on-accent', a.on);
+    r.setProperty('--accent-soft', a.soft); r.setProperty('--accent-line', a.line);
+  }
+
+  const getPath = (o, p) => p.split('.').reduce((x, k) => (x == null ? undefined : x[k]), o);
+  const setPath = (o, p, v) => { const ks = p.split('.'); let c = o; for (const k of ks.slice(0,-1)) c = c[k] ?? (c[k] = {}); c[ks.at(-1)] = v; };
 
   $('overlayUrl').textContent = location.origin + '/overlay';
 
-  const getPath = (obj, p) => p.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
-  const setPath = (obj, p, v) => {
-    const keys = p.split('.');
-    let o = obj;
-    for (const k of keys.slice(0, -1)) o = o[k] ?? (o[k] = {});
-    o[keys.at(-1)] = v;
-  };
-
-  // ---- tabs ----
-  const tabButtons = [...document.querySelectorAll('#tabs .tab')];
+  // ---- nav tabs ----
+  const tabBtns = [...document.querySelectorAll('.tabbtn')];
   function setTab(name) {
-    tabButtons.forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
+    tabBtns.forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
     document.querySelectorAll('section').forEach((s) => s.classList.toggle('active', s.dataset.tab === name));
     localStorage.setItem('hg-settings-tab', name);
   }
-  tabButtons.forEach((b) => (b.onclick = () => setTab(b.dataset.tab)));
-  setTab(localStorage.getItem('hg-settings-tab') || 'ghost');
+  tabBtns.forEach((b) => b.onclick = () => setTab(b.dataset.tab));
+  setTab(localStorage.getItem('hg-settings-tab') || 'cast');
 
   // ---- simple / advanced ----
   function setLevel(adv) {
     document.body.classList.toggle('simple', !adv);
-    $('lvlSimple').classList.toggle('on', !adv);
-    $('lvlAdv').classList.toggle('on', adv);
+    $('lvlSimple').classList.toggle('on', !adv); $('lvlAdv').classList.toggle('on', adv);
     localStorage.setItem('hg-settings-level', adv ? 'adv' : 'simple');
   }
   $('lvlSimple').onclick = () => setLevel(false);
   $('lvlAdv').onclick = () => setLevel(true);
   setLevel(localStorage.getItem('hg-settings-level') === 'adv');
 
+  // ---- cast editor ----
+  function setCardColor(card, color) {
+    card.dataset.color = color;
+    card.querySelector('.av').style.background = (palette[color] || {}).hex || '#5ad1ff';
+    card.querySelectorAll('.swatch').forEach((s) => s.classList.toggle('on', s.dataset.color === color));
+  }
+  function ghostCard(g, i, total) {
+    const swatches = Object.keys(palette).map((k) =>
+      `<span class="swatch ${k===g.color?'on':''}" data-color="${k}" style="background:${palette[k].hex};color:${palette[k].hex}"></span>`).join('');
+    const arches = archetypes.map((a) =>
+      `<span class="chip ${a.id===g.archetype?'on':''}" data-arche="${a.id}">${a.emoji} ${a.label}</span>`).join('');
+    const hex = (palette[g.color] || {}).hex || '#5ad1ff';
+    const card = document.createElement('div');
+    card.className = 'ghost-card';
+    card.dataset.color = g.color;
+    if (g.archetype) card.dataset.arche = g.archetype;
+    card.innerHTML = `
+      <div class="gc-top">
+        <div class="av" style="background:${hex}">${(g.name||'?').charAt(0).toUpperCase()}</div>
+        <div class="gc-name"><input type="text" class="c-name" maxlength="24" value="${(g.name||'').replace(/"/g,'&quot;')}" placeholder="Ghost name"></div>
+        ${total > 1 ? '<button class="rm ghostbtn">Remove</button>' : ''}
+      </div>
+      <div class="swatches">${swatches}</div>
+      <label>Personality</label>
+      <textarea class="c-pers" placeholder="how they act in chat">${(g.personality||'').replace(/</g,'&lt;')}</textarea>
+      <div class="arche">${arches}</div>`;
+    // name -> avatar initial live
+    const nameInput = card.querySelector('.c-name');
+    const av = card.querySelector('.av');
+    nameInput.addEventListener('input', () => { av.textContent = (nameInput.value || '?').charAt(0).toUpperCase(); });
+    // color swatches — stage colors are identities, so no two ghosts share
+    // one: picking a color another ghost wears swaps it for this one's
+    card.querySelectorAll('.swatch').forEach((sw) => sw.onclick = () => {
+      const pick = sw.dataset.color;
+      if (pick === card.dataset.color) return;
+      const other = [...document.querySelectorAll('.ghost-card')].find((c) => c !== card && c.dataset.color === pick);
+      if (other) setCardColor(other, card.dataset.color);
+      setCardColor(card, pick);
+    });
+    // archetype chips fill personality (+ color), and are remembered on save
+    card.querySelectorAll('[data-arche]').forEach((ch) => ch.onclick = () => {
+      const a = archetypes.find((x) => x.id === ch.dataset.arche);
+      card.dataset.arche = a.id;
+      card.querySelectorAll('[data-arche]').forEach((x) => x.classList.toggle('on', x === ch));
+      card.querySelector('.c-pers').value = a.personality;
+      const sw = card.querySelector(`.swatch[data-color="${a.color}"]`);
+      if (sw) sw.click();
+    });
+    if (card.querySelector('.rm')) card.querySelector('.rm').onclick = () => { card.remove(); refreshCastControls(); };
+    return card;
+  }
+  function refreshCastControls() {
+    const cards = [...document.querySelectorAll('.ghost-card')];
+    cards.forEach((c) => { const rm = c.querySelector('.rm'); if (rm) rm.style.display = cards.length > 1 ? '' : 'none'; });
+    $('addGhost').style.display = cards.length >= 4 ? 'none' : '';
+    // ensure at least one card can't be removed handled by total check on render
+  }
+  function renderCast() {
+    const box = $('cast'); box.innerHTML = '';
+    castData.forEach((g, i) => box.appendChild(ghostCard(g, i, castData.length)));
+    refreshCastControls();
+  }
+  $('addGhost').onclick = () => {
+    const used = [...document.querySelectorAll('.ghost-card')].map((c) => c.dataset.color);
+    const free = Object.keys(palette).find((k) => !used.includes(k)) || Object.keys(palette)[0];
+    const box = $('cast');
+    const total = box.children.length + 1;
+    box.appendChild(ghostCard({ name: '', personality: '', color: free }, total - 1, total));
+    // re-evaluate remove buttons on all
+    [...document.querySelectorAll('.ghost-card')].forEach((c) => {
+      if (!c.querySelector('.rm') && total > 1) {
+        const btn = document.createElement('button'); btn.className = 'rm ghostbtn'; btn.textContent = 'Remove';
+        btn.onclick = () => { c.remove(); refreshCastControls(); };
+        c.querySelector('.gc-top').appendChild(btn);
+      }
+    });
+    refreshCastControls();
+  };
+  function collectCast() {
+    return [...document.querySelectorAll('.ghost-card')].map((c, i) => ({
+      id: (c.querySelector('.c-name').value.trim().toLowerCase().replace(/[^a-z0-9]+/g,'-') || ('ghost-'+i)),
+      name: c.querySelector('.c-name').value.trim() || `Ghost ${i+1}`,
+      personality: c.querySelector('.c-pers').value.trim() || 'friendly and curious',
+      color: c.dataset.color,
+      ...(c.dataset.arche ? { archetype: c.dataset.arche } : {}),
+      enabled: true,
+    }));
+  }
+
   // ---- prefill ----
   fetch('/api/config').then((r) => r.json()).then((data) => {
-    cfg = data.config;
-    apiKeySaved = data.apiKeySaved;
-    canRestart = data.canRestart;
-    $('modelSelect').innerHTML = data.models
-      .map((m) => `<option value="${m.id}">${m.label}</option>`)
-      .join('');
+    cfg = data.config; apiKeySaved = data.apiKeySaved; canRestart = data.canRestart;
+    palette = data.palette || {}; archetypes = data.archetypes || []; castData = data.cast || [];
+    ACCENTS = data.accents || {};
+    $('modelSelect').innerHTML = data.models.map((m) => `<option value="${m.id}">${m.label}</option>`).join('');
     for (const f of fields) {
       const v = getPath(cfg, f.dataset.path);
       if (f.dataset.type === 'bool') f.checked = v !== false;
-      else if (v !== undefined) f.value = v;
+      else if (v !== undefined && v !== null) f.value = v;
     }
     if (apiKeySaved) $('apiKeyField').placeholder = 'saved ✓ — leave blank to keep the current key';
-    // Other secrets get the same treatment: the server redacts them, blank means keep.
-    if (data.obsPasswordSaved) fields.find((f) => f.dataset.path === 'obs.password').placeholder = 'saved ✓ — leave blank to keep';
-    if (data.twitchSecretSaved) fields.find((f) => f.dataset.path === 'twitch.clientSecret').placeholder = 'saved ✓ — leave blank to keep';
+    const saved = 'saved ✓ — leave blank to keep';
+    if (data.openaiKeySaved) fields.find((f) => f.dataset.path === 'brain.openaiApiKey').placeholder = saved;
+    if (data.twitchSecretSaved) fields.find((f) => f.dataset.path === 'twitch.clientSecret').placeholder = saved;
     $('talkingPoints').value = (cfg.talkingPoints || []).join('\n');
+    renderCast();
+    // accent picker
+    const acc = (cfg.theme && cfg.theme.accent) || 'violet';
+    $('accentField').value = acc; applyAccent(acc);
+    $('accentRow').innerHTML = Object.keys(ACCENTS).map((k) => `<span class="accent-dot ${k===acc?'on':''}" data-acc="${k}" style="background:${ACCENTS[k].accent};color:${ACCENTS[k].accent}"></span>`).join('');
+    $('accentRow').querySelectorAll('.accent-dot').forEach((d) => d.onclick = () => {
+      $('accentField').value = d.dataset.acc; applyAccent(d.dataset.acc);
+      $('accentRow').querySelectorAll('.accent-dot').forEach((x) => x.classList.toggle('on', x === d));
+    });
+    toggleProvider();
   });
+
+  function toggleProvider() {
+    const oai = $('providerSel').value === 'openai';
+    $('anthFields').style.display = oai ? 'none' : '';
+    $('oaiFields').style.display = oai ? '' : 'none';
+  }
+  $('providerSel').onchange = toggleProvider;
+
+  // ---- TTS voices ----
+  function fillVoices() {
+    const sel = $('ttsVoice'); const current = sel.value || (cfg && cfg.app.ttsVoice) || '';
+    const voices = speechSynthesis.getVoices(); if (!voices.length) return;
+    sel.innerHTML = '<option value="">(system default)</option>' + voices.map((v) => `<option value="${v.name.replace(/"/g,'&quot;')}">${v.name}</option>`).join('');
+    sel.value = current;
+  }
+  if ('speechSynthesis' in window) { fillVoices(); speechSynthesis.onvoiceschanged = fillVoices; }
 
   // ---- action buttons ----
   const val = (path) => fields.find((f) => f.dataset.path === path).value;
-
   $('testKey').onclick = async () => {
-    const el = $('keyResult');
-    el.className = 'result'; el.textContent = 'testing…';
-    // blank field = test the saved key (the server never sends it to us)
-    const r = await fetch('/api/test-key', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ apiKey: val('anthropic.apiKey').trim(), model: val('anthropic.model') }),
-    }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
-    el.className = 'result ' + (r.ok ? 'ok' : 'err');
-    el.textContent = r.ok ? '✓ key works' : '✗ ' + (r.error || 'failed');
+    const el = $('keyResult'); el.className = 'result'; el.textContent = 'testing…';
+    const oai = $('providerSel').value === 'openai';
+    const body = oai
+      ? { provider: 'openai', baseUrl: val('brain.openaiBaseUrl').trim(), model: val('brain.openaiModel').trim(), apiKey: val('brain.openaiApiKey').trim() }
+      : { apiKey: val('anthropic.apiKey').trim(), model: val('anthropic.model') };
+    const r = await fetch('/api/test-key', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }).then((x)=>x.json()).catch((e)=>({ok:false,error:e.message}));
+    el.className = 'result ' + (r.ok ? 'ok':'err');
+    el.textContent = r.ok ? '✓ works' + (r.note ? ' — '+r.note : '') : '✗ ' + (r.error || 'failed');
   };
-
   $('testObs').onclick = async () => {
-    const el = $('obsResult');
-    el.className = 'result'; el.textContent = 'testing…';
-    const r = await fetch('/api/test-obs', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: val('obs.url').trim(), password: val('obs.password') }),
-    }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
-    el.className = 'result ' + (r.ok ? 'ok' : 'err');
+    const el = $('obsResult'); el.className = 'result'; el.textContent = 'testing…';
+    const r = await fetch('/api/test-obs', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url: val('obs.url').trim(), password: val('obs.password') }) }).then((x)=>x.json()).catch((e)=>({ok:false,error:e.message}));
+    el.className = 'result ' + (r.ok ? 'ok':'err');
     el.textContent = r.ok ? `✓ connected — current scene: "${r.scene}"` : '✗ ' + (r.error || 'failed');
   };
-
   $('installOverlay').onclick = async () => {
-    const el = $('overlayResult');
-    el.className = 'result'; el.textContent = 'adding…';
-    const r = await fetch('/api/install-overlay', { method: 'POST' })
-      .then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
-    el.className = 'result ' + (r.ok ? 'ok' : 'err');
-    el.textContent = r.ok
-      ? r.created ? `✓ added to scene "${r.scene}" — position it in OBS` : '✓ already in OBS — URL refreshed'
-      : '✗ ' + (r.error || 'failed');
+    const el = $('overlayResult'); el.className = 'result'; el.textContent = 'adding…';
+    const r = await fetch('/api/install-overlay', { method:'POST' }).then((x)=>x.json()).catch((e)=>({ok:false,error:e.message}));
+    el.className = 'result ' + (r.ok ? 'ok':'err');
+    el.textContent = r.ok ? (r.created ? `✓ added to scene "${r.scene}" — position it in OBS` : '✓ already in OBS — URL refreshed') : '✗ ' + (r.error || 'failed');
   };
-
-  $('browseFile').onclick = async () => {
-    const r = await fetch('/api/pick-file', { method: 'POST' })
-      .then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
+  async function pickInto(filePath, modePath) {
+    const r = await fetch('/api/pick-file', { method:'POST' }).then((x)=>x.json()).catch((e)=>({ok:false,error:e.message}));
     if (r.ok && r.path) {
-      fields.find((f) => f.dataset.path === 'transcript.file').value = r.path;
-      const mode = fields.find((f) => f.dataset.path === 'transcript.mode');
-      if (mode.value === 'off') mode.value = 'file';
-    } else if (!r.ok) {
-      alert(r.error || 'File browsing is only available in the desktop app — paste the path instead.');
-    }
-  };
+      fields.find((f)=>f.dataset.path===filePath).value = r.path;
+      const mode = fields.find((f)=>f.dataset.path===modePath); if (mode.value==='off') mode.value='file';
+    } else if (!r.ok) { alert(r.error || 'File browsing is only available in the desktop app — paste the path instead.'); }
+  }
+  $('browseFile').onclick = () => pickInto('transcript.file', 'transcript.mode');
+  $('browseFile2').onclick = () => pickInto('transcript2.file', 'transcript2.mode');
 
   // ---- save ----
   $('save').onclick = async () => {
     for (const f of fields) {
       let v;
       if (f.dataset.type === 'bool') v = f.checked;
-      else if (f.type === 'number') {
-        if (f.value === '') continue; // blank number = leave existing value alone
-        v = Number(f.value);
-      } else v = f.value.trim();
+      else if (f.type === 'number') { if (f.value === '') continue; v = Number(f.value); }
+      else v = f.value.trim ? f.value.trim() : f.value;
       setPath(cfg, f.dataset.path, v);
     }
-    cfg.talkingPoints = $('talkingPoints').value.split('\n').map((s) => s.trim()).filter(Boolean);
-    if (!cfg.anthropic.apiKey && !apiKeySaved) {
-      $('saveResult').className = 'result err';
-      $('saveResult').textContent = 'an API key is required (Brain tab)';
-      return;
+    cfg.talkingPoints = $('talkingPoints').value.split('\n').map((s)=>s.trim()).filter(Boolean);
+    // the cast (new source of truth) + mirror into bot/bot2 for back-compat
+    const roster = collectCast();
+    cfg.cast = roster;
+    cfg.bot = { ...cfg.bot, name: roster[0].name, personality: roster[0].personality };
+    cfg.bot2 = roster[1]
+      ? { ...cfg.bot2, enabled: true, name: roster[1].name, personality: roster[1].personality }
+      : { ...cfg.bot2, enabled: false };
+
+    if (cfg.brain.provider === 'anthropic' && !cfg.anthropic.apiKey && !apiKeySaved) {
+      $('saveResult').className = 'result err'; $('saveResult').textContent = 'an API key is required (Brain tab)'; setTab('brain'); return;
     }
-    $('save').disabled = true;
-    $('saveResult').className = 'result';
-    $('saveResult').textContent = 'saving…';
-    const r = await fetch('/api/config', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(cfg),
-    }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
-    if (!r.ok) {
-      $('save').disabled = false;
-      $('saveResult').className = 'result err';
-      $('saveResult').textContent = '✗ ' + (r.error || 'save failed');
-      return;
+    if (cfg.brain.provider === 'openai' && !cfg.brain.openaiModel) {
+      $('saveResult').className = 'result err'; $('saveResult').textContent = 'a model name is required for local/OpenAI-compatible brains (Brain tab)'; setTab('brain'); return;
     }
+    $('save').disabled = true; $('saveResult').className = 'result'; $('saveResult').textContent = 'saving…';
+    const r = await fetch('/api/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cfg) }).then((x)=>x.json()).catch((e)=>({ok:false,error:e.message}));
+    if (!r.ok) { $('save').disabled = false; $('saveResult').className = 'result err'; $('saveResult').textContent = '✗ ' + (r.error || 'save failed'); return; }
     $('saveResult').className = 'result ok';
-    if (r.restarting) {
-      $('saveResult').textContent = '✓ saved — restarting Hype Ghost…';
-      setTimeout(() => { location.href = '/'; }, 4000);
-    } else {
-      $('save').disabled = false;
-      $('saveResult').textContent = '✓ saved — restart the server to apply.';
-    }
+    if (r.applied) { $('save').disabled = false; $('saveResult').textContent = '✓ saved — applied live, no restart needed'; }
+    else if (r.restarting) { $('saveResult').textContent = '✓ saved — restarting Hype Ghost…'; setTimeout(()=>{ location.href='/'; }, 4000); }
+    else { $('save').disabled = false; $('saveResult').textContent = '✓ saved — restart the server to apply.'; }
   };
 </script>
 </body>

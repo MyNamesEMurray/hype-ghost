@@ -4,48 +4,59 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Hype Ghost is a local-only simulated AI viewer for streamers: it screenshots the user's OBS output, optionally reads a local mic transcription, and generates short Twitch-style chat messages via the Anthropic API, shown in a desktop dashboard and an OBS browser-source overlay. Product ethics are hard constraints, not preferences: it never touches real Twitch chat (the Twitch client is read-only viewer count), every bot message is labeled 🤖 AI with a permanent overlay watermark, and the streamer — not the ghost — is the show. Features that violate these are wrong by definition (see ROADMAP.md "Principles").
+Hype Ghost is a Windows desktop app (Electron) for streamers: a "cast" of up to four simulated AI viewers watches the stream via OBS screenshots + a local mic transcript and chats through a dashboard ("Command Deck") and an OBS browser-source overlay. Plain ESM JavaScript throughout (`"type": "module"`, Node ≥20) — no TypeScript, no bundler, no framework.
 
 ## Commands
 
 ```
-npm install
-npm start        # desktop app via Electron (dev: config.json + session-notes.txt live in the project root)
-npm run serve    # headless server only (node src/cli.js), no window/tray
-npm run icons    # regenerate build/icon.ico + assets PNGs from assets/*.svg
-npm run dist     # electron-builder --win → NSIS installer in dist/
+npm install      # first time (downloads the Electron binary)
+npm start        # desktop app (dev mode uses config.json in the project root)
+npm run serve    # headless server only, no window/tray (node src/cli.js, port 3777)
+npm run smoke    # boot + route check — exactly what CI runs
+npm run icons    # regenerate build/icon.ico + PNGs from assets/*.svg
+npm run dist     # build the Windows installer into dist/
 ```
 
-- `npm test` runs the `node:test` suite in `test/` (loop timing/circuit-breaker, transcript tailing, config sanitization, cost math, response parsing) — no network, OBS, or fake-timer dependencies; run a single file with `node --test test/loop.test.js`. There is no linter. The end-to-end check is smoke mode: `HG_SMOKE=1 npm start` boots the app headless, fetches the dashboard, and exits 0/1. CI (`.github/workflows/ci.yml`) runs both on Windows, and builds the installer on `v*` tags.
-- ESM throughout (`"type": "module"`), Node >= 18, no build/bundle step — `public/` is served as-is.
-- The app targets Windows (tray, NSIS, %APPDATA%), but `npm run serve` works anywhere for development.
+Tests are plain `node:test` (`npm test` runs `test/*.test.js`); there is no linter. CI (`.github/workflows/ci.yml`) is: syntax-check every JS file, validate `config.example.json`, run the tests, run the smoke test. Reproduce it locally before pushing:
+
+```
+npm ci --ignore-scripts
+for f in $(git ls-files '*.js' '*.mjs'); do node --check "$f"; done
+node -e "JSON.parse(require('fs').readFileSync('config.example.json','utf8'))"
+npm test
+npm run smoke
+```
+
+`--ignore-scripts` skips the Electron/sharp binaries — none are needed for the headless server, so this works in environments that can't run Electron.
+
+## Branch model
+
+**Branch off `v3`, PR into `v3`.** `main` is the released line the installer/auto-updater builds from; `v3` merges into `main` only at release time. `v2` and `v1.4-baseline` are historical — leave them alone. Feature branches are `claude/<topic>` or `feature/<topic>`. Releasing = merge `v3` → `main`, bump `package.json`, update `RELEASE_NOTES.md`, tag `vX.Y.Z`, push the tag — the Release workflow builds and publishes the installer.
 
 ## Architecture
 
-Two entry points converge on one function: `electron/main.js` (desktop shell: tray, window, auto-update, single-instance lock, native file picker) and `src/cli.js` (headless) both call `startServer()` in `src/server.js`.
+The app is a local Express + WebSocket server with two hosts:
 
-`src/server.js` is the composition root and the only place state lives. It owns the Express + WebSocket server on `127.0.0.1:<port>` (default 3777), the chat history, the mode resolution (solo vs viewers), session-notes persistence, and the cost meter. It wires the other modules together and hands `GhostLoop` a `hooks` object for everything host-side (getHistory, onMessage, getNotes, addUsage, …). The Electron shell likewise passes hooks into `startServer` (`onConfigSaved`, `onPauseChanged`, `onFatal`, `pickFile`) — this hook-injection pattern is how the modules stay decoupled and headless-capable.
+- **`electron/main.js`** — desktop shell: tray-first (closing the window destroys the renderer but keeps the server chatting), single-instance lock, auto-update from GitHub Releases. When packaged, config lives in `%APPDATA%/Hype Ghost/`; in dev it's the project root. Saving config from the UI **relaunches the whole app** to apply it (`onConfigSaved`) — unless every changed key is in the server's `HOT_PATHS` set (overlay/theme/cadence/moments/memory/stream/talking points), in which case the server hot-applies it live. Session state (`session.json`: chat history, moments, cost, start time) persists across that relaunch with the same 6-hour freshness rule as session notes.
+- **`src/cli.js`** — the same server headless (used by `npm run serve` and the smoke test).
 
-The pieces, each deliberately single-purpose:
+**`src/server.js` — `startServer(opts)`** is the composition root. It wires everything below, owns all mutable session state (the `state` object, `history`, `highlights`, session notes), serves the four pages (`/` dashboard, `/overlay`, `/setup`, `/settings`) and the JSON API, and broadcasts to browser clients over WebSocket (`init` / `state` / `chat` / `moment` / `system` messages; clients send `streamer_message` / `pause` / `resume` / `nudge` / `set_energy` / `override_viewers`). Host-app integration points (restart, tray refresh, native file dialog) come in as `opts` hooks so the server never imports Electron.
 
-- **`src/loop.js` — GhostLoop**: the timing state machine, extracted so the hardest-to-reason-about logic is in one place. Owns when to speak and why (`trigger`: `timer` | `reply` | `nudge` | `voice`), cadence with jitter/burst/lull, the busy flag, voice-reply debounce with a rate floor, screenshot-gap and idle-scene (BRB/starting-soon) skipping (the image is the biggest per-message token cost), the auto-pause dead-man switch (OBS unreachable N minutes → pause API spend; auto-resumes), and the API-failure circuit breaker (5 consecutive generation failures → auto-pause). All app-initiated pauses go through `pauseFor(reason, …)` — the dashboard shows the reason. Touch timing behavior here, not in the server.
-- **`src/brain.js` — Brain**: one Anthropic messages call per chat message. The system prompt encodes the persona and chat-realism rules; message variety is enforced by a weighted style pool in code, not by hoping. Session-notes updates piggyback on a normal generation via a `---NOTES---` delimiter in the same response — there is no separate memory call. The system prompt is deliberately verbose: its length must clear the model's minimum cacheable prefix (~1024 tokens) for prompt caching to engage (a test enforces the floor) — keep per-message content out of it, and don't trim it.
-- **`src/config.js`**: `config.example.json` is the single source of config defaults, deep-merged under the user's file. Loading never throws — bad/missing config degrades to defaults with a warning, and every numeric value is type-checked and clamped to the same ranges the Settings UI enforces (a NaN cadence would fire timers instantly and burn money). Add any new config key to `config.example.json` first; that *is* the schema — and give numeric keys a `NUMERIC_LIMITS` entry.
-- **`src/models.js`**: single source of truth for the model catalog (ids, labels, $/MTok). The setup wizard and Settings build their model dropdowns from this via `GET /api/config` — adding a model is one edit here, no UI change.
-- **`src/obs.js` — ObsCapture**: obs-websocket wrapper for program-scene screenshots, the one-click overlay install, and reading a text source (LocalVocal captions). Dedupes concurrent connects and backs off 30s when OBS is closed — callers just call `screenshot()`/`ensureConnected()` and get null/throw on failure.
-- **`src/transcript.js` — TranscriptFeed**: ingests the LocalVocal mic transcription, either tailing a file by byte offset (with rewrite detection and partial-line carry) or polling an OBS text source. Keeps a rolling time window; `onSpeech` is what lets the ghost hear a spoken answer (`loop.onSpeech()`).
-- **`src/twitch.js` — TwitchViewers**: read-only Helix viewer count so the ghost goes quiet when real people watch. Never chat, ever.
+**`src/loop.js` — `GhostLoop`** is the timing state machine, deliberately extracted as the hardest-to-reason-about code: when to speak and why (triggers: `timer` / `reply` / `voice` / `nudge`), cadence with jitter/burst/lull, the energy dial (0–100 → cadence multiplier + mood), voice-reply debounce with rate floors, screenshot-gap skipping, the once-per-streamer-activity banter cap for two-ghost exchanges, session-notes/profile update cadence, and the auto-pause dead-man switch (OBS unreachable for N minutes → pause API spend, auto-resume when OBS returns). It talks to the host only through its `hooks` object.
 
-**Frontend** (`public/`): four plain HTML pages (dashboard, overlay, setup wizard, settings) with no framework and no build. They connect to the server's WebSocket (message types: `init`, `chat`, `state`, `system`) and send commands (`streamer_message`, `pause`, `resume`, `nudge`, `override_viewers`); config editing goes through REST `/api/config` and the `/api/test-*` endpoints. `theme.css` owns all tokens and shared components; a page's `<style>` block may contain layout only — if a rule would help a second page, it belongs in theme.css.
+**`src/brain.js` — `Brain`** builds the system/user prompts and calls either the Anthropic API (default) or any OpenAI-compatible endpoint (`brain.provider: "openai"` — Ollama/LM Studio etc.). One generation call returns chat message(s) plus optionally piggybacked tail sections parsed from the raw text: `---NOTES---` (session memory), `---PROFILE---` (cross-stream memory), `---MOMENT---` (highlight flag). Messages are parsed as `NAME: text` lines against the cast roster, hard-capped at 2.
 
-**Config & data paths**: packaged app uses `%APPDATA%/Hype Ghost/` for `config.json` + `session-notes.txt`; dev (`npm start`/`serve`) uses the project root. Saving config from the UI restarts the whole app (Electron relaunches; headless just logs) — there is no hot-reload of config, so don't build partial-apply logic.
+Supporting modules, each a single class/concern: `src/cast.js` (roster resolution, ghost color palette, archetypes, 2.x `bot`/`bot2` → 3.x `cast` migration), `src/config.js` (deep-merge loader — see below), `src/obs.js` (obs-websocket screenshots + overlay install, reconnect backoff), `src/transcript.js` (`TranscriptFeed` — tails LocalVocal .txt/.srt output by byte offset, or polls an OBS text source; instantiated twice: streamer mic + optional party/co-op channel, which is "other people" and never triggers a voice reply), `src/twitch.js` (read-only Helix: viewer count + title/category), `src/twitchchat.js` (anonymous read-only IRC to detect active real chat), `src/models.js` (model catalog + per-message cost — the UI dropdowns build from this, so adding a model is one edit).
 
-## Security invariants (do not weaken)
+**Frontend** (`public/`) is four self-contained vanilla HTML pages connecting over the WebSocket. `theme.css` owns all tokens and shared components; each page's `<style>` block holds **layout only** — if a rule would help a second page, it moves to theme.css.
 
-- The server binds to `127.0.0.1` only, validates the `Host` header against a localhost allowlist (DNS-rebinding defense), and rejects WebSocket upgrades from foreign `Origin`s. The config API holds the unencrypted Anthropic key, so this surface is what protects it.
-- Secrets never leave the server: `GET /api/config` redacts the Anthropic key, OBS password, and Twitch client secret (with `*Saved` flags so the UI can say "saved ✓"), and a blank secret in a `POST /api/config` payload means "keep the saved one" (the test endpoints follow the same contract). Preserve both halves when touching config endpoints.
-- In Electron, external links open in the real browser (`setWindowOpenHandler` + `will-navigate` guard), never in the chrome-less app window.
+## Config
 
-## Design language
+`config.example.json` is the **single source of defaults**, deep-merged under the user's `config.json` at load (`src/config.js` — never throws; bad JSON degrades to defaults with a warning). Every new setting therefore goes into `config.example.json` with a sane default, plus a row in the README config-reference table. `config.json` holds the API key and is gitignored — never commit it. One migration quirk: `loadConfig` nulls out the example's `cast` when the user's config has none of its own, so `resolveCast()` rebuilds from their legacy `bot`/`bot2` instead of silently replacing customized ghosts.
 
-DESIGN.md is authoritative for every UI/copy change — if a change doesn't fit it, the change is wrong or DESIGN.md needs a deliberate update first. The load-bearing rules: purple `--accent` is the streamer/actions (only one purple thing per screen), blue `--ghost` is everything the AI says or is, the `🤖 AI` badge and overlay watermark are never restyled/shrunk/dimmed, no hex colors outside theme.css, sentence case everywhere, emoji are the icon system (one emoji per concept, from the table in DESIGN.md), and the overlay stays transparent, non-interactive, and legible over video. Copy speaks as "the ghost", never "the bot"/"the AI assistant".
+## Non-negotiables
+
+- **Ethics (product-defining):** every cast message carries the `🤖 AI` badge and the overlay keeps its permanent "simulated viewers" watermark — never restyled, shrunk, or made optional. Nothing ever posts to real Twitch chat or affects stream metrics; all Twitch access is read-only.
+- **Security posture:** the server listens on 127.0.0.1 only, validates the Host header (DNS-rebinding defense), and checks WebSocket Origin. The API key is never sent to the UI (`/api/config` redacts it; a blank key on save means "keep the saved one"; `/api/overlay-config` exposes only what the overlay needs). Don't weaken any of this.
+- **Design:** UI changes follow `DESIGN.md`. Load-bearing rule: violet (`--accent`) is the human; ghosts use the ghost palette (`aqua rose mint gold coral sky`) via the `--gc` custom property — never hardcoded hex, never violet. Motion must have a job and respect `prefers-reduced-motion`. Emoji are the icon system (one per concept, see the DESIGN.md table).
+- **Resource posture:** the app shares a machine with OBS and a game — software rendering, below-normal priority, renderer destroyed when closed to tray. Keep new features cheap by default (e.g. screenshot-gap skipping, relaxed polls).

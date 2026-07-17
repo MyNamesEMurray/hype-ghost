@@ -47,35 +47,12 @@ export class ObsCapture {
   }
 
   /**
-   * Name of the current program scene, or null if OBS is unreachable.
-   * Cheap and local — callers use it both for game awareness and to
-   * distinguish "OBS is gone" from a failed screenshot request.
-   */
-  async getSceneName() {
-    try {
-      await this.ensureConnected();
-    } catch {
-      return null;
-    }
-    try {
-      const { currentProgramSceneName } = await this.obs.call('GetCurrentProgramScene');
-      return currentProgramSceneName;
-    } catch {
-      return null;
-    }
-  }
-
-  /**
    * Returns { data, mediaType } where data is raw base64 (no data: prefix),
-   * or null if OBS is unreachable or the screenshot request failed.
+   * or null if OBS is unreachable.
    */
   async screenshot() {
     try {
       await this.ensureConnected();
-    } catch {
-      return null;
-    }
-    try {
       const { currentProgramSceneName } = await this.obs.call('GetCurrentProgramScene');
       const { imageData } = await this.obs.call('GetSourceScreenshot', {
         sourceName: currentProgramSceneName,
@@ -88,10 +65,8 @@ export class ObsCapture {
       if (!match) return null;
       const mediaType = match[1] === 'image/jpg' ? 'image/jpeg' : match[1];
       return { data: match[2], mediaType, sceneName: currentProgramSceneName };
-    } catch {
-      // Request-level failure — the connection may well be fine (a real
-      // disconnect fires the ConnectionClosed handler, which clears the
-      // flag), so don't force a reconnect churn here.
+    } catch (err) {
+      this.connected = false;
       return null;
     }
   }
@@ -119,6 +94,23 @@ export class ObsCapture {
   }
 
   /**
+   * Save the OBS replay buffer, turning a flagged ✨ moment into an actual
+   * clip on disk. Best-effort: returns false (never throws) when OBS is
+   * unreachable or the streamer isn't running a replay buffer.
+   */
+  async saveReplay() {
+    try {
+      await this.ensureConnected();
+      const { outputActive } = await this.obs.call('GetReplayBufferStatus');
+      if (!outputActive) return false;
+      await this.obs.call('SaveReplayBuffer');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Current text of an OBS text source (used to read LocalVocal's caption
    * output). Returns null if OBS is unreachable or the source doesn't exist.
    */
@@ -135,6 +127,38 @@ export class ObsCapture {
     } catch {
       // Request-level error (e.g. wrong source name) — connection is still fine.
       return null;
+    }
+  }
+
+  /**
+   * Best-effort guess of the game/app being played, read from a Game/Window
+   * Capture source's captured window. OBS has no true "game" concept, so this
+   * is a fallback for when Twitch category isn't available. Its `window`
+   * setting looks like "Window Title:WindowClass:game.exe" — we prefer the
+   * human-readable title, else the executable name. Returns null if there's no
+   * such source or nothing is captured.
+   */
+  async getGameHint() {
+    try {
+      await this.ensureConnected();
+    } catch {
+      this.connected = false;
+      return null;
+    }
+    try {
+      const { inputs } = await this.obs.call('GetInputList');
+      const cap = inputs.find((i) => /game_capture|window_capture/i.test(i.inputKind || ''));
+      if (!cap) return null;
+      const { inputSettings } = await this.obs.call('GetInputSettings', { inputName: cap.inputName });
+      const win = inputSettings.window;
+      if (typeof win !== 'string' || !win.includes(':')) return null;
+      const parts = win.split(':');
+      const title = parts[0].trim();
+      if (title) return title.slice(0, 60);
+      const exe = (parts[parts.length - 1] || '').replace(/\.exe$/i, '').trim();
+      return exe ? exe.slice(0, 60) : null;
+    } catch {
+      return null; // request-level error — connection is still fine
     }
   }
 }

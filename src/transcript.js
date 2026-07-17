@@ -39,7 +39,6 @@ export class TranscriptFeed {
     this.lastHeardAt = null;
     // file-mode tail state
     this.offset = 0;
-    this.lastMtime = null; // mtime at last poll — gates the rewrite check
     this.head = null; // Buffer of the file's first bytes, for rewrite detection
     this.carry = ''; // incomplete trailing line held until its newline arrives
     // textSource-mode state
@@ -56,9 +55,7 @@ export class TranscriptFeed {
       // started isn't "recent," and shouldn't trigger a reply at startup.
       try {
         if (existsSync(this.file)) {
-          const st = statSync(this.file);
-          this.offset = st.size;
-          this.lastMtime = st.mtimeMs;
+          this.offset = statSync(this.file).size;
           this.head = this.readHead();
         }
       } catch {}
@@ -126,20 +123,13 @@ export class TranscriptFeed {
   }
 
   pollFile() {
-    let size, mtime;
+    let size;
     try {
       if (!existsSync(this.file)) return;
-      const st = statSync(this.file);
-      size = st.size;
-      mtime = st.mtimeMs;
+      size = statSync(this.file).size;
     } catch {
       return; // transient error (e.g. plugin mid-write) — try again next poll
     }
-
-    // Fast path: nothing was written since the last poll, so skip the
-    // rewrite check (which opens the file) entirely. A same-size rewrite
-    // landing in the same mtime tick is caught on the writer's next write.
-    if (size === this.offset && mtime === this.lastMtime) return;
 
     // Rewrite detection: shrunk file, or same/bigger file whose first bytes
     // changed (truncate-mode LocalVocal rewrites the whole file per sentence).
@@ -147,10 +137,7 @@ export class TranscriptFeed {
       this.offset = 0;
       this.carry = '';
     }
-    if (size === this.offset) {
-      this.lastMtime = mtime;
-      return; // nothing new
-    }
+    if (size === this.offset) return; // nothing new
 
     let chunk;
     try {
@@ -168,7 +155,6 @@ export class TranscriptFeed {
       return;
     }
     this.offset = size;
-    this.lastMtime = mtime;
     this.head = this.readHead();
 
     const text = this.carry + chunk;

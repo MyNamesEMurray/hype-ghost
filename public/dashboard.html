@@ -2,216 +2,526 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Hype Ghost — Practice Chat</title>
+<title>Hype Ghost — The Green Room</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="/theme.css">
 <style>
   /* layout only — tokens & components come from theme.css */
-  body { height: 100vh; display: flex; flex-direction: column; }
+  body { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ---------- top bar ---------- */
   header {
-    padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    display: flex; align-items: center; gap: 16px; flex: none;
+    padding: 12px 18px; border-bottom: 1px solid var(--border);
+    background: rgba(10,10,16,.5); backdrop-filter: blur(12px);
   }
-  header .app-title span { color: var(--accent); }
-  .spacer { flex: 1; }
-  /* dense toolbar: compact controls are a deliberate density override */
-  header button, header select { padding: 6px 12px; font-size: var(--fs-sm); }
-  header select { width: auto; }
-  /* mic pill is fixed-width so live transcript updates never reflow the header */
-  #pill-mic { flex: none; width: 190px; overflow: hidden; text-overflow: ellipsis; text-align: left; }
-  #countdown { font-variant-numeric: tabular-nums; }
-  #messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
-  .msg { max-width: 720px; }
-  .msg .meta { font-size: var(--fs-xs); color: var(--dim); margin-bottom: 2px; display: flex; gap: 6px; align-items: center; }
-  .msg .name { font-weight: 600; font-size: var(--fs-sm); }
-  .msg.bot .name { color: var(--ghost); }
-  .msg.streamer .name { color: var(--accent); }
-  .msg .text {
-    background: var(--panel); border: 1px solid var(--border);
-    border-radius: var(--r-md); padding: 8px 12px; display: inline-block;
+  header .brand { display: flex; align-items: baseline; gap: 8px; }
+  header .brand .g { font-size: 20px; }
+  header .brand small { font-size: 11px; font-weight: 700; letter-spacing: .12em; color: var(--faint); }
+  #clock { font-size: var(--fs-sm); color: var(--dim); font-variant-numeric: tabular-nums; }
+  #orbs { display: flex; gap: 16px; margin-left: auto; flex-wrap: wrap; }
+  #orbs .orb .lbl { display: none; }
+  @media (min-width: 1080px) { #orbs .orb .lbl { display: inline; } }
+  #cost { font-size: var(--fs-xs); color: var(--dim); font-variant-numeric: tabular-nums; }
+  .iconbtn { padding: 8px 11px; border-radius: var(--r-md); }
+  .kbd { font-size: 10px; border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; color: var(--faint); margin-left: 6px; }
+
+  /* ---------- body split ---------- */
+  .split { flex: 1; display: flex; min-height: 0; }
+  aside {
+    width: 300px; flex: none; display: flex; flex-direction: column; gap: 14px;
+    padding: 16px; overflow-y: auto; border-right: 1px solid var(--border);
   }
-  .msg.streamer { align-self: flex-end; text-align: right; }
-  .msg.streamer .meta { justify-content: flex-end; }
-  .msg.streamer .text { background: var(--accent-tint); border-color: var(--accent-tint-border); }
-  .sys { align-self: center; font-size: var(--fs-xs); color: var(--warn); }
-  footer { padding: 12px 16px; background: var(--panel); border-top: 1px solid var(--border); display: flex; gap: 10px; }
-  footer input { flex: 1; }
+  main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+  /* ---------- the cast (stage) ---------- */
+  .rail-h { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .14em; color: var(--faint); font-weight: 700; margin: 2px 2px 8px; display: flex; justify-content: space-between; }
+  .nowplaying { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--glass-2); min-width: 0; }
+  .nowplaying .np-icon { color: var(--accent-2); font-size: 11px; flex: none; }
+  .nowplaying .np-body { min-width: 0; }
+  .nowplaying .np-game { font-weight: 650; font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nowplaying .np-title { font-size: var(--fs-xs); color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #stage { display: flex; flex-direction: column; gap: 8px; }
+  .ghost-tile {
+    display: flex; align-items: center; gap: 11px; padding: 10px 12px;
+    border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--glass-2);
+    position: relative; overflow: hidden; transition: border-color .3s;
+  }
+  .ghost-tile.active { border-color: var(--gc); }
+  .avatar {
+    width: 38px; height: 38px; border-radius: var(--r-full); flex: none;
+    display: grid; place-items: center; font-weight: 800; font-size: 16px;
+    color: var(--bg); background: var(--gc);
+    box-shadow: 0 0 0 0 var(--gc); transition: box-shadow .5s;
+  }
+  .ghost-tile.active .avatar { animation: breathe 2.4s ease-in-out infinite; }
+  @keyframes breathe {
+    0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--gc) 55%, transparent); }
+    50%     { box-shadow: 0 0 0 7px transparent; }
+  }
+  .ghost-tile .who { min-width: 0; flex: 1; }
+  .ghost-tile .nm { font-weight: 650; font-size: var(--fs-sm); color: var(--gc); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ghost-tile .st { font-size: var(--fs-xs); color: var(--faint); }
+
+  /* ---------- energy dial ---------- */
+  .panel { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--glass-2); padding: 13px 14px; }
+  .energy-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+  .energy-top .val { font-size: var(--fs-lg); font-weight: 750; }
+  .energy-top .val b { background: var(--aurora); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  input[type=range].dial {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 8px; border-radius: var(--r-full);
+    background: var(--aurora); outline: none; cursor: pointer; opacity: .92; padding: 0;
+  }
+  input[type=range].dial::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%;
+    background: #fff; border: 3px solid var(--bg); box-shadow: 0 2px 8px rgba(0,0,0,.5); cursor: grab;
+  }
+  input[type=range].dial::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 3px solid var(--bg); cursor: grab; }
+  .presets { display: flex; gap: 6px; margin-top: 11px; }
+  .presets .chip { flex: 1; text-align: center; font-size: var(--fs-xs); padding: 5px 0; }
+
+  /* ---------- mode segmented ---------- */
+  .seg { display: flex; border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+  .seg button { flex: 1; border: none; border-radius: 0; background: transparent; padding: 8px 4px; font-size: var(--fs-xs); }
+  .seg button.on { background: var(--accent-soft); color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
+
+  .actions { display: flex; gap: 8px; }
+  .actions button { flex: 1; }
+
+  /* ---------- moments rail ---------- */
+  #moments { display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; }
+  .moment-row { display: flex; gap: 9px; align-items: baseline; font-size: var(--fs-sm); padding: 6px 9px; border-radius: var(--r-md); background: var(--glass-2); border: 1px solid var(--border); }
+  .moment-row .t { font-size: var(--fs-xs); color: var(--faint); font-variant-numeric: tabular-nums; flex: none; }
+  .moment-row .l { min-width: 0; }
+  .moments-empty { font-size: var(--fs-xs); color: var(--faint); padding: 4px 2px; }
+
+  /* ---------- feed ---------- */
+  #feed { flex: 1; overflow-y: auto; padding: 22px 26px; display: flex; flex-direction: column; gap: 14px; }
+  #empty { margin: auto; text-align: center; color: var(--faint); max-width: 360px; }
+  #empty .big { font-size: 46px; margin-bottom: 8px; filter: grayscale(.2); }
+  .msg { display: flex; gap: 11px; max-width: 720px; animation: rise .28s ease-out; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .msg .av { width: 32px; height: 32px; border-radius: var(--r-full); flex: none; display: grid; place-items: center; font-weight: 800; font-size: 13px; color: var(--bg); background: var(--gc); margin-top: 2px; }
+  .msg .body { min-width: 0; }
+  .msg .meta { display: flex; align-items: center; gap: 7px; margin-bottom: 3px; }
+  .msg .nm { font-weight: 650; font-size: var(--fs-sm); color: var(--gc); }
+  .msg .tm { font-size: var(--fs-xs); color: var(--faint); }
+  .msg .bubble { background: var(--glass); border: 1px solid var(--border); border-radius: var(--r-lg); border-top-left-radius: 4px; padding: 9px 14px; display: inline-block; }
+  .msg.streamer { align-self: flex-end; flex-direction: row-reverse; }
+  .msg.streamer .av { background: var(--accent); }
+  .msg.streamer .meta { flex-direction: row-reverse; }
+  .msg.streamer .nm { color: var(--accent-2); }
+  .msg.streamer .bubble { background: var(--accent-soft); border-color: var(--accent-line); border-radius: var(--r-lg); border-top-right-radius: 4px; }
+  .moment-card { align-self: center; display: flex; align-items: center; gap: 10px; padding: 7px 15px; border-radius: var(--r-full); background: var(--glass); border: 1px solid var(--accent-line); font-size: var(--fs-sm); animation: pop .4s cubic-bezier(.2,1.3,.5,1); }
+  @keyframes pop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: none; } }
+  .moment-card .spark { background: var(--aurora); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 800; }
+  .sys { align-self: center; font-size: var(--fs-xs); color: var(--warn); background: rgba(255,199,107,.08); border: 1px solid rgba(255,199,107,.25); border-radius: var(--r-full); padding: 5px 14px; }
+  .typing { display: flex; gap: 11px; align-items: center; padding: 0 26px 10px; color: var(--faint); font-size: var(--fs-sm); }
+  .typing .dots span { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--ghost); margin-right: 3px; animation: blink 1.2s infinite; }
+  .typing .dots span:nth-child(2) { animation-delay: .2s; } .typing .dots span:nth-child(3) { animation-delay: .4s; }
+  @keyframes blink { 0%,60%,100% { opacity: .3; } 30% { opacity: 1; } }
+
+  /* ---------- composer ---------- */
+  footer { flex: none; padding: 14px 26px 18px; border-top: 1px solid var(--border); background: rgba(10,10,16,.4); }
+  .composer { display: flex; gap: 10px; }
+  .composer input { flex: 1; border-radius: var(--r-full); padding: 11px 18px; }
+  .composer button { border-radius: var(--r-full); }
+
+  /* ---------- command palette ---------- */
+  #palette { position: fixed; inset: 0; background: rgba(4,4,8,.6); backdrop-filter: blur(4px); display: none; align-items: flex-start; justify-content: center; z-index: 50; }
+  #palette.open { display: flex; }
+  #palette .box { width: 540px; max-width: 92vw; margin-top: 12vh; background: var(--panel); border: 1px solid var(--border-strong); border-radius: var(--r-lg); box-shadow: var(--shadow); overflow: hidden; }
+  #palette input { border: none; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; padding: 16px 18px; font-size: var(--fs-lg); }
+  #palette input:focus { box-shadow: none; }
+  #pal-list { max-height: 320px; overflow-y: auto; padding: 6px; }
+  .pal-item { display: flex; align-items: center; gap: 12px; padding: 10px 13px; border-radius: var(--r-md); cursor: pointer; }
+  .pal-item.sel, .pal-item:hover { background: var(--accent-soft); }
+  .pal-item .ic { width: 22px; text-align: center; }
+  .pal-item .sub { margin-left: auto; font-size: var(--fs-xs); color: var(--faint); }
+
+  #toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--panel); border: 1px solid var(--border-strong); border-radius: var(--r-full); padding: 9px 18px; font-size: var(--fs-sm); box-shadow: var(--shadow); opacity: 0; transition: .25s; pointer-events: none; z-index: 60; }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 </style>
 </head>
 <body>
   <header>
-    <h1 class="app-title">👻 Hype Ghost <span id="botname"></span></h1>
-    <span class="pill" id="pill-obs">OBS: …</span>
-    <span class="pill" id="pill-key">API key: …</span>
-    <span class="pill" id="pill-viewers">Viewers: …</span>
-    <span class="pill" id="pill-mic" title="Mic transcription via the LocalVocal OBS plugin">Mic: …</span>
-    <span class="pill" id="pill-cost" style="display:none"></span>
-    <span class="pill" id="countdown"></span>
-    <div class="spacer"></div>
-    <label class="pill" style="display:flex;align-items:center;gap:6px;">
-      Mode
-      <select id="mode">
-        <option value="auto">Auto (Twitch)</option>
-        <option value="solo">Solo (chatty)</option>
-        <option value="viewers">Viewers present (quiet)</option>
-      </select>
-    </label>
-    <button id="nudge">Say something</button>
-    <button id="pause" class="primary">Pause</button>
-    <button id="settings" aria-label="Settings" title="Settings" onclick="location.href='/settings'">⚙</button>
+    <div class="brand"><span class="g">👻</span><span class="app-title">Hype Ghost</span><small>3.0</small></div>
+    <div id="clock">00:00:00</div>
+    <div id="orbs">
+      <span class="orb" id="o-obs"><span class="dot"></span><span class="lbl">OBS</span></span>
+      <span class="orb" id="o-brain"><span class="dot"></span><span class="lbl" data-i18n="brain">Brain</span></span>
+      <span class="orb" id="o-viewers"><span class="dot"></span><span class="lbl" data-i18n="viewers">Viewers</span></span>
+      <span class="orb" id="o-mic"><span class="dot"></span><span class="lbl" data-i18n="mic">Mic</span></span>
+      <span class="orb" id="o-party" style="display:none"><span class="dot"></span><span class="lbl" data-i18n="party">Party</span></span>
+      <span class="orb" id="o-chat" style="display:none"><span class="dot"></span><span class="lbl" data-i18n="chat">Chat</span></span>
+    </div>
+    <span id="cost"></span>
+    <button class="iconbtn ghostbtn" id="palBtn" title="Command palette">⌘<span class="kbd">K</span></button>
+    <button class="iconbtn ghostbtn" onclick="location.href='/settings'" title="Settings">⚙</button>
   </header>
 
-  <div id="messages"></div>
+  <div class="split">
+    <aside>
+      <div id="nowplaying" class="nowplaying" style="display:none">
+        <span class="np-icon">▶</span>
+        <div class="np-body"><div class="np-game"></div><div class="np-title"></div></div>
+      </div>
+      <div>
+        <div class="rail-h"><span data-i18n="cast">The cast</span><span id="upnext"></span></div>
+        <div id="stage"></div>
+      </div>
 
-  <footer>
-    <input id="input" placeholder="Reply to your practice chat… (the ghost will answer)" autocomplete="off">
-    <button id="send" class="primary">Send</button>
-  </footer>
+      <div class="panel">
+        <div class="energy-top"><span class="rail-h" style="margin:0" data-i18n="energy">Energy</span><span class="val"><b id="energyVal">55</b></span></div>
+        <input type="range" class="dial" id="energy" min="0" max="100" value="55">
+        <div class="presets">
+          <span class="chip" data-energy="20" data-i18n="chill">Chill</span>
+          <span class="chip" data-energy="55" data-i18n="balanced">Balanced</span>
+          <span class="chip" data-energy="88" data-i18n="hype">Hype</span>
+        </div>
+      </div>
+
+      <div>
+        <div class="rail-h" data-i18n="room">Room</div>
+        <div class="seg" id="mode">
+          <button data-mode="auto" data-i18n="modeAuto">Auto</button>
+          <button data-mode="solo" data-i18n="modeSolo">Solo</button>
+          <button data-mode="viewers" data-i18n="modeViewers">Viewers</button>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="nudge" data-i18n="say">Say something</button>
+        <button id="pause" class="primary" data-i18n="pause">Pause</button>
+      </div>
+
+      <div>
+        <div class="rail-h"><span data-i18n="moments">Moments</span><span id="momentCount"></span></div>
+        <div id="moments"></div>
+        <button style="width:100%;margin-top:8px" class="ghostbtn" onclick="location.href='/api/recap'" data-i18n="recap">Export recap</button>
+      </div>
+    </aside>
+
+    <main>
+      <div id="feed">
+        <div id="empty">
+          <div class="big">👻</div>
+          <div data-i18n="emptyTitle">The stage is set.</div>
+          <p class="hint" data-i18n="emptyBody">Your cast is warming up — the first message lands in a moment. Say something to get the room going.</p>
+        </div>
+      </div>
+      <div class="typing" id="typing" style="display:none"><span class="dots"><span></span><span></span><span></span></span><span data-i18n="typing">the cast is typing…</span></div>
+      <footer>
+        <div class="composer">
+          <input id="input" autocomplete="off">
+          <button id="send" class="primary" data-i18n="send">Send</button>
+        </div>
+      </footer>
+    </main>
+  </div>
+
+  <div id="palette"><div class="box">
+    <input id="palInput" placeholder="Type a command…" autocomplete="off">
+    <div id="pal-list"></div>
+  </div></div>
+  <div id="toast"></div>
 
 <script>
-  const $ = (id) => document.getElementById(id);
-  const messagesEl = $('messages');
-  let state = {};
-  let ws = null;
+  // ---------- accent theming (hex values come from the server's init snapshot) ----------
+  let ACCENTS = {};
+  function applyAccent(name) {
+    const a = ACCENTS[name] || ACCENTS.violet;
+    if (!a) return;
+    const r = document.documentElement.style;
+    r.setProperty('--accent', a.accent); r.setProperty('--accent-2', a.accent2); r.setProperty('--on-accent', a.on);
+    r.setProperty('--accent-soft', a.soft); r.setProperty('--accent-line', a.line);
+  }
 
-  function addMessage(m) {
+  // ---------- i18n ----------
+  const STR = {
+    en: { brain:'Brain', viewers:'Viewers', mic:'Mic', chat:'Chat', cast:'The cast', energy:'Energy',
+      chill:'Chill', balanced:'Balanced', hype:'Hype', room:'Room', modeAuto:'Auto', modeSolo:'Solo', modeViewers:'Viewers',
+      say:'Say something', pause:'Pause', resume:'Resume', moments:'Moments', recap:'Export recap', send:'Send', you:'You',
+      emptyTitle:'The stage is set.', emptyBody:'Your cast is warming up — the first message lands in a moment. Say something to get the room going.',
+      typing:'the cast is typing…', placeholder:'Talk to your chat… they will answer', paused:'paused', autoPaused:'auto-paused · OBS gone',
+      next:'up next', obsOk:'OBS connected', obsNo:'OBS offline', brainOk:'Brain ready', brainNo:'No brain', viewersManual:'manual',
+      micOff:'off', micQuiet:'quiet', micWait:'waiting', party:'Party', partyQuiet:'quiet', partyWait:'waiting', chatQuiet:'quiet', chatActive:'active', lost:'Connection lost — reconnecting…',
+      msgs:'msgs', watching:'watching', idle:'idle', noMoments:'No moments yet — the cast flags clip-worthy plays here.' },
+    es: { brain:'Cerebro', viewers:'Espectadores', mic:'Micro', chat:'Chat', cast:'El elenco', energy:'Energía',
+      chill:'Tranqui', balanced:'Normal', hype:'Máx', room:'Sala', modeAuto:'Auto', modeSolo:'Solo', modeViewers:'Público',
+      say:'Di algo', pause:'Pausar', resume:'Reanudar', moments:'Momentos', recap:'Exportar', send:'Enviar', you:'Tú',
+      emptyTitle:'Todo listo.', emptyBody:'Tu elenco se prepara — el primer mensaje llega enseguida. Di algo para animar la sala.',
+      typing:'el elenco escribe…', placeholder:'Habla con tu chat… te responderán', paused:'en pausa', autoPaused:'pausa automática · sin OBS',
+      next:'siguiente', obsOk:'OBS conectado', obsNo:'OBS desconectado', brainOk:'Cerebro listo', brainNo:'Sin cerebro', viewersManual:'manual',
+      micOff:'apagado', micQuiet:'silencio', micWait:'esperando', party:'Grupo', partyQuiet:'silencio', partyWait:'esperando', chatQuiet:'tranquilo', chatActive:'activo', lost:'Conexión perdida — reconectando…',
+      msgs:'msjs', watching:'mirando', idle:'inactivo', noMoments:'Aún no hay momentos — el elenco marcará jugadas destacadas aquí.' },
+  };
+  let L = STR.en;
+  const T = (k) => (L[k] ?? STR.en[k] ?? k);
+  function applyI18n() {
+    document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = T(el.dataset.i18n); });
+    $('input').placeholder = T('placeholder');
+  }
+
+  const $ = (id) => document.getElementById(id);
+  const feed = $('feed');
+  let state = {};
+  let booted = false;
+  let dragging = false;
+  let cast = [];
+
+  // ---------- rendering ----------
+  function initial(name) { return (name || '?').trim().charAt(0).toUpperCase(); }
+  function colorOf(name) { const g = cast.find((c) => c.name === name); return g ? g.color : 'var(--ghost)'; }
+
+  function speak(text) {
+    if (!state.tts || !state.tts.enabled || !('speechSynthesis' in window)) return;
+    const u = new SpeechSynthesisUtterance(text);
+    const v = speechSynthesis.getVoices().find((v) => v.name === state.tts.voice);
+    if (v) u.voice = v;
+    u.rate = state.tts.rate || 1;
+    speechSynthesis.speak(u);
+  }
+
+  function clearEmpty() { const e = $('empty'); if (e) e.remove(); }
+
+  function addMessage(m, live) {
+    clearEmpty();
     const div = document.createElement('div');
     div.className = 'msg ' + m.role;
+    const gc = m.role === 'streamer' ? 'var(--accent)' : (m.color || colorOf(m.author));
+    div.style.setProperty('--gc', gc);
     const time = new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     div.innerHTML = `
-      <div class="meta">
-        <span class="name"></span>
-        ${m.role === 'bot' ? '<span class="badge-ai">🤖 AI</span>' : ''}
-        <span>${time}</span>
-      </div>
-      <div class="text"></div>`;
-    // your own messages read "You" here; the overlay keeps "Streamer" for viewers
-    div.querySelector('.name').textContent = m.role === 'streamer' ? 'You' : m.author;
-    div.querySelector('.text').textContent = m.text;
-    messagesEl.appendChild(div);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+      <div class="av"></div>
+      <div class="body">
+        <div class="meta">
+          <span class="nm"></span>
+          ${m.role === 'bot' ? '<span class="badge-ai">🤖 AI</span>' : ''}
+          <span class="tm">${time}</span>
+        </div>
+        <div class="bubble"></div>
+      </div>`;
+    div.querySelector('.av').textContent = m.role === 'streamer' ? initial(T('you')) : initial(m.author);
+    div.querySelector('.nm').textContent = m.role === 'streamer' ? T('you') : m.author;
+    div.querySelector('.bubble').textContent = m.text;
+    feed.appendChild(div);
+    feed.scrollTop = feed.scrollHeight;
+    if (m.role === 'bot') pulseGhost(m.author);
+    if (live && m.role === 'bot') speak(m.text);
+  }
+
+  function addMoment(mo, live) {
+    clearEmpty();
+    const div = document.createElement('div');
+    div.className = 'moment-card';
+    const time = new Date(mo.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    div.innerHTML = `<span class="spark">✨ MOMENT</span><span></span><span class="tm" style="color:var(--faint);font-size:var(--fs-xs)">${time}</span>`;
+    div.children[1].textContent = mo.label;
+    feed.appendChild(div);
+    feed.scrollTop = feed.scrollHeight;
+    renderMoments();
   }
 
   function addSystem(text) {
+    clearEmpty();
     const div = document.createElement('div');
     div.className = 'sys';
     div.textContent = '⚠ ' + text;
-    messagesEl.appendChild(div);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    feed.appendChild(div);
+    feed.scrollTop = feed.scrollHeight;
   }
 
+  let momentsData = [];
+  function renderMoments() {
+    const box = $('moments');
+    $('momentCount').textContent = momentsData.length ? momentsData.length : '';
+    if (!momentsData.length) { box.innerHTML = `<div class="moments-empty">${T('noMoments')}</div>`; return; }
+    const start = state._startedAt || Date.now();
+    const rows = momentsData.slice(-24).reverse();
+    box.innerHTML = rows.map((m) => {
+      const el = Math.max(0, Math.floor((m.ts - start) / 60000));
+      const t = `${String(Math.floor(el/60)).padStart(2,'0')}:${String(el%60).padStart(2,'0')}`;
+      return `<div class="moment-row"><span class="t">${t}</span><span class="l"></span></div>`;
+    }).join('');
+    box.querySelectorAll('.moment-row .l').forEach((el, i) => { el.textContent = rows[i].label; });
+  }
+
+  function renderStage() {
+    const stage = $('stage');
+    stage.innerHTML = cast.map((c) => `
+      <div class="ghost-tile" data-name="${c.name.replace(/"/g,'&quot;')}" style="--gc:${c.color}">
+        <div class="avatar">${initial(c.name)}</div>
+        <div class="who"><div class="nm"></div><div class="st"></div></div>
+        <span class="badge-ai">AI</span>
+      </div>`).join('');
+    stage.querySelectorAll('.ghost-tile').forEach((el, i) => {
+      el.querySelector('.nm').textContent = cast[i].name;
+      el.querySelector('.st').textContent = T('watching');
+    });
+  }
+  function pulseGhost(name) {
+    const el = document.querySelector(`.ghost-tile[data-name="${(name||'').replace(/"/g,'&quot;')}"]`);
+    if (!el) return;
+    el.classList.add('active');
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.classList.remove('active'), 4000);
+  }
+
+  function setOrb(id, cls, text) { const el = $(id); el.className = 'orb ' + cls; el.querySelector('.lbl').textContent = text; }
+
+  let appliedLang = null, appliedAccent = null;
   function renderState() {
-    $('botname').textContent = '· ' + (state.botName || '');
-    const obsPill = $('pill-obs');
-    obsPill.textContent = 'OBS: ' + (state.obsConnected ? 'connected' : 'not connected');
-    obsPill.className = 'pill ' + (state.obsConnected ? 'good' : 'bad');
-    const keyPill = $('pill-key');
-    keyPill.textContent = 'API key: ' + (state.apiKeySet ? 'set' : 'missing');
-    keyPill.className = 'pill ' + (state.apiKeySet ? 'good' : 'bad');
-    const vPill = $('pill-viewers');
-    if (!state.twitchConfigured && state.viewerOverride === 'auto') {
-      vPill.textContent = 'Viewers: manual only';
-      vPill.className = 'pill';
-    } else {
-      vPill.textContent = `Viewers: ${state.realViewers ?? '?'} · mode: ${state.mode}`;
-      vPill.className = 'pill ' + (state.mode === 'viewers' ? 'good' : '');
+    // Language + accent apply only when they actually change — applyI18n
+    // sweeps the whole DOM and state broadcasts arrive constantly.
+    if (state.uiLanguage !== appliedLang || state.accent !== appliedAccent) {
+      appliedLang = state.uiLanguage; appliedAccent = state.accent;
+      L = STR[state.uiLanguage] ?? STR.en;
+      applyAccent(state.accent);
+      applyI18n();
     }
-    $('mode').value = state.viewerOverride;
-    $('pause').textContent = state.paused ? 'Resume' : 'Pause';
+    if (JSON.stringify(cast) !== JSON.stringify(state.cast || [])) { cast = state.cast || []; renderStage(); }
+
+    const si = state.streamInfo, np = $('nowplaying');
+    if (si && (si.game || si.title)) {
+      np.style.display = '';
+      np.querySelector('.np-game').textContent = si.game || si.title;
+      np.querySelector('.np-title').textContent = si.game && si.title ? si.title : '';
+      np.title = [si.game, si.title].filter(Boolean).join(' — ');
+    } else np.style.display = 'none';
+
+    setOrb('o-obs', state.obsConnected ? 'good' : 'bad', state.obsConnected ? T('obsOk') : T('obsNo'));
+    setOrb('o-brain', state.apiKeySet ? 'good' : 'bad', state.apiKeySet ? T('brainOk') : T('brainNo'));
+    if (!state.twitchConfigured && state.viewerOverride === 'auto' && state.chatPerMin === null) setOrb('o-viewers', '', T('viewersManual'));
+    else setOrb('o-viewers', state.mode === 'viewers' ? 'good' : '', `${state.realViewers ?? '?'} · ${state.mode}`);
+    const heard = state.lastHeard && Date.now() - state.lastHeard.ts < 15000;
+    if (!state.transcriptMode || state.transcriptMode === 'off') setOrb('o-mic', '', T('micOff'));
+    else if (heard) setOrb('o-mic', 'good', state.lastHeard.text.slice(0, 24));
+    else setOrb('o-mic', '', state.lastHeard ? T('micQuiet') : T('micWait'));
+    if (state.transcript2Mode && state.transcript2Mode !== 'off') {
+      $('o-party').style.display = '';
+      const pheard = state.lastHeardParty && Date.now() - state.lastHeardParty.ts < 15000;
+      if (pheard) setOrb('o-party', 'good', '🎧 ' + state.lastHeardParty.text.slice(0, 22));
+      else setOrb('o-party', '', state.lastHeardParty ? T('partyQuiet') : T('partyWait'));
+    } else { $('o-party').style.display = 'none'; }
+    if (state.chatPerMin !== null) { $('o-chat').style.display = ''; const a = state.chatPerMin >= 2; setOrb('o-chat', a ? 'good' : '', `${a ? T('chatActive') : T('chatQuiet')} · ${state.chatPerMin}/m`); }
+
+    // mode segmented
+    $('mode').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.mode === state.viewerOverride));
+    // pause
+    $('pause').textContent = state.paused ? T('resume') : T('pause');
     $('pause').className = state.paused ? '' : 'primary';
-    renderMic();
+    // energy (don't fight the user's drag)
+    if (!dragging && typeof state.energy === 'number') { $('energy').value = state.energy; $('energyVal').textContent = state.energy; }
+    // ghost tile states
+    document.querySelectorAll('.ghost-tile .st').forEach((el) => { el.textContent = state.busy ? T('typing').replace('…','') : (state.paused ? T('idle') : T('watching')); });
+    $('typing').style.display = state.busy ? 'flex' : 'none';
     renderCost();
   }
 
-  function renderMic() {
-    const pill = $('pill-mic');
-    if (!state.transcriptMode || state.transcriptMode === 'off') {
-      pill.textContent = 'Mic: off';
-      pill.className = 'pill';
-      return;
-    }
-    const heardRecently = state.lastHeard && Date.now() - state.lastHeard.ts < 15000;
-    if (heardRecently) {
-      // fixed-width pill + CSS ellipsis truncates; title shows the full line
-      pill.textContent = '🎙 ' + state.lastHeard.text;
-      pill.title = state.lastHeard.text;
-      pill.className = 'pill good';
-    } else {
-      pill.textContent = state.lastHeard ? 'Mic: quiet' : 'Mic: waiting…';
-      pill.className = 'pill';
-    }
-  }
-
   function renderCost() {
-    const pill = $('pill-cost');
-    const u = state.usage;
-    if (!state.costMeter || !u || u.messages === 0) { pill.style.display = 'none'; return; }
-    pill.style.display = '';
-    pill.textContent = u.costKnown
-      ? `$${u.cost.toFixed(3)} · ${u.messages} msgs`
-      : `${u.messages} msgs · ${Math.round((u.inputTokens + u.outputTokens) / 1000)}k tokens`;
-    pill.title = `This session: ${u.messages} messages, ${u.inputTokens.toLocaleString()} input + ${u.outputTokens.toLocaleString()} output tokens`;
+    const el = $('cost'); const u = state.usage;
+    if (!state.costMeter || !u || u.messages === 0) { el.textContent = ''; return; }
+    el.textContent = u.costKnown ? `$${u.cost.toFixed(3)} · ${u.messages} ${T('msgs')}` : `${u.messages} ${T('msgs')}`;
+    el.title = `${(u.inputTokens||0).toLocaleString()} in + ${(u.outputTokens||0).toLocaleString()} out tokens`;
   }
 
+  // ---------- session clock + countdown ----------
   setInterval(() => {
-    const el = $('countdown');
-    if (state.paused) {
-      const reasons = { obs: 'auto-paused (OBS gone)', api: 'auto-paused (API errors)', cost: 'auto-paused (cost cap)' };
-      el.textContent = state.autoPaused ? (reasons[state.pauseReason] || 'auto-paused') : 'paused';
-      return;
+    if (document.hidden) return;
+    if (state._startedAt) {
+      const s = Math.floor((Date.now() - state._startedAt) / 1000);
+      $('clock').textContent = `${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor(s/60)%60).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
     }
-    if (state.busy) { el.textContent = 'typing…'; return; }
-    if (!state.nextMessageAt) { el.textContent = ''; return; }
-    const s = Math.max(0, Math.round((state.nextMessageAt - Date.now()) / 1000));
-    el.textContent = `next message in ~${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-  }, 500);
-  setInterval(renderMic, 2000); // "hearing you" indicator is time-based
+    const up = $('upnext');
+    if (state.paused) up.textContent = state.autoPaused ? T('autoPaused') : T('paused');
+    else if (state.busy) up.textContent = '•••';
+    else if (state.nextMessageAt) { const s = Math.max(0, Math.round((state.nextMessageAt - Date.now())/1000)); up.textContent = `${T('next')} ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; }
+    else up.textContent = '';
+  }, 1000);
 
-  // auto-reconnect: the dashboard survives server restarts and sleep/wake
+  // ---------- websocket ----------
   let announcedDrop = false;
   function connect() {
-    ws = new WebSocket(`ws://${location.host}`);
+    const ws = new WebSocket(`ws://${location.host}`);
+    window._ws = ws;
     ws.onopen = () => { announcedDrop = false; };
     ws.onmessage = (ev) => {
       const msg = JSON.parse(ev.data);
       if (msg.type === 'init') {
-        state = msg.state;
-        messagesEl.innerHTML = '';
-        msg.history.forEach(addMessage);
-        renderState();
-      } else if (msg.type === 'chat') {
-        addMessage(msg.msg);
-      } else if (msg.type === 'state') {
-        state = msg.state;
-        renderState();
-      } else if (msg.type === 'system') {
-        addSystem(msg.text);
-      }
+        if (msg.accents) ACCENTS = msg.accents;
+        // The server's session clock, so reopening the deck mid-stream (the
+        // renderer is destroyed on close) doesn't reset the clock or moments.
+        state = msg.state; state._startedAt = state.startedAt || Date.now();
+        cast = state.cast || []; renderStage();
+        feed.innerHTML = ''; if (!msg.history.length) { feed.appendChild(emptyEl()); }
+        msg.history.forEach((m) => addMessage(m, false));
+        momentsData = msg.highlights || []; renderMoments();
+        booted = true; renderState();
+      } else if (msg.type === 'chat') { addMessage(msg.msg, booted); }
+      else if (msg.type === 'moment') { momentsData.push(msg.moment); addMoment(msg.moment, true); }
+      else if (msg.type === 'state') { const s = state._startedAt; state = msg.state; state._startedAt = state.startedAt || s || Date.now(); renderState(); }
+      else if (msg.type === 'system') { addSystem(msg.text); }
     };
-    ws.onclose = () => {
-      if (!announcedDrop) {
-        announcedDrop = true;
-        addSystem('Connection lost — reconnecting…');
-      }
-      setTimeout(connect, 3000);
-    };
+    ws.onclose = () => { if (!announcedDrop) { announcedDrop = true; toast(T('lost')); } setTimeout(connect, 3000); };
   }
+  function emptyEl() { const d = document.createElement('div'); d.id='empty'; d.innerHTML = `<div class="big">👻</div><div>${T('emptyTitle')}</div><p class="hint">${T('emptyBody')}</p>`; return d; }
   connect();
 
-  function sendCmd(cmd) {
-    if (ws && ws.readyState === 1) ws.send(JSON.stringify(cmd));
-  }
-  function send() {
-    const text = $('input').value.trim();
-    if (!text) return;
-    sendCmd({ type: 'streamer_message', text });
-    $('input').value = '';
-  }
+  const sendCmd = (c) => { if (window._ws && window._ws.readyState === 1) window._ws.send(JSON.stringify(c)); };
+  function send() { const t = $('input').value.trim(); if (!t) return; sendCmd({ type: 'streamer_message', text: t }); $('input').value = ''; }
   $('send').onclick = send;
   $('input').addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
   $('pause').onclick = () => sendCmd({ type: state.paused ? 'resume' : 'pause' });
   $('nudge').onclick = () => sendCmd({ type: 'nudge' });
-  $('mode').onchange = (e) => sendCmd({ type: 'override_viewers', value: e.target.value });
+  $('mode').querySelectorAll('button').forEach((b) => b.onclick = () => sendCmd({ type: 'override_viewers', value: b.dataset.mode }));
+
+  // energy dial — the label tracks the drag live; the server hears about it
+  // once, on release (every set_energy re-rolls the loop's next-message time,
+  // so mid-drag sends would re-pace the room a dozen times per drag)
+  const energyEl = $('energy');
+  energyEl.addEventListener('input', (e) => { dragging = true; $('energyVal').textContent = e.target.value; });
+  energyEl.addEventListener('change', (e) => { dragging = false; sendCmd({ type: 'set_energy', value: Number(e.target.value) }); });
+  document.querySelectorAll('.presets .chip').forEach((c) => c.onclick = () => { energyEl.value = c.dataset.energy; $('energyVal').textContent = c.dataset.energy; sendCmd({ type: 'set_energy', value: Number(c.dataset.energy) }); });
+
+  // ---------- toast ----------
+  let toastT;
+  function toast(msg) { const el = $('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2600); }
+
+  // ---------- command palette ----------
+  const COMMANDS = [
+    { ic:'🗣', label:'Say something', sub:'poke the cast', run: () => sendCmd({ type:'nudge' }) },
+    { ic:'⏯', label:'Pause / resume', sub:'toggle', run: () => sendCmd({ type: state.paused ? 'resume':'pause' }) },
+    { ic:'🌙', label:'Energy: Chill', run: () => setEnergyCmd(20) },
+    { ic:'⚖️', label:'Energy: Balanced', run: () => setEnergyCmd(55) },
+    { ic:'🔥', label:'Energy: Hype', run: () => setEnergyCmd(88) },
+    { ic:'🎬', label:'Mode: Auto', run: () => sendCmd({ type:'override_viewers', value:'auto' }) },
+    { ic:'🎧', label:'Mode: Solo (chatty)', run: () => sendCmd({ type:'override_viewers', value:'solo' }) },
+    { ic:'👥', label:'Mode: Viewers (quiet)', run: () => sendCmd({ type:'override_viewers', value:'viewers' }) },
+    { ic:'📋', label:'Copy overlay URL', sub:'for OBS', run: () => { navigator.clipboard?.writeText(location.origin + '/overlay'); toast('Overlay URL copied'); } },
+    { ic:'📑', label:'Export recap', run: () => location.href = '/api/recap' },
+    { ic:'⚙️', label:'Open settings', run: () => location.href = '/settings' },
+  ];
+  function setEnergyCmd(v) { energyEl.value = v; $('energyVal').textContent = v; sendCmd({ type:'set_energy', value:v }); }
+  let palSel = 0, palFiltered = COMMANDS;
+  function openPal() { $('palette').classList.add('open'); $('palInput').value=''; palFiltered = COMMANDS; palSel = 0; renderPal(); $('palInput').focus(); }
+  function closePal() { $('palette').classList.remove('open'); }
+  function renderPal() {
+    $('pal-list').innerHTML = palFiltered.map((c, i) => `<div class="pal-item ${i===palSel?'sel':''}" data-i="${i}"><span class="ic">${c.ic}</span><span>${c.label}</span>${c.sub?`<span class="sub">${c.sub}</span>`:''}</div>`).join('');
+    $('pal-list').querySelectorAll('.pal-item').forEach((el) => { el.onclick = () => { palFiltered[+el.dataset.i].run(); closePal(); }; });
+  }
+  $('palBtn').onclick = openPal;
+  $('palInput').addEventListener('input', (e) => { const q = e.target.value.toLowerCase(); palFiltered = COMMANDS.filter((c) => c.label.toLowerCase().includes(q)); palSel = 0; renderPal(); });
+  $('palInput').addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { palSel = Math.min(palSel+1, palFiltered.length-1); renderPal(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { palSel = Math.max(palSel-1, 0); renderPal(); e.preventDefault(); }
+    else if (e.key === 'Enter') { palFiltered[palSel]?.run(); closePal(); }
+    else if (e.key === 'Escape') closePal();
+  });
+  $('palette').addEventListener('click', (e) => { if (e.target.id === 'palette') closePal(); });
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openPal(); }
+  });
 </script>
 </body>
 </html>

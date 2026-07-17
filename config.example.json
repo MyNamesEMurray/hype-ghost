@@ -1,21 +1,63 @@
 {
   "port": 3777,
+  "theme": {
+    "accent": "violet"
+  },
+  "energy": 55,
+  "cast": [
+    {
+      "id": "beacon",
+      "name": "Beacon",
+      "color": "aqua",
+      "archetype": "curious",
+      "personality": "friendly, curious, a little goofy; loves asking questions about whatever is on screen",
+      "enabled": true
+    },
+    {
+      "id": "wisp",
+      "name": "Wisp",
+      "color": "rose",
+      "archetype": "lurker",
+      "personality": "chill half-lurker; dry one-liners; pretends not to care but clearly does",
+      "enabled": false
+    }
+  ],
   "bot": {
     "name": "Beacon",
     "personality": "friendly, curious, a little goofy; loves asking questions about whatever is on screen",
     "language": "English"
+  },
+  "bot2": {
+    "enabled": false,
+    "name": "Wisp",
+    "personality": "chill half-lurker; dry one-liners; pretends not to care but clearly does"
   },
   "app": {
     "autoUpdate": true,
     "costMeter": true,
     "autoPause": true,
     "autoPauseMinutes": 10,
-    "costCapDollars": 0
+    "tts": false,
+    "ttsVoice": "",
+    "ttsRate": 1,
+    "uiLanguage": "en"
   },
   "stream": {
-    "context": ""
+    "context": "",
+    "autoInfo": true,
+    "gameFromObs": true
   },
   "talkingPoints": [],
+  "moments": {
+    "enabled": true,
+    "saveReplay": true
+  },
+  "brain": {
+    "provider": "anthropic",
+    "openaiBaseUrl": "http://localhost:11434/v1",
+    "openaiModel": "qwen2.5vl:7b",
+    "openaiApiKey": ""
+  },
   "anthropic": {
     "apiKey": "",
     "model": "claude-sonnet-5"
@@ -25,20 +67,37 @@
     "password": "",
     "screenshotWidth": 800
   },
+  "overlay": {
+    "align": "left",
+    "fontScale": 1,
+    "fadeSeconds": 0,
+    "maxVisible": 6,
+    "theme": "cards",
+    "reactions": true
+  },
   "memory": {
     "enabled": true,
-    "updateEvery": 4
+    "updateEvery": 4,
+    "profileEvery": 12
   },
   "twitch": {
     "clientId": "",
     "clientSecret": "",
-    "channel": ""
+    "channel": "",
+    "chatAwareness": true
   },
   "transcript": {
     "mode": "off",
     "file": "",
     "textSource": "LocalVocal Captions",
     "pollSeconds": 2
+  },
+  "transcript2": {
+    "mode": "off",
+    "file": "",
+    "textSource": "Party Captions",
+    "pollSeconds": 2,
+    "label": "the people the streamer is playing with (co-op partners / a Discord or party call)"
   },
   "cadence": {
     "soloSeconds": 120,
@@ -50,6 +109,7 @@
     "minVoiceReplyGapSeconds": 35,
     "viewerPollSeconds": 60,
     "transcriptWindowSeconds": 120,
-    "minScreenshotGapSeconds": 25
+    "minScreenshotGapSeconds": 25,
+    "minPartyNudgeGapSeconds": 45
   }
 }

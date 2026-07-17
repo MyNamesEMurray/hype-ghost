@@ -79,23 +79,6 @@ test('detects a same-size rewrite via the head check', async (t) => {
   assert.deepEqual(heard, ['aaaa line', 'bbbb line']);
 });
 
-test('skips the head check (file open) entirely when nothing was written', (t) => {
-  const file = withTmp(t);
-  const { feed, heard } = makeFeed(file);
-  writeFileSync(file, 'one line\n');
-  feed.pollFile();
-  let headChecks = 0;
-  const original = feed.headChanged.bind(feed);
-  feed.headChanged = () => (headChecks++, original());
-  feed.pollFile();
-  feed.pollFile();
-  assert.equal(headChecks, 0); // fast path: size and mtime unchanged
-  appendFileSync(file, 'two\n');
-  feed.pollFile();
-  assert.equal(headChecks, 1); // a real write goes through the full check
-  assert.deepEqual(heard, ['one line', 'two']);
-});
-
 test('getWindow prunes entries older than the window and honors sinceTs', (t) => {
   const file = withTmp(t);
   const { feed } = makeFeed(file);
