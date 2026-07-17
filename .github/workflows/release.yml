@@ -1,14 +1,17 @@
 name: Release
 
-# Cut a release by tagging main with the package.json version:
+# Cut a release either by tagging main with the package.json version:
 #   git tag v3.1.0 && git push origin v3.1.0
-# This builds the Windows installer and publishes the GitHub Release the
-# auto-updater reads (installer + blockmap + latest.yml), with release
-# notes taken from RELEASE_NOTES.md at the tagged commit.
+# or by running this workflow manually against main (Actions → Release →
+# Run workflow), which tags the built commit as v<package.json version>.
+# Both paths build the Windows installer and publish the GitHub Release
+# the auto-updater reads (installer + blockmap + latest.yml), with
+# release notes taken from RELEASE_NOTES.md at the built commit.
 
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -38,10 +41,23 @@ jobs:
       - name: Build the Windows installer
         run: npx electron-builder --win --publish never
 
+      # Tag runs release the pushed tag; manual runs tag the built commit
+      # as v<package.json version> when the release is published.
+      - name: Resolve release tag
+        id: tag
+        shell: bash
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=v$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish the GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Hype Ghost ${{ github.ref_name }}
+          name: Hype Ghost ${{ steps.tag.outputs.tag }}
+          tag_name: ${{ steps.tag.outputs.tag }}
           body_path: RELEASE_NOTES.md
           files: |
             dist/*.exe
