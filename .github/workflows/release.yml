@@ -1,0 +1,49 @@
+name: Release
+
+# Cut a release by tagging main with the package.json version:
+#   git tag v3.1.0 && git push origin v3.1.0
+# This builds the Windows installer and publishes the GitHub Release the
+# auto-updater reads (installer + blockmap + latest.yml), with release
+# notes taken from RELEASE_NOTES.md at the tagged commit.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build installer & publish release
+    # Windows because it's the shipping target (tray, NSIS, %APPDATA% paths).
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+
+      # Full install (no --ignore-scripts): the Electron binary is needed
+      # to package the app.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build the Windows installer
+        run: npx electron-builder --win --publish never
+
+      - name: Publish the GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Hype Ghost ${{ github.ref_name }}
+          body_path: RELEASE_NOTES.md
+          files: |
+            dist/*.exe
+            dist/*.exe.blockmap
+            dist/latest.yml

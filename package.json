@@ -1,12 +1,13 @@
 {
   "name": "hype-ghost",
-  "version": "3.0.1",
+  "version": "3.1.0",
   "description": "AI practice chat for streamers — a directable cast of simulated viewers",
   "author": "MyNamesEMurray",
   "type": "module",
   "main": "electron/main.js",
   "scripts": {
     "start": "electron .",
+    "test": "node --test",
     "serve": "node src/cli.js",
     "smoke": "node scripts/smoke.mjs",
     "icons": "node scripts/make-icons.mjs",

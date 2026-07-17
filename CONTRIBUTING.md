@@ -9,8 +9,10 @@
 - **Feature branches** — `claude/<topic>` or `feature/<topic>`, branched off `v3`,
   one focused PR each into `v3`.
 
-At release: merge `v3` → `main`, bump the version in `package.json`, tag it
-(`vX.Y.Z`), and publish the GitHub Release the auto-updater reads.
+At release: merge `v3` → `main`, bump the version in `package.json`, update
+`RELEASE_NOTES.md`, tag it (`vX.Y.Z`), and push the tag — the Release workflow
+(`.github/workflows/release.yml`) builds the Windows installer and publishes
+the GitHub Release the auto-updater reads.
 
 > This is the one rule worth remembering: **branch off `v3`, PR into `v3`.**
 > (PR #1 once merged into `v2` by accident — that's the confusion this prevents.)
@@ -28,6 +30,7 @@ At release: merge `v3` → `main`, bump the version in `package.json`, tag it
    npm ci --ignore-scripts
    for f in $(git ls-files '*.js' '*.mjs'); do node --check "$f"; done
    node -e "JSON.parse(require('fs').readFileSync('config.example.json','utf8'))"
+   npm test
    npm run smoke
    ```
 4. Open a PR into `v3` using the template. CI (`.github/workflows/ci.yml`) must be green.
@@ -55,6 +58,6 @@ npm run dist     # build the Windows installer into dist/
 ## CI
 
 `.github/workflows/ci.yml` runs on every PR into `v3`/`main` and on pushes to those branches:
-syntax-checks all JS, validates `config.example.json`, and boots the headless server to confirm
-it serves its pages. It installs with `--ignore-scripts` (no Electron binary needed), so it's
-fast and needs no Windows runner or display.
+syntax-checks all JS, validates `config.example.json`, runs the `node:test` suite, and boots
+the headless server to confirm it serves its pages. It installs with `--ignore-scripts` (no
+Electron binary needed), so it's fast and needs no Windows runner or display.

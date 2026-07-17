@@ -17,12 +17,13 @@ npm run icons    # regenerate build/icon.ico + PNGs from assets/*.svg
 npm run dist     # build the Windows installer into dist/
 ```
 
-There is no test framework and no linter. CI (`.github/workflows/ci.yml`) is: syntax-check every JS file, validate `config.example.json`, run the smoke test. Reproduce it locally before pushing:
+Tests are plain `node:test` (`npm test` runs `test/*.test.js`); there is no linter. CI (`.github/workflows/ci.yml`) is: syntax-check every JS file, validate `config.example.json`, run the tests, run the smoke test. Reproduce it locally before pushing:
 
 ```
 npm ci --ignore-scripts
 for f in $(git ls-files '*.js' '*.mjs'); do node --check "$f"; done
 node -e "JSON.parse(require('fs').readFileSync('config.example.json','utf8'))"
+npm test
 npm run smoke
 ```
 
@@ -30,7 +31,7 @@ npm run smoke
 
 ## Branch model
 
-**Branch off `v3`, PR into `v3`.** `main` is the released line the installer/auto-updater builds from; `v3` merges into `main` only at release time. `v2` and `v1.4-baseline` are historical — leave them alone. Feature branches are `claude/<topic>` or `feature/<topic>`.
+**Branch off `v3`, PR into `v3`.** `main` is the released line the installer/auto-updater builds from; `v3` merges into `main` only at release time. `v2` and `v1.4-baseline` are historical — leave them alone. Feature branches are `claude/<topic>` or `feature/<topic>`. Releasing = merge `v3` → `main`, bump `package.json`, update `RELEASE_NOTES.md`, tag `vX.Y.Z`, push the tag — the Release workflow builds and publishes the installer.
 
 ## Architecture
 

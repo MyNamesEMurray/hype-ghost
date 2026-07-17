@@ -145,6 +145,7 @@ Voice awareness is **optional** in Hype Ghost. If you don't need it, skip LocalV
 npm install
 npm start        # desktop app (uses config.json in this folder)
 npm run serve    # headless server only, no window/tray
+npm test         # node:test suite (test/*.test.js)
 npm run icons    # regenerate icon.ico / PNGs from assets/*.svg
 npm run dist     # build the Windows installer into dist/
 ```
