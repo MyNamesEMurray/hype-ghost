@@ -54,6 +54,7 @@ Quit Hype Ghost.
 |---|---|
 | `app.autoUpdate` | Check GitHub for new versions at launch and update automatically (default true). |
 | `app.costMeter` | Show the live session cost pill on the dashboard (default true). |
+| `app.costCapDollars` | Pause the ghost when this session's API spend reaches this many dollars (0 = off, the default). Resuming from the dashboard overrides the cap for the rest of the session. |
 | `bot.language` | Language the ghost chats in (default English). |
 | `stream.context` | Standing context about your stream (game, format, vibe) the ghost always knows. It also sees your current OBS scene name automatically. |
 | `talkingPoints` | Topics you want covered; the ghost works one in occasionally when it fits naturally. |
@@ -76,7 +77,10 @@ Quit Hype Ghost.
 history/transcript/notes). At a 90s solo cadence that's ~40 messages/hour ≈ **$0.20/hour**.
 The dashboard's cost pill shows the real number live, and if OBS disappears for 10 minutes
 the ghost **auto-pauses** so a forgotten tray app can't burn money overnight — it resumes
-by itself when OBS is back (Settings → App).
+by itself when OBS is back (Settings → App). Prompt caching trims the per-message cost
+further on most messages, BRB/starting-soon scenes skip the screenshot (the biggest
+per-message cost) entirely, and an optional **session cost cap** (Settings → App) hard-stops
+spend at a dollar amount you pick.
 
 ## Privacy & security
 
@@ -95,6 +99,7 @@ Nothing is sent to Twitch except the optional read-only viewer-count check.
 npm install
 npm start        # desktop app (uses config.json in this folder)
 npm run serve    # headless server only, no window/tray
+npm test         # unit tests (node:test — loop timing, transcript tailing, config, parsing)
 npm run icons    # regenerate icon.ico / PNGs from assets/*.svg
 npm run dist     # build the Windows installer into dist/
 ```

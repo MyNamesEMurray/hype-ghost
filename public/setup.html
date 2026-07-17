@@ -182,6 +182,9 @@
     if (apiKeySaved) $('apiKey').placeholder = 'saved ✓ — leave blank to keep the current key';
     $('model').value = cfg.anthropic.model;
     $('obsUrl').value = cfg.obs.url;
+    // Secrets arrive redacted; blank on save means "keep the saved one".
+    if (data.obsPasswordSaved) $('obsPassword').placeholder = 'saved ✓ — leave blank to keep';
+    if (data.twitchSecretSaved) $('twSecret').placeholder = 'saved ✓ — leave blank to keep';
     $('obsPassword').value = cfg.obs.password;
     $('soloSeconds').value = cfg.cadence.soloSeconds;
     markCadence();

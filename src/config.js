@@ -21,10 +21,74 @@ function deepMerge(defaults, user) {
   return out;
 }
 
+// Bounds for every numeric config value — the same ranges the Settings UI
+// enforces on its inputs. The tray's "Edit Config (raw JSON)" invites hand
+// editing, and a non-numeric cadence value would otherwise become a NaN
+// timer: setTimeout(fn, NaN) fires immediately, which turns the ghost into
+// a rapid-fire money-burning loop. Wrong type -> default; out of range ->
+// clamped.
+const NUMERIC_LIMITS = {
+  'port': [1024, 65535],
+  'obs.screenshotWidth': [320, 1920],
+  'app.autoPauseMinutes': [2, 120],
+  'app.costCapDollars': [0, 1000],
+  'memory.updateEvery': [2, 20],
+  'transcript.pollSeconds': [1, 30],
+  'cadence.soloSeconds': [20, 900],
+  'cadence.quietSeconds': [60, 3600],
+  'cadence.jitter': [0, 1],
+  'cadence.burstChance': [0, 1],
+  'cadence.lullChance': [0, 1],
+  'cadence.replyDelaySeconds': [2, 60],
+  'cadence.minVoiceReplyGapSeconds': [0, 300],
+  'cadence.minScreenshotGapSeconds': [0, 300],
+  'cadence.viewerPollSeconds': [30, 600],
+  'cadence.transcriptWindowSeconds': [30, 600],
+};
+
+function sanitize(config, defaults) {
+  const problems = [];
+  // A config section replaced by a scalar ("cadence": 5) would make every
+  // lookup inside it undefined — restore the whole section from defaults.
+  for (const [key, defVal] of Object.entries(defaults)) {
+    if (isPlainObject(defVal) && !isPlainObject(config[key])) {
+      config[key] = defVal;
+      problems.push(`"${key}" is not an object — using defaults for that section`);
+    }
+  }
+  for (const [dotted, [min, max]] of Object.entries(NUMERIC_LIMITS)) {
+    const keys = dotted.split('.');
+    const parent = keys.slice(0, -1).reduce((o, k) => (isPlainObject(o) ? o[k] : undefined), config);
+    const holder = keys.length === 1 ? config : parent;
+    if (!isPlainObject(holder)) continue;
+    const key = keys.at(-1);
+    const def = keys.reduce((o, k) => (o == null ? undefined : o[k]), defaults);
+    const value = holder[key];
+    // Accept numbers and numeric strings ("90" from a hand edit); anything
+    // else (including "", null, booleans) falls back to the default.
+    const num =
+      typeof value === 'number'
+        ? value
+        : typeof value === 'string' && value.trim() !== ''
+          ? Number(value)
+          : NaN;
+    if (!Number.isFinite(num)) {
+      holder[key] = def;
+      problems.push(`"${dotted}" is not a number — using default ${def}`);
+    } else {
+      const clamped = Math.min(max, Math.max(min, num));
+      holder[key] = clamped;
+      if (clamped !== num) problems.push(`"${dotted}" out of range — clamped to ${clamped}`);
+    }
+  }
+  return problems;
+}
+
 /**
  * Load config with config.example.json as the single source of defaults.
  * Never throws: invalid JSON or a missing file degrades to defaults with a
- * warning, so a hand-edited config can't brick startup.
+ * warning, and numeric values are type-checked and clamped, so a hand-edited
+ * config can't brick startup (or worse, NaN the message timer).
  *
  * @returns {{ config: object, warning: string|null }}
  */
@@ -41,5 +105,10 @@ export function loadConfig(configPath) {
       warning = `config at ${configPath} is not valid JSON (${err.message}) — using defaults. Fix or re-save it in Settings.`;
     }
   }
-  return { config: deepMerge(defaults, user), warning };
+  const config = deepMerge(defaults, user);
+  const problems = sanitize(config, defaults);
+  if (problems.length) {
+    warning = [warning, `config values corrected: ${problems.join('; ')}`].filter(Boolean).join(' | ');
+  }
+  return { config, warning };
 }

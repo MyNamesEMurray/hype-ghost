@@ -72,6 +72,16 @@ function createWindow() {
       shell.openExternal(url);
     }
   });
+  // Startup race: loadURL can beat the server's async listen(), leaving a
+  // blank window with no retry. Reload shortly; a truly dead server goes
+  // through onFatal instead. (-3 = ERR_ABORTED, fired on normal navigation
+  // cancels — not a failure.)
+  win.webContents.on('did-fail-load', (_e, code, _desc, url) => {
+    if (code === -3 || !url.startsWith(`http://127.0.0.1:${server.port}/`)) return;
+    setTimeout(() => {
+      if (!quitting) win.loadURL(url);
+    }, 300);
+  });
   win.once('ready-to-show', () => {
     if (!SMOKE) win.show();
   });

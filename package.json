@@ -7,6 +7,7 @@
   "scripts": {
     "start": "electron .",
     "serve": "node src/cli.js",
+    "test": "node --test",
     "icons": "node scripts/make-icons.mjs",
     "dist": "electron-builder --win"
   },

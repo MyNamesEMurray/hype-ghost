@@ -155,7 +155,11 @@
 
   setInterval(() => {
     const el = $('countdown');
-    if (state.paused) { el.textContent = state.autoPaused ? 'auto-paused (OBS gone)' : 'paused'; return; }
+    if (state.paused) {
+      const reasons = { obs: 'auto-paused (OBS gone)', api: 'auto-paused (API errors)', cost: 'auto-paused (cost cap)' };
+      el.textContent = state.autoPaused ? (reasons[state.pauseReason] || 'auto-paused') : 'paused';
+      return;
+    }
     if (state.busy) { el.textContent = 'typing…'; return; }
     if (!state.nextMessageAt) { el.textContent = ''; return; }
     const s = Math.max(0, Math.round((state.nextMessageAt - Date.now()) / 1000));
