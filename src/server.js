@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { OBSWebSocket } from 'obs-websocket-js';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'node:http';
-import { readFileSync, writeFileSync, statSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, statSync, existsSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { loadConfig, isPlainObject } from './config.js';
@@ -19,6 +19,15 @@ import { GhostLoop } from './loop.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(here, '..');
+// Shown on Settings → About. CI stamps package.json from the release tag
+// at build time, so packaged apps report their real version.
+const appVersion = (() => {
+  try {
+    return JSON.parse(readFileSync(path.join(packageRoot, 'package.json'), 'utf8')).version || '';
+  } catch {
+    return '';
+  }
+})();
 
 /**
  * Start the Hype Ghost server.
@@ -195,6 +204,7 @@ export function startServer(opts = {}) {
     res.json({
       config: redacted,
       configPath,
+      version: appVersion,
       firstRun: !state.apiKeySet,
       apiKeySaved: Boolean(config.anthropic.apiKey),
       openaiKeySaved: Boolean(config.brain.openaiApiKey),
@@ -290,6 +300,28 @@ export function startServer(opts = {}) {
       setTimeout(() => {
         if (opts.onConfigSaved) opts.onConfigSaved();
         else console.log('[config] saved — restart the server to apply.');
+      }, 400);
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  // Factory reset (Settings → About): delete every file the app has saved —
+  // config (including the API key), session memory, chat history, and the
+  // cross-stream profile — then relaunch into the setup wizard. The UI
+  // confirms before calling; this endpoint is the point of no return.
+  app.post('/api/factory-reset', (_req, res) => {
+    try {
+      for (const p of [configPath, notesPath, sessionPath, profilePath]) {
+        try {
+          rmSync(p, { force: true });
+        } catch {}
+      }
+      console.log('[config] factory reset — all saved files deleted.');
+      res.json({ ok: true, restarting: Boolean(opts.onConfigSaved) });
+      setTimeout(() => {
+        if (opts.onConfigSaved) opts.onConfigSaved();
+        else console.log('[config] restart the server to finish the reset.');
       }, 400);
     } catch (err) {
       res.status(500).json({ ok: false, error: err.message });

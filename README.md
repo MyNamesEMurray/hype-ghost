@@ -64,6 +64,9 @@ Quit Hype Ghost.
   puts the chat on your stream/VOD.
 - **Updates:** the app checks GitHub Releases at launch and updates itself (toggle in
   Settings → App).
+- **Settings → About** shows the app version, the honesty/privacy rules at a glance, where
+  your data lives, and **Reset to factory defaults** — wipes all settings and memory, then
+  re-runs the setup wizard.
 - **Voice awareness:** install the
   [LocalVocal](https://obsproject.com/forum/resources/localvocal-local-live-captions-translation-on-the-go.1769/)
   OBS plugin (local whisper.cpp — audio never leaves your PC), add its Transcription filter
