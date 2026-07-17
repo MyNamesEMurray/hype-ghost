@@ -9,10 +9,16 @@
 - **Feature branches** — `claude/<topic>` or `feature/<topic>`, branched off `main`,
   one focused PR each into `main`.
 
-At release: bump the version in `package.json`, update `RELEASE_NOTES.md`, and tag
-(`vX.Y.Z`) — pushing the tag (or running the Release workflow manually from Actions)
-builds the Windows installer and publishes the GitHub Release the auto-updater reads
-(`.github/workflows/release.yml`).
+Releases are automated by [release-please](https://github.com/googleapis/release-please)
+(`.github/workflows/release-please.yml`): every merge into `main` updates a standing
+release PR whose changelog and version bump are computed from conventional commit
+prefixes (`feat:` → minor, `fix:` → patch, `feat!:`/`BREAKING CHANGE:` → major).
+**Merging that release PR is the release** — it bumps `package.json`, updates
+`CHANGELOG.md`, tags, and CI builds the Windows installer and publishes the GitHub
+Release the auto-updater reads (the release stays a draft until the installer is
+attached, so users never see a release without one). Manual fallback: the Release
+workflow (`.github/workflows/release.yml`) can still be run from Actions, which tags
+`v<package.json version>` with notes from `RELEASE_NOTES.md`.
 
 > The one rule worth remembering: **branch off `main`, PR into `main`.**
 
@@ -23,7 +29,11 @@ builds the Windows installer and publishes the GitHub Release the auto-updater r
    git fetch origin
    git switch -c feature/<topic> origin/main
    ```
-2. Develop. Keep commits focused — imperative subject line, the "why" in the body.
+2. Develop. Keep commits focused — a conventional prefix + imperative subject line
+   (`feat: add scene-aware energy presets`, `fix: chat orb decay`), the "why" in the
+   body. Release automation reads these prefixes to compute versions and write the
+   changelog, so anything user-visible should be a `feat:` or `fix:` (use `chore:`,
+   `docs:`, `ci:`, `test:` for the rest).
 3. Before pushing, run the same checks CI runs:
    ```
    npm ci --ignore-scripts
