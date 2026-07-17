@@ -31,7 +31,7 @@ npm run smoke
 
 ## Branch model
 
-**Branch off `v3`, PR into `v3`.** `main` is the released line the installer/auto-updater builds from; `v3` merges into `main` only at release time. `v2` and `v1.4-baseline` are historical — leave them alone. Feature branches are `claude/<topic>` or `feature/<topic>`. Releasing = merge `v3` → `main`, bump `package.json`, update `RELEASE_NOTES.md`, tag `vX.Y.Z`, push the tag — the Release workflow builds and publishes the installer.
+**Branch off `v3`, PR into `v3`.** `main` is the released line the installer/auto-updater builds from; `v3` merges into `main` only at release time. Older release lines (1.x/2.x) live in `main`'s history — there are no standing historical branches. Feature branches are `claude/<topic>` or `feature/<topic>`. Releasing = merge `v3` → `main`, bump `package.json`, update `RELEASE_NOTES.md`, tag `vX.Y.Z`, push the tag — the Release workflow builds and publishes the installer.
 
 ## Architecture
 
