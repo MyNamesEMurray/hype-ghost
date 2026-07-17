@@ -1,0 +1,15 @@
+# Shapes the auto-generated "What's Changed" section of release notes.
+# Label a PR to sort it: `enhancement` → New, `bug` → Fixes. Unlabeled
+# PRs land under "Other changes". PR titles become the notes lines, so
+# title PRs the way you'd want streamers to read them.
+changelog:
+  categories:
+    - title: New
+      labels:
+        - enhancement
+    - title: Fixes
+      labels:
+        - bug
+    - title: Other changes
+      labels:
+        - "*"

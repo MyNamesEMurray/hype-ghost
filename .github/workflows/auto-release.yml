@@ -1,0 +1,103 @@
+name: Auto Release
+
+# Every push to main that touches app code automatically gets a version
+# tag and a published release with the Windows installer. (Model borrowed
+# from LensLink's auto-release workflow.)
+#
+# The bump is a deliberate **git trailer** — a line, in any commit of the
+# merged PR, that is EXACTLY one of these (case-insensitive):
+#   Release-Bump: minor   -> minor (v3.2.0 -> v3.3.0)
+#   Release-Bump: major   -> major (v3.2.0 -> v4.0.0)
+#   (none)                -> patch (v3.2.0 -> v3.2.1)
+#   Release-Skip: true    -> no release
+# A trailer must be its own line, so merely *writing about* the keywords
+# in prose can never trigger a bump.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "public/**"
+      - "electron/**"
+      - "assets/**"
+      - "config.example.json"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: write
+
+# Two merges in quick succession must version sequentially: without this,
+# both runs read the same latest tag, compute the same next version, and
+# the loser's release is silently lost when its tag push fails.
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Tag next version
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Compute and push tag
+        id: bump
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+        run: |
+          # Refresh tags at the last moment: a queued run's checkout can
+          # predate the previous run's tag push.
+          git fetch origin --tags --quiet
+          latest=$(git tag --list 'v*' --sort=-v:refname | head -1)
+          latest=${latest:-v3.2.0}
+          version=${latest#v}
+          IFS=. read -r major minor patch <<< "$version"
+
+          # Every commit newly pushed to main (the merge commit AND the
+          # PR's own commits), so a trailer in any PR commit counts.
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            messages=$(git log -1 --format=%B "$AFTER")
+          else
+            messages=$(git log --format=%B "$BEFORE..$AFTER")
+          fi
+
+          # Trailers only match on their own line (^…$), so prose that
+          # merely mentions the keywords is ignored.
+          if grep -qiE '^Release-Skip:[[:space:]]*true[[:space:]]*$' <<< "$messages"; then
+            echo "Release-Skip trailer found — no release."
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if grep -qiE '^Release-Bump:[[:space:]]*major[[:space:]]*$' <<< "$messages"; then
+            major=$((major + 1)); minor=0; patch=0
+          elif grep -qiE '^Release-Bump:[[:space:]]*minor[[:space:]]*$' <<< "$messages"; then
+            minor=$((minor + 1)); patch=0
+          else
+            patch=$((patch + 1))
+          fi
+
+          tag="v$major.$minor.$patch"
+          echo "Releasing $tag (previous: $latest)"
+          git tag "$tag"
+          git push origin "$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  # Called directly rather than relying on the tag-push trigger: tags
+  # pushed with GITHUB_TOKEN never trigger other workflows (GitHub's
+  # recursion guard), so the release would silently not happen.
+  release:
+    name: Build & publish
+    needs: version
+    if: needs.version.outputs.tag != ''
+    uses: ./.github/workflows/release.yml
+    with:
+      tag_name: ${{ needs.version.outputs.tag }}
+    permissions:
+      contents: write
