@@ -23,4 +23,4 @@
 - [ ] Follows the design language in DESIGN.md (if UI changed)
 - [ ] AI-labeling / "simulated viewers" guarantees intact (if bot output or overlay changed)
 - [ ] Docs updated (README / config reference) if behavior or config changed
-- [ ] Targets `v3` (unless this is a release/hotfix to `main`)
+- [ ] Targets `main`

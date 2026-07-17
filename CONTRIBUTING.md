@@ -2,28 +2,26 @@
 
 ## Branch model
 
-- **`v3`** — the integration branch for 3.x. All feature work targets `v3`.
-- **`main`** — the released/stable line the installer and auto-updater build from.
-  `v3` merges into `main` at release time.
-- Older release lines (1.x, 2.x) live in `main`'s history and the `v1.x` tags — there are
-  no standing historical branches.
-- **Feature branches** — `claude/<topic>` or `feature/<topic>`, branched off `v3`,
-  one focused PR each into `v3`.
+- **`main`** — the only long-lived branch: the trunk all work targets, and the line the
+  installer and auto-updater build from. Released states are pinned by `vX.Y.Z` tags.
+- Older lines (1.x, 2.x, and the retired 3.x integration branch `v3`) live in `main`'s
+  history and the version tags — there are no standing historical branches.
+- **Feature branches** — `claude/<topic>` or `feature/<topic>`, branched off `main`,
+  one focused PR each into `main`.
 
-At release: merge `v3` → `main`, bump the version in `package.json`, update
-`RELEASE_NOTES.md`, tag it (`vX.Y.Z`), and push the tag — the Release workflow
-(`.github/workflows/release.yml`) builds the Windows installer and publishes
-the GitHub Release the auto-updater reads.
+At release: bump the version in `package.json`, update `RELEASE_NOTES.md`, and tag
+(`vX.Y.Z`) — pushing the tag (or running the Release workflow manually from Actions)
+builds the Windows installer and publishes the GitHub Release the auto-updater reads
+(`.github/workflows/release.yml`).
 
-> This is the one rule worth remembering: **branch off `v3`, PR into `v3`.**
-> (PR #1 once merged into `v2` by accident — that's the confusion this prevents.)
+> The one rule worth remembering: **branch off `main`, PR into `main`.**
 
 ## Making a change
 
-1. Branch off `v3`:
+1. Branch off `main`:
    ```
    git fetch origin
-   git switch -c feature/<topic> origin/v3
+   git switch -c feature/<topic> origin/main
    ```
 2. Develop. Keep commits focused — imperative subject line, the "why" in the body.
 3. Before pushing, run the same checks CI runs:
@@ -34,7 +32,7 @@ the GitHub Release the auto-updater reads.
    npm test
    npm run smoke
    ```
-4. Open a PR into `v3` using the template. CI (`.github/workflows/ci.yml`) must be green.
+4. Open a PR into `main` using the template. CI (`.github/workflows/ci.yml`) must be green.
 
 ## Conventions
 
@@ -58,7 +56,7 @@ npm run dist     # build the Windows installer into dist/
 
 ## CI
 
-`.github/workflows/ci.yml` runs on every PR into `v3`/`main` and on pushes to those branches:
+`.github/workflows/ci.yml` runs on every PR into `main` and on pushes to it:
 syntax-checks all JS, validates `config.example.json`, runs the `node:test` suite, and boots
 the headless server to confirm it serves its pages. It installs with `--ignore-scripts` (no
 Electron binary needed), so it's fast and needs no Windows runner or display.
