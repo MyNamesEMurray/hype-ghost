@@ -181,6 +181,8 @@
     chooseArche(document.querySelector('.arche-card'));
     $('botName').value = (data.cast && data.cast[0] && data.cast[0].name) || cfg.bot.name;
     $('apiKey').placeholder = apiKeySaved ? 'saved ✓ — leave blank to keep the current key' : 'sk-ant-…';
+    if (data.openaiKeySaved) $('oaiKey').placeholder = 'saved ✓ — leave blank to keep';
+    if (data.twitchSecretSaved) $('twSecret').placeholder = 'saved ✓ — leave blank to keep';
     $('model').value = cfg.anthropic.model; $('provider').value = cfg.brain.provider;
     $('oaiBase').value = cfg.brain.openaiBaseUrl; $('oaiModel').value = cfg.brain.openaiModel; $('oaiKey').value = cfg.brain.openaiApiKey;
     toggleProvider();
@@ -264,8 +266,11 @@
     if (!r.ok) { $('next').disabled = false; alert('Saving failed: ' + (r.error || 'unknown error')); return; }
     document.querySelectorAll('.step').forEach((el) => el.classList.remove('active'));
     document.querySelector('nav').style.display = 'none'; bar.style.display = 'none'; $('done').style.display = 'block';
-    $('doneMsg').textContent = r.restarting ? 'Saving and restarting Hype Ghost…' : 'Saved — restart the server to apply your settings.';
+    $('doneMsg').textContent = r.restarting ? 'Saving and restarting Hype Ghost…'
+      : r.applied ? 'Saved — your room is live.'
+      : 'Saved — restart the server to apply your settings.';
     if (r.restarting) setTimeout(() => { location.href = '/'; }, 4000);
+    else if (r.applied) setTimeout(() => { location.href = '/'; }, 1500);
   };
 
   show();

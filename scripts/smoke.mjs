@@ -10,6 +10,7 @@
  */
 import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
+import WebSocket from 'ws';
 
 const PORT = 3777; // src/cli.js uses config.port; with no config.json that's the default
 const base = `http://127.0.0.1:${PORT}`;
@@ -38,6 +39,7 @@ try {
     ['/settings', [200]],
     ['/overlay', [200]],
     ['/api/config', [200]],
+    ['/api/overlay-config', [200]],
     ['/', [200, 302]],
   ];
   failed = false;
@@ -47,6 +49,23 @@ try {
     console.log(`${good ? 'ok  ' : 'FAIL'} GET ${path} -> ${code}`);
     if (!good) failed = true;
   }
+
+  // The deck and overlay live on the WebSocket — assert a client gets the
+  // init snapshot (state + history) on connect.
+  const wsOk = await new Promise((resolve) => {
+    const ws = new WebSocket(`ws://127.0.0.1:${PORT}`);
+    const timer = setTimeout(() => { ws.terminate(); resolve(false); }, 5000);
+    const finish = (ok) => { clearTimeout(timer); try { ws.close(); } catch {} resolve(ok); };
+    ws.on('message', (data) => {
+      try {
+        const msg = JSON.parse(data);
+        finish(msg.type === 'init' && Boolean(msg.state) && Array.isArray(msg.history));
+      } catch { finish(false); }
+    });
+    ws.on('error', () => finish(false));
+  });
+  console.log(`${wsOk ? 'ok  ' : 'FAIL'} WS   connect -> init snapshot`);
+  if (!wsOk) failed = true;
 } catch (err) {
   console.error('smoke error:', err.message);
   failed = true;

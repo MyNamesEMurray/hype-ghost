@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Hype Ghost is a Windows desktop app (Electron) for streamers: a "cast" of up to four simulated AI viewers watches the stream via OBS screenshots + a local mic transcript and chats through a dashboard ("Command Deck") and an OBS browser-source overlay. Plain ESM JavaScript throughout (`"type": "module"`, Node ≥18) — no TypeScript, no bundler, no framework.
+Hype Ghost is a Windows desktop app (Electron) for streamers: a "cast" of up to four simulated AI viewers watches the stream via OBS screenshots + a local mic transcript and chats through a dashboard ("Command Deck") and an OBS browser-source overlay. Plain ESM JavaScript throughout (`"type": "module"`, Node ≥20) — no TypeScript, no bundler, no framework.
 
 ## Commands
 
@@ -36,7 +36,7 @@ npm run smoke
 
 The app is a local Express + WebSocket server with two hosts:
 
-- **`electron/main.js`** — desktop shell: tray-first (closing the window destroys the renderer but keeps the server chatting), single-instance lock, auto-update from GitHub Releases. When packaged, config lives in `%APPDATA%/Hype Ghost/`; in dev it's the project root. Saving config from the UI **relaunches the whole app** to apply it (`onConfigSaved`).
+- **`electron/main.js`** — desktop shell: tray-first (closing the window destroys the renderer but keeps the server chatting), single-instance lock, auto-update from GitHub Releases. When packaged, config lives in `%APPDATA%/Hype Ghost/`; in dev it's the project root. Saving config from the UI **relaunches the whole app** to apply it (`onConfigSaved`) — unless every changed key is in the server's `HOT_PATHS` set (overlay/theme/cadence/moments/memory/stream/talking points), in which case the server hot-applies it live. Session state (`session.json`: chat history, moments, cost, start time) persists across that relaunch with the same 6-hour freshness rule as session notes.
 - **`src/cli.js`** — the same server headless (used by `npm run serve` and the smoke test).
 
 **`src/server.js` — `startServer(opts)`** is the composition root. It wires everything below, owns all mutable session state (the `state` object, `history`, `highlights`, session notes), serves the four pages (`/` dashboard, `/overlay`, `/setup`, `/settings`) and the JSON API, and broadcasts to browser clients over WebSocket (`init` / `state` / `chat` / `moment` / `system` messages; clients send `streamer_message` / `pause` / `resume` / `nudge` / `set_energy` / `override_viewers`). Host-app integration points (restart, tray refresh, native file dialog) come in as `opts` hooks so the server never imports Electron.

@@ -164,7 +164,7 @@
           <input type="checkbox" id="ovReactions" data-path="overlay.reactions" data-type="bool">
           <label for="ovReactions">Flash a ✨ pop on the overlay when the cast flags a clip-worthy moment</label>
         </div>
-        <p class="hint">Overlay changes apply after Save &amp; restart (refresh the browser source in OBS if needed).</p>
+        <p class="hint">Overlay changes apply live when you save — no restart, no browser-source refresh needed.</p>
 
         <div style="margin-top:22px">
           <h2>🎮 Stream info for the cast</h2>
@@ -239,7 +239,7 @@
       <!-- ============ BEHAVIOR ============ -->
       <section class="card" data-tab="behavior">
         <h2>💬 Cadence &amp; energy</h2>
-        <p class="desc">How often the cast talks. The <b>energy dial</b> on the deck scales this live; these are the baselines it scales around.</p>
+        <p class="desc">How often the cast talks. The <b>energy dial</b> on the deck scales this live; these are the baselines it scales around. Cadence changes apply live on save.</p>
         <div class="row">
           <div><label>Default energy (0–100)</label><input type="number" data-path="energy" min="0" max="100"></div>
           <div><label>Solo — avg seconds between messages</label><input type="number" data-path="cadence.soloSeconds" min="20" max="900"></div>
@@ -262,6 +262,10 @@
           <div class="check">
             <input type="checkbox" id="momentsOn" data-path="moments.enabled" data-type="bool">
             <label for="momentsOn">Flag clip-worthy moments</label>
+          </div>
+          <div class="check">
+            <input type="checkbox" id="momentClip" data-path="moments.saveReplay" data-type="bool">
+            <label for="momentClip">Also save the OBS replay buffer on each moment <span style="color:var(--faint)">(needs the replay buffer running in OBS — turns flags into actual clips)</span></label>
           </div>
         </div>
 
@@ -345,7 +349,7 @@
 </div>
 
 <div id="savebar"><div class="inner">
-  <button id="save" class="primary">Save &amp; restart</button>
+  <button id="save" class="primary">Save changes</button>
   <span class="result" id="saveResult"></span>
 </div></div>
 
@@ -355,16 +359,13 @@
   let cfg = null, apiKeySaved = false, canRestart = false;
   let palette = {}, archetypes = [], castData = [];
 
-  const ACCENTS = { violet:'#a78bfa', cyan:'#38bdf8', emerald:'#34d399', amber:'#fbbf24', magenta:'#f472b6' };
+  let ACCENTS = {}; // accent hex values come from /api/config
   function applyAccent(name) {
-    const map = { violet:['#a78bfa','#c4b5fd','#0d0620','rgba(167,139,250,.14)','rgba(167,139,250,.4)'],
-      cyan:['#38bdf8','#7dd3fc','#04121c','rgba(56,189,248,.14)','rgba(56,189,248,.4)'],
-      emerald:['#34d399','#6ee7b7','#04140d','rgba(52,211,153,.14)','rgba(52,211,153,.4)'],
-      amber:['#fbbf24','#fcd34d','#1c1204','rgba(251,191,36,.14)','rgba(251,191,36,.4)'],
-      magenta:['#f472b6','#f9a8d4','#1c0714','rgba(244,114,182,.14)','rgba(244,114,182,.4)'] };
-    const a = map[name] || map.violet, r = document.documentElement.style;
-    r.setProperty('--accent', a[0]); r.setProperty('--accent-2', a[1]); r.setProperty('--on-accent', a[2]);
-    r.setProperty('--accent-soft', a[3]); r.setProperty('--accent-line', a[4]);
+    const a = ACCENTS[name] || ACCENTS.violet;
+    if (!a) return;
+    const r = document.documentElement.style;
+    r.setProperty('--accent', a.accent); r.setProperty('--accent-2', a.accent2); r.setProperty('--on-accent', a.on);
+    r.setProperty('--accent-soft', a.soft); r.setProperty('--accent-line', a.line);
   }
 
   const getPath = (o, p) => p.split('.').reduce((x, k) => (x == null ? undefined : x[k]), o);
@@ -393,15 +394,21 @@
   setLevel(localStorage.getItem('hg-settings-level') === 'adv');
 
   // ---- cast editor ----
+  function setCardColor(card, color) {
+    card.dataset.color = color;
+    card.querySelector('.av').style.background = (palette[color] || {}).hex || '#5ad1ff';
+    card.querySelectorAll('.swatch').forEach((s) => s.classList.toggle('on', s.dataset.color === color));
+  }
   function ghostCard(g, i, total) {
     const swatches = Object.keys(palette).map((k) =>
       `<span class="swatch ${k===g.color?'on':''}" data-color="${k}" style="background:${palette[k].hex};color:${palette[k].hex}"></span>`).join('');
     const arches = archetypes.map((a) =>
-      `<span class="chip" data-arche="${a.id}">${a.emoji} ${a.label}</span>`).join('');
+      `<span class="chip ${a.id===g.archetype?'on':''}" data-arche="${a.id}">${a.emoji} ${a.label}</span>`).join('');
     const hex = (palette[g.color] || {}).hex || '#5ad1ff';
     const card = document.createElement('div');
     card.className = 'ghost-card';
     card.dataset.color = g.color;
+    if (g.archetype) card.dataset.arche = g.archetype;
     card.innerHTML = `
       <div class="gc-top">
         <div class="av" style="background:${hex}">${(g.name||'?').charAt(0).toUpperCase()}</div>
@@ -416,15 +423,20 @@
     const nameInput = card.querySelector('.c-name');
     const av = card.querySelector('.av');
     nameInput.addEventListener('input', () => { av.textContent = (nameInput.value || '?').charAt(0).toUpperCase(); });
-    // color swatches
+    // color swatches — stage colors are identities, so no two ghosts share
+    // one: picking a color another ghost wears swaps it for this one's
     card.querySelectorAll('.swatch').forEach((sw) => sw.onclick = () => {
-      card.dataset.color = sw.dataset.color;
-      const px = palette[sw.dataset.color].hex; av.style.background = px;
-      card.querySelectorAll('.swatch').forEach((s) => s.classList.toggle('on', s === sw));
+      const pick = sw.dataset.color;
+      if (pick === card.dataset.color) return;
+      const other = [...document.querySelectorAll('.ghost-card')].find((c) => c !== card && c.dataset.color === pick);
+      if (other) setCardColor(other, card.dataset.color);
+      setCardColor(card, pick);
     });
-    // archetype chips fill personality (+ color)
+    // archetype chips fill personality (+ color), and are remembered on save
     card.querySelectorAll('[data-arche]').forEach((ch) => ch.onclick = () => {
       const a = archetypes.find((x) => x.id === ch.dataset.arche);
+      card.dataset.arche = a.id;
+      card.querySelectorAll('[data-arche]').forEach((x) => x.classList.toggle('on', x === ch));
       card.querySelector('.c-pers').value = a.personality;
       const sw = card.querySelector(`.swatch[data-color="${a.color}"]`);
       if (sw) sw.click();
@@ -465,6 +477,7 @@
       name: c.querySelector('.c-name').value.trim() || `Ghost ${i+1}`,
       personality: c.querySelector('.c-pers').value.trim() || 'friendly and curious',
       color: c.dataset.color,
+      ...(c.dataset.arche ? { archetype: c.dataset.arche } : {}),
       enabled: true,
     }));
   }
@@ -473,6 +486,7 @@
   fetch('/api/config').then((r) => r.json()).then((data) => {
     cfg = data.config; apiKeySaved = data.apiKeySaved; canRestart = data.canRestart;
     palette = data.palette || {}; archetypes = data.archetypes || []; castData = data.cast || [];
+    ACCENTS = data.accents || {};
     $('modelSelect').innerHTML = data.models.map((m) => `<option value="${m.id}">${m.label}</option>`).join('');
     for (const f of fields) {
       const v = getPath(cfg, f.dataset.path);
@@ -480,12 +494,15 @@
       else if (v !== undefined && v !== null) f.value = v;
     }
     if (apiKeySaved) $('apiKeyField').placeholder = 'saved ✓ — leave blank to keep the current key';
+    const saved = 'saved ✓ — leave blank to keep';
+    if (data.openaiKeySaved) fields.find((f) => f.dataset.path === 'brain.openaiApiKey').placeholder = saved;
+    if (data.twitchSecretSaved) fields.find((f) => f.dataset.path === 'twitch.clientSecret').placeholder = saved;
     $('talkingPoints').value = (cfg.talkingPoints || []).join('\n');
     renderCast();
     // accent picker
     const acc = (cfg.theme && cfg.theme.accent) || 'violet';
     $('accentField').value = acc; applyAccent(acc);
-    $('accentRow').innerHTML = Object.keys(ACCENTS).map((k) => `<span class="accent-dot ${k===acc?'on':''}" data-acc="${k}" style="background:${ACCENTS[k]};color:${ACCENTS[k]}"></span>`).join('');
+    $('accentRow').innerHTML = Object.keys(ACCENTS).map((k) => `<span class="accent-dot ${k===acc?'on':''}" data-acc="${k}" style="background:${ACCENTS[k].accent};color:${ACCENTS[k].accent}"></span>`).join('');
     $('accentRow').querySelectorAll('.accent-dot').forEach((d) => d.onclick = () => {
       $('accentField').value = d.dataset.acc; applyAccent(d.dataset.acc);
       $('accentRow').querySelectorAll('.accent-dot').forEach((x) => x.classList.toggle('on', x === d));
@@ -571,7 +588,8 @@
     const r = await fetch('/api/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cfg) }).then((x)=>x.json()).catch((e)=>({ok:false,error:e.message}));
     if (!r.ok) { $('save').disabled = false; $('saveResult').className = 'result err'; $('saveResult').textContent = '✗ ' + (r.error || 'save failed'); return; }
     $('saveResult').className = 'result ok';
-    if (r.restarting) { $('saveResult').textContent = '✓ saved — restarting Hype Ghost…'; setTimeout(()=>{ location.href='/'; }, 4000); }
+    if (r.applied) { $('save').disabled = false; $('saveResult').textContent = '✓ saved — applied live, no restart needed'; }
+    else if (r.restarting) { $('saveResult').textContent = '✓ saved — restarting Hype Ghost…'; setTimeout(()=>{ location.href='/'; }, 4000); }
     else { $('save').disabled = false; $('saveResult').textContent = '✓ saved — restart the server to apply.'; }
   };
 </script>

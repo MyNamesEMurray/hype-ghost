@@ -79,7 +79,9 @@ export class Brain {
     }
   }
 
-  buildSystemPrompt(energy) {
+  // Byte-stable across the whole session — per-message state (energy, notes,
+  // transcript, screenshot) lives in the user turn so this prefix can cache.
+  buildSystemPrompt() {
     const solo = this.personas.length === 1;
     const who = solo
       ? [`You are "${this.personas[0].name}", a simulated practice-chat companion for a live streamer.`,
@@ -97,8 +99,6 @@ export class Brain {
       `practices talking to chat even when nobody is watching. Messages appear on the stream`,
       `overlay clearly labeled as AI — no need to disclaim it in the text, but if asked,`,
       `cheerfully confirm being the AI practice ${solo ? 'buddy' : 'buddies'}.`,
-      ``,
-      `Room energy right now: ${energyTone(energy)}`,
       ``,
       `You may be given an auto-generated transcript of what the streamer said out loud on mic.`,
       `Treat it as the streamer talking to chat: follow up naturally, never quote it verbatim`,
@@ -134,6 +134,19 @@ export class Brain {
       `Each message on its own line as "NAME: message text" using the viewer names above.`,
       `No other text, no quotes, no explanations.`,
     ].join('\n');
+  }
+
+  /**
+   * Slow-moving context that belongs with the system prompt: standing stream
+   * context (static per session) and the viewer profile (refreshes every ~12
+   * messages). A separate block with its own cache breakpoint, so a profile
+   * update doesn't bust the cached rules prefix above it.
+   */
+  buildContextBlock({ streamContext, profile } = {}) {
+    const parts = [];
+    if (streamContext) parts.push(`About this stream (from the streamer): ${streamContext}`);
+    if (profile) parts.push(`Viewer profile (long-term memory from previous streams):\n${profile}`);
+    return parts.length ? parts.join('\n\n') : null;
   }
 
   /**
@@ -183,15 +196,13 @@ export class Brain {
       blocks.push({ text: 'No screenshot is available (OBS not reachable) — go off the conversation instead; do not invent things you cannot see.' });
     }
     const hasStreamInfo = streamInfo && (streamInfo.game || streamInfo.title);
-    if (sceneName || streamContext || hasStreamInfo) {
+    if (sceneName || hasStreamInfo) {
       const bits = [];
       if (streamInfo?.game) bits.push(`Currently playing (${streamInfo.source === 'twitch' ? 'Twitch category' : 'detected from OBS'}): ${streamInfo.game}`);
       if (streamInfo?.title) bits.push(`Stream title: "${streamInfo.title}"`);
       if (sceneName) bits.push(`Current OBS scene name: "${sceneName}"`);
-      if (streamContext) bits.push(`About this stream (from the streamer): ${streamContext}`);
       blocks.push({ text: bits.join('\n') });
     }
-    if (profile) blocks.push({ text: `Viewer profile (long-term memory from previous streams):\n${profile}` });
     if (notes) blocks.push({ text: `Session notes (what has happened earlier this stream):\n${notes}` });
     if (transcript) blocks.push({ text: `Mic transcript — what the streamer said out loud recently (auto-generated, may contain errors):\n"${transcript}"` });
     if (partyTranscript) blocks.push({ text: `Party audio — what ${partyLabel || 'the people the streamer is playing with'} said recently on a separate channel (NOT the streamer; auto-generated, may contain errors):\n"${partyTranscript}"` });
@@ -208,13 +219,17 @@ export class Brain {
     const profileInstruction = updateProfile
       ? `\n\nThen on a new line write exactly ---PROFILE--- followed by an updated viewer profile: plain text, under 150 words of LONG-TERM memory worth keeping across streams — per-game progress ("Hades: reached heat 16"), recurring jokes, facts about the streamer. Merge with the existing profile; drop stale trivia.`
       : '';
-    blocks.push({ text: `${situation}\n\nRecent chat:\n${historyText}\n\n${task}${pointInstruction}${momentInstruction}${notesInstruction}${profileInstruction}` });
+    blocks.push({ text: `Room energy right now: ${energyTone(energy)}\n\n${situation}\n\nRecent chat:\n${historyText}\n\n${task}${pointInstruction}${momentInstruction}${notesInstruction}${profileInstruction}` });
+
+    const systemParts = [this.buildSystemPrompt()];
+    const context = this.buildContextBlock({ streamContext, profile });
+    if (context) systemParts.push(context);
 
     const maxTokens = 200 + (updateNotes ? 250 : 0) + (updateProfile ? 300 : 0) + (flagMoments ? 20 : 0);
     const { raw, usage } =
       this.provider === 'anthropic'
-        ? await this.callAnthropic(blocks, maxTokens, energy)
-        : await this.callOpenAI(blocks, maxTokens, energy);
+        ? await this.callAnthropic(blocks, maxTokens, systemParts)
+        : await this.callOpenAI(blocks, maxTokens, systemParts);
 
     // Split off any piggybacked tail sections, then parse "NAME: text" lines.
     const newNotes = extractSection(raw, 'NOTES');
@@ -250,7 +265,7 @@ export class Brain {
     return messages.slice(0, 2); // hard cap, whatever the model does
   }
 
-  async callAnthropic(blocks, maxTokens, energy) {
+  async callAnthropic(blocks, maxTokens, systemParts) {
     const content = blocks.map((b) =>
       b.image
         ? { type: 'image', source: { type: 'base64', media_type: b.image.mediaType, data: b.image.data } }
@@ -259,16 +274,18 @@ export class Brain {
     const response = await this.client.messages.create({
       model: this.model,
       max_tokens: maxTokens,
-      // Inert below the model's minimum cacheable prefix; engages automatically
-      // (and beneficially, at this cadence) if the prompt ever grows past it.
-      system: [{ type: 'text', text: this.buildSystemPrompt(energy), cache_control: { type: 'ephemeral' } }],
+      // Two cache breakpoints: the byte-stable rules prefix, then the slow-
+      // moving context (stream context + viewer profile). Inert below the
+      // model's minimum cacheable prefix; engages automatically (and
+      // beneficially, at this cadence) once the prompt grows past it.
+      system: systemParts.map((text) => ({ type: 'text', text, cache_control: { type: 'ephemeral' } })),
       messages: [{ role: 'user', content }],
     });
     const raw = response.content.filter((b) => b.type === 'text').map((b) => b.text).join(' ').trim();
     return { raw, usage: response.usage };
   }
 
-  async callOpenAI(blocks, maxTokens, energy) {
+  async callOpenAI(blocks, maxTokens, systemParts) {
     const content = blocks.map((b) =>
       b.image
         ? { type: 'image_url', image_url: { url: `data:${b.image.mediaType};base64,${b.image.data}` } }
@@ -280,11 +297,15 @@ export class Brain {
         'Content-Type': 'application/json',
         ...(this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {}),
       },
+      // Node's fetch has no default timeout, so a hung local endpoint would
+      // wedge the loop forever (busy never clears). Generous, because small
+      // local models sharing the GPU with a game can legitimately be slow.
+      signal: AbortSignal.timeout(120_000),
       body: JSON.stringify({
         model: this.model,
         max_tokens: maxTokens,
         messages: [
-          { role: 'system', content: this.buildSystemPrompt(energy) },
+          { role: 'system', content: systemParts.join('\n\n') },
           { role: 'user', content },
         ],
       }),

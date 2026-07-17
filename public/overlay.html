@@ -71,21 +71,24 @@
   let colors = {}; // author name -> hex
   const stack = document.getElementById('stack');
 
-  const ACCENTS = { violet:['#a78bfa','#c4b5fd'], cyan:['#38bdf8','#7dd3fc'], emerald:['#34d399','#6ee7b7'], amber:['#fbbf24','#fcd34d'], magenta:['#f472b6','#f9a8d4'] };
+  // Accent hex values come from the server; a minimal violet fallback covers
+  // the moment before the first fetch resolves.
+  let ACCENTS = { violet: { accent: '#a78bfa', accent2: '#c4b5fd' } };
 
-  fetch('/api/overlay-config')
-    .then((r) => r.json())
-    .then((d) => {
-      cfg = { ...cfg, ...d.overlay };
-      (d.cast || []).forEach((c) => { colors[c.name] = c.color; });
-      const a = ACCENTS[d.accent] || ACCENTS.violet;
-      document.documentElement.style.setProperty('--accent', a[0]);
-      document.documentElement.style.setProperty('--accent-2', a[1]);
-      document.body.style.setProperty('--scale', cfg.fontScale || 1);
-      document.body.classList.toggle('align-right', cfg.align === 'right');
-      document.body.classList.toggle('compact', cfg.theme === 'compact');
-    })
-    .catch(() => {});
+  function applyCfg(d) {
+    cfg = { ...cfg, ...d.overlay };
+    if (d.accents) ACCENTS = d.accents;
+    colors = {};
+    (d.cast || []).forEach((c) => { colors[c.name] = c.color; });
+    const a = ACCENTS[d.accent] || ACCENTS.violet;
+    document.documentElement.style.setProperty('--accent', a.accent);
+    document.documentElement.style.setProperty('--accent-2', a.accent2);
+    document.body.style.setProperty('--scale', cfg.fontScale || 1);
+    document.body.classList.toggle('align-right', cfg.align === 'right');
+    document.body.classList.toggle('compact', cfg.theme === 'compact');
+  }
+  const loadCfg = () => fetch('/api/overlay-config').then((r) => r.json()).then(applyCfg).catch(() => {});
+  loadCfg();
 
   function addMessage(m) {
     const div = document.createElement('div');
@@ -120,6 +123,7 @@
       if (msg.type === 'init') { stack.innerHTML = ''; msg.history.slice(-(cfg.maxVisible || 6)).forEach(addMessage); }
       else if (msg.type === 'chat') addMessage(msg.msg);
       else if (msg.type === 'moment') flashMoment(msg.moment);
+      else if (msg.type === 'config') loadCfg(); // settings were hot-applied — re-style live
     };
     // OBS browser sources live a long time — auto-reconnect if the server restarts.
     ws.onclose = () => setTimeout(connect, 3000);

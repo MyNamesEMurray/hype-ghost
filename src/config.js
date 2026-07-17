@@ -5,7 +5,7 @@ import path from 'node:path';
 const packageRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const examplePath = path.join(packageRoot, 'config.example.json');
 
-function isPlainObject(v) {
+export function isPlainObject(v) {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
 }
 

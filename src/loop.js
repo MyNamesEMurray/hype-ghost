@@ -36,7 +36,9 @@ export class GhostLoop {
 
     this.timer = null;
     this.pendingTrigger = 'timer';
+    this.droppedTrigger = null; // reply/nudge that landed mid-generation, owed a retry
     this.lastShotAt = 0;
+    this.lastShotData = null; // last frame sent, for static-scene dedupe
     this.lastSceneName = null;
     this.lastGenAt = 0;
     this.botMessageCount = 0;
@@ -95,6 +97,7 @@ export class GhostLoop {
   pause() {
     this.paused = true;
     this.autoPaused = false;
+    this.droppedTrigger = null;
     this.stopResumeWatcher();
     this.scheduleNext();
   }
@@ -210,7 +213,15 @@ export class GhostLoop {
   }
 
   async speak(trigger) {
-    if (this.paused || this.busy) return;
+    if (this.paused) return;
+    if (this.busy) {
+      // A reply or nudge that fires while a generation is in flight must not
+      // be silently dropped — the streamer is waiting on it. Hold the trigger;
+      // the in-flight generation's finally block re-schedules it soon. (Voice
+      // never lands here: fireVoiceReply has its own busy-retry loop.)
+      if (trigger !== 'timer') this.droppedTrigger = trigger;
+      return;
+    }
     this.busy = true;
     this.hooks.onState();
     try {
@@ -227,6 +238,15 @@ export class GhostLoop {
           this.lastShotAt = Date.now();
           this.lastSceneName = screenshot.sceneName ?? this.lastSceneName;
           this.obsFailSince = null;
+          // Static scenes (BRB / "starting soon" / pause screens) encode to
+          // byte-identical JPEGs — don't pay the biggest token cost per
+          // message to resend a frame the model has already seen.
+          if (screenshot.data === this.lastShotData) {
+            screenshot = null;
+            staleScreenshot = true;
+          } else {
+            this.lastShotData = screenshot.data;
+          }
         } else {
           this.obsFailSince = this.obsFailSince ?? Date.now();
           if (this.maybeAutoPause()) return;
@@ -312,9 +332,17 @@ export class GhostLoop {
       this.hooks.onSystem(`Message generation failed: ${err.message}`);
     } finally {
       this.busy = false;
-      // A reply timer set while this generation was in flight survives —
-      // only fall back to the normal cadence if nothing sooner is pending.
-      if (this.timer === null && !this.paused) this.scheduleNext();
+      const dropped = this.droppedTrigger;
+      this.droppedTrigger = null;
+      if (!this.paused) {
+        // A reply timer set while this generation was in flight survives; a
+        // reply/nudge that fired into the busy guard gets its retry here.
+        // Only fall back to the normal cadence if nothing sooner is owed.
+        if (this.timer === null) {
+          if (dropped) this.scheduleNext(3000 + Math.random() * 3000, dropped);
+          else this.scheduleNext();
+        }
+      }
       this.hooks.onState();
     }
   }
