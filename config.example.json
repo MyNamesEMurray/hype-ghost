@@ -9,7 +9,8 @@
     "autoUpdate": true,
     "costMeter": true,
     "autoPause": true,
-    "autoPauseMinutes": 10
+    "autoPauseMinutes": 10,
+    "costCapDollars": 0
   },
   "stream": {
     "context": ""

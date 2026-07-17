@@ -47,12 +47,35 @@ export class ObsCapture {
   }
 
   /**
+   * Name of the current program scene, or null if OBS is unreachable.
+   * Cheap and local — callers use it both for game awareness and to
+   * distinguish "OBS is gone" from a failed screenshot request.
+   */
+  async getSceneName() {
+    try {
+      await this.ensureConnected();
+    } catch {
+      return null;
+    }
+    try {
+      const { currentProgramSceneName } = await this.obs.call('GetCurrentProgramScene');
+      return currentProgramSceneName;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Returns { data, mediaType } where data is raw base64 (no data: prefix),
-   * or null if OBS is unreachable.
+   * or null if OBS is unreachable or the screenshot request failed.
    */
   async screenshot() {
     try {
       await this.ensureConnected();
+    } catch {
+      return null;
+    }
+    try {
       const { currentProgramSceneName } = await this.obs.call('GetCurrentProgramScene');
       const { imageData } = await this.obs.call('GetSourceScreenshot', {
         sourceName: currentProgramSceneName,
@@ -65,8 +88,10 @@ export class ObsCapture {
       if (!match) return null;
       const mediaType = match[1] === 'image/jpg' ? 'image/jpeg' : match[1];
       return { data: match[2], mediaType, sceneName: currentProgramSceneName };
-    } catch (err) {
-      this.connected = false;
+    } catch {
+      // Request-level failure — the connection may well be fine (a real
+      // disconnect fires the ConnectionClosed handler, which clears the
+      // flag), so don't force a reconnect churn here.
       return null;
     }
   }

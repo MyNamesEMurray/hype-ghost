@@ -16,7 +16,7 @@ npm run icons    # regenerate build/icon.ico + assets PNGs from assets/*.svg
 npm run dist     # electron-builder --win → NSIS installer in dist/
 ```
 
-- There are no tests and no linter. The only automated check is smoke mode: `HG_SMOKE=1 npm start` boots the app headless, fetches the dashboard, and exits 0/1.
+- `npm test` runs the `node:test` suite in `test/` (loop timing/circuit-breaker, transcript tailing, config sanitization, cost math, response parsing) — no network, OBS, or fake-timer dependencies; run a single file with `node --test test/loop.test.js`. There is no linter. The end-to-end check is smoke mode: `HG_SMOKE=1 npm start` boots the app headless, fetches the dashboard, and exits 0/1. CI (`.github/workflows/ci.yml`) runs both on Windows, and builds the installer on `v*` tags.
 - ESM throughout (`"type": "module"`), Node >= 18, no build/bundle step — `public/` is served as-is.
 - The app targets Windows (tray, NSIS, %APPDATA%), but `npm run serve` works anywhere for development.
 
@@ -28,9 +28,9 @@ Two entry points converge on one function: `electron/main.js` (desktop shell: tr
 
 The pieces, each deliberately single-purpose:
 
-- **`src/loop.js` — GhostLoop**: the timing state machine, extracted so the hardest-to-reason-about logic is in one place. Owns when to speak and why (`trigger`: `timer` | `reply` | `nudge` | `voice`), cadence with jitter/burst/lull, the busy flag, voice-reply debounce with a rate floor, screenshot-gap skipping (biggest per-message token cost), and the auto-pause dead-man switch (OBS unreachable N minutes → pause API spend; auto-resumes). Touch timing behavior here, not in the server.
-- **`src/brain.js` — Brain**: one Anthropic messages call per chat message. The system prompt encodes the persona and chat-realism rules; message variety is enforced by a weighted style pool in code, not by hoping. Session-notes updates piggyback on a normal generation via a `---NOTES---` delimiter in the same response — there is no separate memory call.
-- **`src/config.js`**: `config.example.json` is the single source of config defaults, deep-merged under the user's file. Loading never throws — bad/missing config degrades to defaults with a warning. Add any new config key to `config.example.json` first; that *is* the schema.
+- **`src/loop.js` — GhostLoop**: the timing state machine, extracted so the hardest-to-reason-about logic is in one place. Owns when to speak and why (`trigger`: `timer` | `reply` | `nudge` | `voice`), cadence with jitter/burst/lull, the busy flag, voice-reply debounce with a rate floor, screenshot-gap and idle-scene (BRB/starting-soon) skipping (the image is the biggest per-message token cost), the auto-pause dead-man switch (OBS unreachable N minutes → pause API spend; auto-resumes), and the API-failure circuit breaker (5 consecutive generation failures → auto-pause). All app-initiated pauses go through `pauseFor(reason, …)` — the dashboard shows the reason. Touch timing behavior here, not in the server.
+- **`src/brain.js` — Brain**: one Anthropic messages call per chat message. The system prompt encodes the persona and chat-realism rules; message variety is enforced by a weighted style pool in code, not by hoping. Session-notes updates piggyback on a normal generation via a `---NOTES---` delimiter in the same response — there is no separate memory call. The system prompt is deliberately verbose: its length must clear the model's minimum cacheable prefix (~1024 tokens) for prompt caching to engage (a test enforces the floor) — keep per-message content out of it, and don't trim it.
+- **`src/config.js`**: `config.example.json` is the single source of config defaults, deep-merged under the user's file. Loading never throws — bad/missing config degrades to defaults with a warning, and every numeric value is type-checked and clamped to the same ranges the Settings UI enforces (a NaN cadence would fire timers instantly and burn money). Add any new config key to `config.example.json` first; that *is* the schema — and give numeric keys a `NUMERIC_LIMITS` entry.
 - **`src/models.js`**: single source of truth for the model catalog (ids, labels, $/MTok). The setup wizard and Settings build their model dropdowns from this via `GET /api/config` — adding a model is one edit here, no UI change.
 - **`src/obs.js` — ObsCapture**: obs-websocket wrapper for program-scene screenshots, the one-click overlay install, and reading a text source (LocalVocal captions). Dedupes concurrent connects and backs off 30s when OBS is closed — callers just call `screenshot()`/`ensureConnected()` and get null/throw on failure.
 - **`src/transcript.js` — TranscriptFeed**: ingests the LocalVocal mic transcription, either tailing a file by byte offset (with rewrite detection and partial-line carry) or polling an OBS text source. Keeps a rolling time window; `onSpeech` is what lets the ghost hear a spoken answer (`loop.onSpeech()`).
@@ -43,7 +43,7 @@ The pieces, each deliberately single-purpose:
 ## Security invariants (do not weaken)
 
 - The server binds to `127.0.0.1` only, validates the `Host` header against a localhost allowlist (DNS-rebinding defense), and rejects WebSocket upgrades from foreign `Origin`s. The config API holds the unencrypted Anthropic key, so this surface is what protects it.
-- The API key never leaves the server: `GET /api/config` redacts it, and a blank key in a `POST /api/config` payload means "keep the saved one". Preserve both halves of that contract when touching config endpoints.
+- Secrets never leave the server: `GET /api/config` redacts the Anthropic key, OBS password, and Twitch client secret (with `*Saved` flags so the UI can say "saved ✓"), and a blank secret in a `POST /api/config` payload means "keep the saved one" (the test endpoints follow the same contract). Preserve both halves when touching config endpoints.
 - In Electron, external links open in the real browser (`setWindowOpenHandler` + `will-navigate` guard), never in the chrome-less app window.
 
 ## Design language

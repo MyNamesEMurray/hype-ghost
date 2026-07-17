@@ -5,8 +5,9 @@
  *
  * Owns: the message timer (with trigger threading), the busy flag, manual
  * and automatic pause, the voice-reply debounce (with rate floor), the
- * screenshot gap/scene tracking, session-notes cadence, and the auto-pause
- * dead-man switch that stops API spend when OBS goes away.
+ * screenshot gap/scene tracking, session-notes cadence, the auto-pause
+ * dead-man switch that stops API spend when OBS goes away, and the API
+ * failure circuit breaker that stops retrying a broken key/account.
  *
  * The host provides context via hooks:
  *   getMode()            -> 'solo' | 'viewers'
@@ -17,6 +18,19 @@
  *   getNotes()/setNotes(s) -> rolling session memory persistence
  *   addUsage(usage)      -> token usage for the cost meter
  */
+
+// Scene names that unambiguously mean "nothing is happening on screen", so
+// the screenshot (the biggest token cost per message) is skipped entirely.
+// Conservative on purpose: a false positive silently blinds the ghost on a
+// real scene, so bare words like "pause" or "break" are NOT matched ("no
+// pause run", "Breakout") — only clear idle-screen phrases.
+const IDLE_SCENE_RE =
+  /\bbrb\b|be right back|starting soon|stream starting|ending soon|stream ending|\bintermission\b|\bafk\b|\boffline\b|\bintro\b|\boutro\b/i;
+
+// Consecutive generation failures before the circuit breaker pauses the
+// ghost instead of retrying a broken key/account forever.
+const FAIL_STREAK_LIMIT = 5;
+
 export class GhostLoop {
   constructor({ config, brain, obs, transcriptFeed, hooks }) {
     this.config = config;
@@ -26,7 +40,8 @@ export class GhostLoop {
     this.hooks = hooks;
 
     this.paused = false;
-    this.autoPaused = false; // paused by the dead-man switch, not the user
+    this.autoPaused = false; // paused by the app, not the user
+    this.pauseReason = null; // 'obs' | 'api' | 'cost' when autoPaused
     this.busy = false;
     this.nextMessageAt = null;
 
@@ -36,6 +51,7 @@ export class GhostLoop {
     this.lastSceneName = null;
     this.lastGenAt = 0;
     this.botMessageCount = 0;
+    this.failStreak = 0; // consecutive generation failures
 
     this.voiceReplyTimer = null;
     this.voiceRepliedTo = null; // bot message id already answered by voice
@@ -54,6 +70,7 @@ export class GhostLoop {
     return {
       paused: this.paused,
       autoPaused: this.autoPaused,
+      pauseReason: this.pauseReason,
       busy: this.busy,
       nextMessageAt: this.nextMessageAt,
     };
@@ -66,6 +83,7 @@ export class GhostLoop {
   pause() {
     this.paused = true;
     this.autoPaused = false;
+    this.pauseReason = null;
     this.stopResumeWatcher();
     this.scheduleNext();
   }
@@ -73,8 +91,25 @@ export class GhostLoop {
   resume() {
     this.paused = false;
     this.autoPaused = false;
+    this.pauseReason = null;
+    this.failStreak = 0; // a manual resume is a fresh chance
     this.stopResumeWatcher();
     this.scheduleNext(3000);
+  }
+
+  /**
+   * Pause on the app's initiative (dead-man switch, API failure breaker,
+   * cost cap) with a reason the dashboard can show and a system notice.
+   */
+  pauseFor(reason, message) {
+    this.paused = true;
+    this.autoPaused = true;
+    this.pauseReason = reason;
+    clearTimeout(this.timer);
+    this.timer = null;
+    this.nextMessageAt = null;
+    this.hooks.onSystem(message);
+    this.hooks.onState();
   }
 
   nudge() {
@@ -118,7 +153,12 @@ export class GhostLoop {
       }
       return;
     }
-    this.voiceRepliedTo = this.hooks.getHistory().at(-1)?.id ?? null;
+    // Re-validate the history tail: the 8s debounce window may have seen the
+    // streamer type a message — then the typed-reply trigger owns the
+    // response, and a voice reply would double up (or mark the wrong id).
+    const last = this.hooks.getHistory().at(-1);
+    if (!last || last.role !== 'bot' || last.id === this.voiceRepliedTo) return;
+    this.voiceRepliedTo = last.id;
     this.lastVoiceReplyAt = Date.now();
     clearTimeout(this.timer);
     this.timer = null;
@@ -170,17 +210,27 @@ export class GhostLoop {
       const minShotGapMs = (this.config.cadence.minScreenshotGapSeconds ?? 25) * 1000;
       let screenshot = null;
       let staleScreenshot = false;
+      let idleScene = false;
       if (Date.now() - this.lastShotAt < minShotGapMs) {
         staleScreenshot = true;
       } else {
-        screenshot = await this.obs.screenshot();
-        if (screenshot) {
-          this.lastShotAt = Date.now();
-          this.lastSceneName = screenshot.sceneName ?? this.lastSceneName;
-          this.obsFailSince = null;
-        } else {
+        // Scene name first (a cheap local call): it distinguishes "OBS is
+        // gone" from a failed screenshot request, and idle scenes (BRB /
+        // starting soon) skip the image entirely — nothing on them is worth
+        // ~480 image tokens, and they're exactly when streams idle longest.
+        const sceneName = await this.obs.getSceneName();
+        if (sceneName === null) {
           this.obsFailSince = this.obsFailSince ?? Date.now();
           if (this.maybeAutoPause()) return;
+        } else {
+          this.obsFailSince = null;
+          this.lastSceneName = sceneName;
+          if (IDLE_SCENE_RE.test(sceneName)) {
+            idleScene = true;
+          } else {
+            screenshot = await this.obs.screenshot();
+            if (screenshot) this.lastShotAt = Date.now();
+          }
         }
       }
 
@@ -205,15 +255,16 @@ export class GhostLoop {
         history: this.hooks.getHistory().slice(-14),
         screenshot,
         staleScreenshot,
+        idleScene,
         mode: this.hooks.getMode(),
         trigger,
         transcript: transcript || undefined,
         notes: this.hooks.getNotes() || undefined,
         updateNotes,
         sceneName: this.lastSceneName || undefined,
-        streamContext: this.config.stream?.context || undefined,
         talkingPoint,
       });
+      this.failStreak = 0;
 
       if (result.usage) this.hooks.addUsage(result.usage);
       if (result.text) {
@@ -223,7 +274,16 @@ export class GhostLoop {
       if (result.notes) this.hooks.setNotes(result.notes);
     } catch (err) {
       console.error('[ghost] generation failed:', err.message);
+      this.failStreak++;
       this.hooks.onSystem(`Message generation failed: ${err.message}`);
+      // Circuit breaker: a revoked key, exhausted credits, or a long outage
+      // shouldn't produce an error message every cadence tick forever.
+      if (this.failStreak >= FAIL_STREAK_LIMIT) {
+        this.pauseFor(
+          'api',
+          `Message generation has failed ${this.failStreak} times in a row — the ghost paused itself to avoid wasted API calls. Check your API key and credits, then resume from the dashboard.`
+        );
+      }
     } finally {
       this.busy = false;
       // A reply timer set while this generation was in flight survives —
@@ -245,13 +305,10 @@ export class GhostLoop {
     if (!app.autoPause || this.autoPaused) return false;
     const limitMs = (app.autoPauseMinutes ?? 10) * 60_000;
     if (!this.obsFailSince || Date.now() - this.obsFailSince < limitMs) return false;
-    this.paused = true;
-    this.autoPaused = true;
-    this.nextMessageAt = null;
-    this.hooks.onSystem(
+    this.pauseFor(
+      'obs',
       `OBS has been unreachable for ${app.autoPauseMinutes ?? 10} minutes — the ghost auto-paused to save API costs. It resumes when OBS is back (or resume manually).`
     );
-    this.hooks.onState();
     this.resumeWatcher = setInterval(async () => {
       try {
         await this.obs.ensureConnected();
@@ -261,6 +318,7 @@ export class GhostLoop {
       this.stopResumeWatcher();
       this.paused = false;
       this.autoPaused = false;
+      this.pauseReason = null;
       this.obsFailSince = null;
       this.hooks.onSystem('OBS is back — the ghost resumed.');
       this.scheduleNext(5000);

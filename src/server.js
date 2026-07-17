@@ -49,12 +49,14 @@ export function startServer(opts = {}) {
     botName: config.bot.name,
     personality: config.bot.personality,
     language: config.bot.language,
+    streamContext: config.stream?.context || '',
   });
 
   // ---------- state ----------
   const state = {
     paused: false,
     autoPaused: false,
+    pauseReason: null,
     viewerOverride: 'auto', // 'auto' | 'solo' | 'viewers'
     realViewers: null,
     mode: 'solo',
@@ -110,13 +112,20 @@ export function startServer(opts = {}) {
 
   // ---------- config API (localhost only; see Host allowlist above) ----------
   app.get('/api/config', (_req, res) => {
-    // Never hand out the API key — the UI only needs to know one is saved.
-    const redacted = { ...config, anthropic: { ...config.anthropic, apiKey: '' } };
+    // Never hand out secrets — the UI only needs to know they're saved.
+    const redacted = {
+      ...config,
+      anthropic: { ...config.anthropic, apiKey: '' },
+      obs: { ...config.obs, password: '' },
+      twitch: { ...config.twitch, clientSecret: '' },
+    };
     res.json({
       config: redacted,
       configPath,
       firstRun: !state.apiKeySet,
       apiKeySaved: Boolean(config.anthropic.apiKey),
+      obsPasswordSaved: Boolean(config.obs.password),
+      twitchSecretSaved: Boolean(config.twitch.clientSecret),
       models: MODELS,
       canRestart: Boolean(opts.onConfigSaved),
     });
@@ -128,9 +137,16 @@ export function startServer(opts = {}) {
       if (!next || typeof next !== 'object' || !next.anthropic) {
         return res.status(400).json({ ok: false, error: 'invalid config payload' });
       }
-      // Blank key in the payload means "keep the saved one" (the UI never sees it).
+      // A blank secret in the payload means "keep the saved one" (the UI
+      // never sees saved secrets — GET /api/config redacts them).
       if (!next.anthropic.apiKey && config.anthropic.apiKey) {
         next.anthropic.apiKey = config.anthropic.apiKey;
+      }
+      if (next.obs && !next.obs.password && config.obs.password) {
+        next.obs.password = config.obs.password;
+      }
+      if (next.twitch && !next.twitch.clientSecret && config.twitch.clientSecret) {
+        next.twitch.clientSecret = config.twitch.clientSecret;
       }
       writeFileSync(configPath, JSON.stringify(next, null, 2) + '\n');
       res.json({ ok: true, restarting: Boolean(opts.onConfigSaved) });
@@ -163,7 +179,10 @@ export function startServer(opts = {}) {
   app.post('/api/test-obs', async (req, res) => {
     const probe = new OBSWebSocket();
     try {
-      await probe.connect(String(req.body.url || config.obs.url), req.body.password || undefined);
+      // Blank password tests the saved one (mirrors the test-key contract —
+      // the UI only ever sees "saved", never the secret itself).
+      const password = String(req.body.password ?? '') || config.obs.password || undefined;
+      await probe.connect(String(req.body.url || config.obs.url), password);
       const { currentProgramSceneName } = await probe.call('GetCurrentProgramScene');
       res.json({ ok: true, scene: currentProgramSceneName });
     } catch (err) {
@@ -266,8 +285,21 @@ export function startServer(opts = {}) {
         state.usage.inputTokens +=
           (usage.input_tokens || 0) + (usage.cache_read_input_tokens || 0) + (usage.cache_creation_input_tokens || 0);
         state.usage.outputTokens += usage.output_tokens || 0;
-        if (cost === null) state.usage.costKnown = false;
-        else state.usage.cost += cost;
+        if (cost === null) {
+          state.usage.costKnown = false;
+          return;
+        }
+        const before = state.usage.cost;
+        state.usage.cost += cost;
+        // Soft cost cap: pause once, when the session spend crosses the
+        // line. Resuming is an explicit override — it won't re-trigger.
+        const cap = Number(config.app.costCapDollars) || 0;
+        if (cap > 0 && state.usage.costKnown && before < cap && state.usage.cost >= cap) {
+          loop.pauseFor(
+            'cost',
+            `Session cost reached the $${cap.toFixed(2)} cap — the ghost paused itself. Raise the cap in Settings → App, or resume from the dashboard to keep going.`
+          );
+        }
       },
     },
   });
@@ -369,8 +401,14 @@ export function startServer(opts = {}) {
     console.log(`  Dashboard (your chat window): http://localhost:${port}/`);
     console.log(`  OBS Browser Source overlay:   http://localhost:${port}/overlay`);
     console.log('');
-    if (!state.apiKeySet) console.warn('  ⚠ No Anthropic API key set — open the dashboard to run the setup wizard.');
-    loop.start();
+    // No key = no brain: start paused instead of failing a generation every
+    // cadence tick while the user is still in the setup wizard.
+    if (state.apiKeySet) {
+      loop.start();
+    } else {
+      console.warn('  ⚠ No Anthropic API key set — open the dashboard to run the setup wizard.');
+      loop.pause();
+    }
   });
 
   return {
