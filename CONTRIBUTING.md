@@ -9,16 +9,16 @@
 - **Feature branches** — `claude/<topic>` or `feature/<topic>`, branched off `main`,
   one focused PR each into `main`.
 
-Releases are automated by [release-please](https://github.com/googleapis/release-please)
-(`.github/workflows/release-please.yml`): every merge into `main` updates a standing
-release PR whose changelog and version bump are computed from conventional commit
-prefixes (`feat:` → minor, `fix:` → patch, `feat!:`/`BREAKING CHANGE:` → major).
-**Merging that release PR is the release** — it bumps `package.json`, updates
-`CHANGELOG.md`, tags, and CI builds the Windows installer and publishes the GitHub
-Release the auto-updater reads (the release stays a draft until the installer is
-attached, so users never see a release without one). Manual fallback: the Release
-workflow (`.github/workflows/release.yml`) can still be run from Actions, which tags
-`v<package.json version>` with notes from `RELEASE_NOTES.md`.
+**Merging to `main` releases automatically** when app code changed (`src/`, `public/`,
+`electron/`, `assets/`, `config.example.json`, or the package manifests): a patch bump
+by default, or the bump named by a `Release-Bump: minor` / `Release-Bump: major` trailer
+line in any commit of the PR (`Release-Skip: true` suppresses the release). The version
+lives in git tags — CI stamps `package.json` at build time
+(`.github/workflows/auto-release.yml` computes and tags; `release.yml` builds the
+Windows installer and publishes the GitHub Release the auto-updater reads). Release
+notes are generated from PR titles — label PRs `enhancement`/`bug` to sort them
+(`.github/release.yml`). Manual fallback: run the Release workflow from Actions against
+an existing tag, or push a `vX.Y.Z` tag by hand.
 
 > The one rule worth remembering: **branch off `main`, PR into `main`.**
 
@@ -29,11 +29,11 @@ workflow (`.github/workflows/release.yml`) can still be run from Actions, which 
    git fetch origin
    git switch -c feature/<topic> origin/main
    ```
-2. Develop. Keep commits focused — a conventional prefix + imperative subject line
-   (`feat: add scene-aware energy presets`, `fix: chat orb decay`), the "why" in the
-   body. Release automation reads these prefixes to compute versions and write the
-   changelog, so anything user-visible should be a `feat:` or `fix:` (use `chore:`,
-   `docs:`, `ci:`, `test:` for the rest).
+2. Develop. Keep commits focused — imperative subject line, the "why" in the body.
+   To control the release bump, put a trailer on its own line in any commit of the PR:
+   `Release-Bump: minor` or `Release-Bump: major` (no trailer = patch;
+   `Release-Skip: true` = no release). Trailers must be their own line — prose that
+   merely mentions the keywords never triggers anything.
 3. Before pushing, run the same checks CI runs:
    ```
    npm ci --ignore-scripts

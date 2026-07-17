@@ -1,29 +1,39 @@
 name: Release
 
-# Cut a release either by tagging main with the package.json version:
-#   git tag v3.1.0 && git push origin v3.1.0
-# or by running this workflow manually against main (Actions → Release →
-# Run workflow), which tags the built commit as v<package.json version>.
-# Both paths build the Windows installer and publish the GitHub Release
-# the auto-updater reads (installer + blockmap + latest.yml), with
-# release notes taken from RELEASE_NOTES.md at the built commit.
-
+# Builds the Windows installer for a version tag and publishes the GitHub
+# Release the auto-updater reads (installer + blockmap + latest.yml).
+# Normally called by auto-release.yml on merge; can also be run manually
+# against an existing tag (Actions → Release → Run workflow) or by
+# pushing a tag by hand.
 on:
   push:
-    tags: ['v*']
+    tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Existing tag to publish the release under"
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      tag_name:
+        description: "Existing tag to publish the release under"
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 jobs:
-  release:
+  installer:
     name: Build installer & publish release
     # Windows because it's the shipping target (tray, NSIS, %APPDATA% paths).
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag_name || github.ref }}
 
       - uses: actions/setup-node@v5
         with:
@@ -38,28 +48,35 @@ jobs:
       - name: Run tests
         run: npm test
 
+      # The tag is the version authority — package.json is stamped at
+      # build time so electron-builder names the artifact and writes
+      # latest.yml with the right version.
+      - name: Stamp version from tag
+        shell: bash
+        run: |
+          tag='${{ inputs.tag_name || github.ref_name }}'
+          echo "VERSION=${tag#v}" >> "$GITHUB_ENV"
+          npm pkg set version="${tag#v}"
+
       - name: Build the Windows installer
         run: npx electron-builder --win --publish never
 
-      # Tag runs release the pushed tag; manual runs tag the built commit
-      # as v<package.json version> when the release is published.
-      - name: Resolve release tag
-        id: tag
-        shell: bash
-        run: |
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=v$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
-          fi
-
+      # The install header stays ABOVE the generated notes (the API
+      # prepends `body`); the "What's Changed" changelog below it is
+      # shaped by .github/release.yml.
       - name: Publish the GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
-          name: Hype Ghost ${{ steps.tag.outputs.tag }}
-          tag_name: ${{ steps.tag.outputs.tag }}
-          body_path: RELEASE_NOTES.md
+          tag_name: ${{ inputs.tag_name || github.ref_name }}
+          name: Hype Ghost v${{ env.VERSION }}
+          generate_release_notes: true
           files: |
             dist/*.exe
             dist/*.exe.blockmap
             dist/latest.yml
+          body: |
+            ## Install / update
+
+            **[⬇ Hype-Ghost-Setup-${{ env.VERSION }}.exe](https://github.com/${{ github.repository }}/releases/download/${{ inputs.tag_name || github.ref_name }}/Hype-Ghost-Setup-${{ env.VERSION }}.exe)** — Windows SmartScreen will warn because the installer is unsigned: **More info → Run anyway**.
+
+            Already running Hype Ghost? It updates itself — this version arrives at the next launch (toggle in Settings → App).
