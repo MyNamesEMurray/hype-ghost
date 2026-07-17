@@ -315,10 +315,12 @@
           <label for="tts">🔊 Speak cast messages aloud (Windows voices, fully local)</label>
         </div>
         <div class="row">
-          <div><label>Voice</label><select data-path="app.ttsVoice" id="ttsVoice"><option value="">(system default)</option></select></div>
+          <div><label>Voice</label><select data-path="app.ttsVoice" id="ttsVoice"><option value="">(default voice)</option></select></div>
+          <div><label>Output device</label><select data-path="app.ttsOutputDevice" id="ttsOut"><option value="">(system default)</option></select></div>
           <div><label>Speed (0.5–2)</label><input type="number" data-path="app.ttsRate" min="0.5" max="2" step="0.1"></div>
         </div>
-        <p class="hint">Speech plays from the deck window, which stays loaded in the background while TTS is on. Route it to your headphones — not your stream mix — unless you want chat audible on the VOD.</p>
+        <div class="test"><button id="ttsTest">🔊 Test voice</button><span class="result" id="ttsResult"></span></div>
+        <p class="hint">Speech plays from the deck window, which stays loaded in the background while TTS is on. Picking a specific output device (your headphones!) keeps chat out of your stream mix and off the VOD — that path speaks with Windows (SAPI) voices. "(system default)" keeps the browser voices and the default device.</p>
 
         <div class="adv" style="margin-top:22px">
           <h2>📺 Twitch viewer detection</h2>
@@ -512,6 +514,7 @@
       $('accentRow').querySelectorAll('.accent-dot').forEach((x) => x.classList.toggle('on', x === d));
     });
     toggleProvider();
+    initTts();
   });
 
   function toggleProvider() {
@@ -521,14 +524,76 @@
   }
   $('providerSel').onchange = toggleProvider;
 
-  // ---- TTS voices ----
-  function fillVoices() {
-    const sel = $('ttsVoice'); const current = sel.value || (cfg && cfg.app.ttsVoice) || '';
-    const voices = speechSynthesis.getVoices(); if (!voices.length) return;
-    sel.innerHTML = '<option value="">(system default)</option>' + voices.map((v) => `<option value="${v.name.replace(/"/g,'&quot;')}">${v.name}</option>`).join('');
-    sel.value = current;
+  // ---- TTS voices + output device ----
+  // Voice list follows the playback engine: with a specific output device the
+  // server speaks via Windows SAPI (audio elements can setSinkId; the
+  // browser's speechSynthesis can't) — on "(system default)" the browser
+  // voices apply, exactly as before.
+  let ttsInfo = { engine: 'browser', voices: [] };
+  function fillSelect(sel, names, current, emptyLabel) {
+    sel.innerHTML = '';
+    const mk = (value, label) => { const o = document.createElement('option'); o.value = value; o.textContent = label; sel.appendChild(o); };
+    mk('', emptyLabel);
+    names.forEach((n) => mk(n, n));
+    if (current && !names.includes(current)) mk(current, current + ' (saved)');
+    sel.value = current || '';
   }
-  if ('speechSynthesis' in window) { fillVoices(); speechSynthesis.onvoiceschanged = fillVoices; }
+  function refreshVoiceList() {
+    const useSapi = ttsInfo.engine === 'sapi' && $('ttsOut').value;
+    const names = useSapi
+      ? ttsInfo.voices
+      : ('speechSynthesis' in window ? speechSynthesis.getVoices().map((v) => v.name) : []);
+    const current = $('ttsVoice').value || (cfg && cfg.app.ttsVoice) || '';
+    if (!names.length && !current) return; // voices not loaded yet
+    fillSelect($('ttsVoice'), names, current, '(default voice)');
+  }
+  async function fillDevices() {
+    const saved = (cfg && cfg.app.ttsOutputDevice) || '';
+    let outs = [];
+    try {
+      outs = (await navigator.mediaDevices.enumerateDevices())
+        .filter((d) => d.kind === 'audiooutput' && d.deviceId !== 'default' && d.deviceId !== 'communications' && d.label)
+        .map((d) => d.label);
+    } catch {}
+    fillSelect($('ttsOut'), [...new Set(outs)], saved, '(system default)');
+    refreshVoiceList();
+  }
+  async function initTts() {
+    ttsInfo = await fetch('/api/tts/voices').then((r) => r.json()).catch(() => ({ engine: 'browser', voices: [] }));
+    await fillDevices();
+  }
+  $('ttsOut').onchange = refreshVoiceList;
+  if ('speechSynthesis' in window) speechSynthesis.onvoiceschanged = refreshVoiceList;
+  $('ttsTest').onclick = async () => {
+    const el = $('ttsResult'); el.className = 'result'; el.textContent = 'speaking…';
+    const sample = 'Hey chat! Mic check from the cast.';
+    const device = $('ttsOut').value;
+    const useSapi = ttsInfo.engine === 'sapi' && device;
+    try {
+      if (useSapi) {
+        const res = await fetch('/api/tts/speak', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: sample, voice: $('ttsVoice').value, rate: Number(val('app.ttsRate')) || 1 }) });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'synthesis failed');
+        const url = URL.createObjectURL(await res.blob());
+        const audio = new Audio(url);
+        const devs = await navigator.mediaDevices.enumerateDevices();
+        const sink = devs.find((d) => d.kind === 'audiooutput' && d.label === device);
+        if (sink && audio.setSinkId) await audio.setSinkId(sink.deviceId).catch(() => {});
+        audio.onended = () => URL.revokeObjectURL(url);
+        await audio.play();
+        el.className = 'result ok'; el.textContent = `✓ playing on “${device}”`;
+      } else {
+        const u = new SpeechSynthesisUtterance(sample);
+        const v = speechSynthesis.getVoices().find((x) => x.name === $('ttsVoice').value);
+        if (v) u.voice = v;
+        u.rate = Number(val('app.ttsRate')) || 1;
+        speechSynthesis.speak(u);
+        el.className = 'result ok'; el.textContent = '✓ playing on the default device';
+      }
+    } catch (err) {
+      el.className = 'result err'; el.textContent = '✗ ' + (err.message || 'failed');
+    }
+  };
 
   // ---- action buttons ----
   const val = (path) => fields.find((f) => f.dataset.path === path).value;

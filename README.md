@@ -89,6 +89,7 @@ Quit Hype Ghost.
 | `overlay.theme` / `overlay.reactions` | Overlay style (`cards` or `compact`) and whether a ✨ moment pop shows on the overlay. |
 | `app.autoUpdate` | Check GitHub for new versions at launch and update automatically (default true). |
 | `app.costMeter` | Show the live session cost readout in the deck's top bar (default true). |
+| `app.ttsOutputDevice` | Which speaker/headphone spoken cast messages play on (Settings → App → 🔊, with a test button). Picking a specific device keeps chat out of your stream mix and off the VOD; that path speaks with Windows (SAPI) voices. Blank = system default device with browser voices. |
 | `bot.language` | Language the whole cast chats in (default English). |
 | `stream.context` | Standing context about your stream (game, format, vibe) the cast always knows. It also sees your current OBS scene name automatically. |
 | `stream.autoInfo` | Pull your **live game/category and stream title from Twitch** and feed them to the cast every message (default true). Needs only your Twitch channel name (`twitch.channel`) — keyless via DecAPI, or your own app credentials if set. Works even while offline, since Twitch keeps your set title/category. |

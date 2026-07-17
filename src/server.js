@@ -14,6 +14,7 @@ import { Brain } from './brain.js';
 import { TwitchViewers, DecApi } from './twitch.js';
 import { TwitchChat } from './twitchchat.js';
 import { TranscriptFeed } from './transcript.js';
+import { SapiTts } from './tts.js';
 import { GhostLoop } from './loop.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -60,6 +61,16 @@ export function startServer(opts = {}) {
   const decapi = new DecApi({ channel: config.twitch.channel, enabled: config.twitch.decapi !== false });
   // Helix wins when credentials are set; DecAPI otherwise; null = manual mode.
   const viewerSource = twitch.configured() ? twitch : decapi.configured() ? decapi : null;
+  // Server-side SAPI synth: only needed when TTS is routed to a specific
+  // output device (the browser's speechSynthesis can't pick a device).
+  const sapiTts = new SapiTts();
+  const ttsState = () => ({
+    enabled: config.app.tts === true,
+    voice: config.app.ttsVoice,
+    rate: config.app.ttsRate,
+    outputDevice: config.app.ttsOutputDevice || '',
+    engine: sapiTts.available() ? 'sapi' : 'browser',
+  });
   const brain = new Brain({
     brain: config.brain,
     anthropic: config.anthropic,
@@ -91,7 +102,7 @@ export function startServer(opts = {}) {
     lastHeardParty: null,
     streamInfo: null, // { title, game, source } — live game/title for ghost context
     costMeter: config.app.costMeter !== false,
-    tts: { enabled: config.app.tts === true, voice: config.app.ttsVoice, rate: config.app.ttsRate },
+    tts: ttsState(),
     uiLanguage: config.app.uiLanguage || 'en',
     usage: { messages: 0, inputTokens: 0, outputTokens: 0, cost: 0, costKnown: true },
   };
@@ -205,6 +216,7 @@ export function startServer(opts = {}) {
   const HOT_PATHS = [
     'energy', 'talkingPoints', 'theme.', 'overlay.', 'moments.', 'memory.', 'stream.',
     'app.costMeter', 'app.uiLanguage', 'app.autoPause', 'app.autoPauseMinutes', 'app.autoUpdate',
+    'app.ttsVoice', 'app.ttsRate', 'app.ttsOutputDevice',
     'cadence.soloSeconds', 'cadence.quietSeconds', 'cadence.jitter', 'cadence.burstChance',
     'cadence.lullChance', 'cadence.replyDelaySeconds', 'cadence.minVoiceReplyGapSeconds',
     'cadence.minScreenshotGapSeconds', 'cadence.minPartyNudgeGapSeconds',
@@ -246,6 +258,7 @@ export function startServer(opts = {}) {
     state.accent = config.theme?.accent || 'violet';
     state.costMeter = config.app.costMeter !== false;
     state.uiLanguage = config.app.uiLanguage || 'en';
+    state.tts = ttsState(); // voice/rate/output device are hot; the on/off toggle is not
     broadcast({ type: 'config' }); // overlay clients re-fetch /api/overlay-config
     broadcastState();
     console.log('[config] saved — applied live, no restart needed.');
@@ -355,6 +368,26 @@ export function startServer(opts = {}) {
     res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="hype-ghost-recap-${started.toISOString().slice(0, 10)}.md"`);
     res.send(lines.join('\n'));
+  });
+
+  // ---------- TTS (server-side SAPI synth, for output-device routing) ----------
+  app.get('/api/tts/voices', async (_req, res) => {
+    res.json({ engine: sapiTts.available() ? 'sapi' : 'browser', voices: await sapiTts.listVoices() });
+  });
+
+  // Returns WAV audio for the deck to play through its chosen output device.
+  // voice/rate overrides let the settings page test unsaved selections.
+  app.post('/api/tts/speak', async (req, res) => {
+    if (!sapiTts.available()) {
+      return res.status(501).json({ ok: false, error: 'Server-side speech is only available on Windows.' });
+    }
+    const wav = await sapiTts.synthesize(String(req.body?.text || ''), {
+      voice: req.body?.voice ?? config.app.ttsVoice,
+      rate: req.body?.rate ?? config.app.ttsRate,
+    });
+    if (!wav) return res.status(500).json({ ok: false, error: 'Speech synthesis failed.' });
+    res.setHeader('Content-Type', 'audio/wav');
+    res.send(wav);
   });
 
   app.post('/api/test-obs', async (req, res) => {
