@@ -227,18 +227,14 @@
   <div id="toast"></div>
 
 <script>
-  // ---------- accent theming ----------
-  const ACCENTS = {
-    violet:  ['#a78bfa','#c4b5fd','#0d0620','rgba(167,139,250,.14)','rgba(167,139,250,.4)'],
-    cyan:    ['#38bdf8','#7dd3fc','#04121c','rgba(56,189,248,.14)','rgba(56,189,248,.4)'],
-    emerald: ['#34d399','#6ee7b7','#04140d','rgba(52,211,153,.14)','rgba(52,211,153,.4)'],
-    amber:   ['#fbbf24','#fcd34d','#1c1204','rgba(251,191,36,.14)','rgba(251,191,36,.4)'],
-    magenta: ['#f472b6','#f9a8d4','#1c0714','rgba(244,114,182,.14)','rgba(244,114,182,.4)'],
-  };
+  // ---------- accent theming (hex values come from the server's init snapshot) ----------
+  let ACCENTS = {};
   function applyAccent(name) {
-    const a = ACCENTS[name] || ACCENTS.violet, r = document.documentElement.style;
-    r.setProperty('--accent', a[0]); r.setProperty('--accent-2', a[1]); r.setProperty('--on-accent', a[2]);
-    r.setProperty('--accent-soft', a[3]); r.setProperty('--accent-line', a[4]);
+    const a = ACCENTS[name] || ACCENTS.violet;
+    if (!a) return;
+    const r = document.documentElement.style;
+    r.setProperty('--accent', a.accent); r.setProperty('--accent-2', a.accent2); r.setProperty('--on-accent', a.on);
+    r.setProperty('--accent-soft', a.soft); r.setProperty('--accent-line', a.line);
   }
 
   // ---------- i18n ----------
@@ -342,12 +338,13 @@
     $('momentCount').textContent = momentsData.length ? momentsData.length : '';
     if (!momentsData.length) { box.innerHTML = `<div class="moments-empty">${T('noMoments')}</div>`; return; }
     const start = state._startedAt || Date.now();
-    box.innerHTML = momentsData.slice(-24).reverse().map((m) => {
+    const rows = momentsData.slice(-24).reverse();
+    box.innerHTML = rows.map((m) => {
       const el = Math.max(0, Math.floor((m.ts - start) / 60000));
       const t = `${String(Math.floor(el/60)).padStart(2,'0')}:${String(el%60).padStart(2,'0')}`;
       return `<div class="moment-row"><span class="t">${t}</span><span class="l"></span></div>`;
     }).join('');
-    box.querySelectorAll('.moment-row .l').forEach((el, i) => { el.textContent = momentsData.slice(-24).reverse()[i].label; });
+    box.querySelectorAll('.moment-row .l').forEach((el, i) => { el.textContent = rows[i].label; });
   }
 
   function renderStage() {
@@ -373,11 +370,17 @@
 
   function setOrb(id, cls, text) { const el = $(id); el.className = 'orb ' + cls; el.querySelector('.lbl').textContent = text; }
 
+  let appliedLang = null, appliedAccent = null;
   function renderState() {
-    L = STR[state.uiLanguage] ?? STR.en;
-    applyAccent(state.accent);
+    // Language + accent apply only when they actually change — applyI18n
+    // sweeps the whole DOM and state broadcasts arrive constantly.
+    if (state.uiLanguage !== appliedLang || state.accent !== appliedAccent) {
+      appliedLang = state.uiLanguage; appliedAccent = state.accent;
+      L = STR[state.uiLanguage] ?? STR.en;
+      applyAccent(state.accent);
+      applyI18n();
+    }
     if (JSON.stringify(cast) !== JSON.stringify(state.cast || [])) { cast = state.cast || []; renderStage(); }
-    applyI18n();
 
     const si = state.streamInfo, np = $('nowplaying');
     if (si && (si.game || si.title)) {
@@ -446,7 +449,10 @@
     ws.onmessage = (ev) => {
       const msg = JSON.parse(ev.data);
       if (msg.type === 'init') {
-        state = msg.state; state._startedAt = state._startedAt || Date.now();
+        if (msg.accents) ACCENTS = msg.accents;
+        // The server's session clock, so reopening the deck mid-stream (the
+        // renderer is destroyed on close) doesn't reset the clock or moments.
+        state = msg.state; state._startedAt = state.startedAt || Date.now();
         cast = state.cast || []; renderStage();
         feed.innerHTML = ''; if (!msg.history.length) { feed.appendChild(emptyEl()); }
         msg.history.forEach((m) => addMessage(m, false));
@@ -454,7 +460,7 @@
         booted = true; renderState();
       } else if (msg.type === 'chat') { addMessage(msg.msg, booted); }
       else if (msg.type === 'moment') { momentsData.push(msg.moment); addMoment(msg.moment, true); }
-      else if (msg.type === 'state') { const s = state._startedAt; state = msg.state; state._startedAt = s || Date.now(); renderState(); }
+      else if (msg.type === 'state') { const s = state._startedAt; state = msg.state; state._startedAt = state.startedAt || s || Date.now(); renderState(); }
       else if (msg.type === 'system') { addSystem(msg.text); }
     };
     ws.onclose = () => { if (!announcedDrop) { announcedDrop = true; toast(T('lost')); } setTimeout(connect, 3000); };
@@ -470,13 +476,13 @@
   $('nudge').onclick = () => sendCmd({ type: 'nudge' });
   $('mode').querySelectorAll('button').forEach((b) => b.onclick = () => sendCmd({ type: 'override_viewers', value: b.dataset.mode }));
 
-  // energy dial
+  // energy dial — the label tracks the drag live; the server hears about it
+  // once, on release (every set_energy re-rolls the loop's next-message time,
+  // so mid-drag sends would re-pace the room a dozen times per drag)
   const energyEl = $('energy');
-  let energyThrottle = 0;
-  function pushEnergy(v) { $('energyVal').textContent = v; const now = Date.now(); if (now - energyThrottle > 120) { energyThrottle = now; sendCmd({ type: 'set_energy', value: Number(v) }); } }
-  energyEl.addEventListener('input', (e) => { dragging = true; pushEnergy(e.target.value); });
+  energyEl.addEventListener('input', (e) => { dragging = true; $('energyVal').textContent = e.target.value; });
   energyEl.addEventListener('change', (e) => { dragging = false; sendCmd({ type: 'set_energy', value: Number(e.target.value) }); });
-  document.querySelectorAll('.presets .chip').forEach((c) => c.onclick = () => { energyEl.value = c.dataset.energy; pushEnergy(c.dataset.energy); sendCmd({ type: 'set_energy', value: Number(c.dataset.energy) }); });
+  document.querySelectorAll('.presets .chip').forEach((c) => c.onclick = () => { energyEl.value = c.dataset.energy; $('energyVal').textContent = c.dataset.energy; sendCmd({ type: 'set_energy', value: Number(c.dataset.energy) }); });
 
   // ---------- toast ----------
   let toastT;

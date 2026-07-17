@@ -6,9 +6,9 @@ import { createServer } from 'node:http';
 import { readFileSync, writeFileSync, statSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { loadConfig } from './config.js';
+import { loadConfig, isPlainObject } from './config.js';
 import { MODELS, messageCost } from './models.js';
-import { resolveCast, GHOST_COLORS, ARCHETYPES } from './cast.js';
+import { resolveCast, GHOST_COLORS, ARCHETYPES, ACCENT_COLORS } from './cast.js';
 import { ObsCapture } from './obs.js';
 import { Brain } from './brain.js';
 import { TwitchViewers } from './twitch.js';
@@ -90,12 +90,34 @@ export function startServer(opts = {}) {
     uiLanguage: config.app.uiLanguage || 'en',
     usage: { messages: 0, inputTokens: 0, outputTokens: 0, cost: 0, costKnown: true },
   };
-  const startedAt = Date.now();
-
   const history = []; // {id, author, role: 'bot'|'streamer', text, ts}
   const MAX_HISTORY = 40;
   const highlights = []; // {label, ts} — clip-worthy moments the cast flagged
   const MAX_HIGHLIGHTS = 40;
+
+  // ---------- session persistence ----------
+  // Saving config can relaunch the whole app, and moments are the recap's VOD
+  // chapters — a mid-stream settings tweak must not wipe them (or the chat
+  // log, cost meter, and session clock). Same freshness rule as session
+  // notes: a file older than 6h is a previous stream, not this one.
+  const sessionPath = opts.sessionPath ?? path.join(path.dirname(notesPath), 'session.json');
+  let startedAt = Date.now();
+  try {
+    if (existsSync(sessionPath) && Date.now() - statSync(sessionPath).mtimeMs < 6 * 3600_000) {
+      const saved = JSON.parse(readFileSync(sessionPath, 'utf8'));
+      if (Number.isFinite(saved.startedAt)) startedAt = saved.startedAt;
+      if (Array.isArray(saved.history)) history.push(...saved.history.slice(-MAX_HISTORY));
+      if (Array.isArray(saved.highlights)) highlights.push(...saved.highlights.slice(-MAX_HIGHLIGHTS));
+      if (saved.usage) Object.assign(state.usage, saved.usage);
+      if (history.length || highlights.length) console.log('[session] restored chat + moments from a recent run.');
+    }
+  } catch {}
+  state.startedAt = startedAt; // the deck's clock and moment timestamps key off this
+  function saveSession() {
+    try {
+      writeFileSync(sessionPath, JSON.stringify({ startedAt, history, highlights, usage: state.usage }));
+    } catch {}
+  }
 
   function resolveMode() {
     if (state.viewerOverride === 'solo') return 'solo';
@@ -147,22 +169,82 @@ export function startServer(opts = {}) {
 
   // ---------- config API (localhost only; see Host allowlist above) ----------
   app.get('/api/config', (_req, res) => {
-    // Never hand out the API key — the UI only needs to know one is saved.
-    const redacted = { ...config, anthropic: { ...config.anthropic, apiKey: '' } };
+    // Never hand out secrets — the UI only needs to know one is saved.
+    const redacted = {
+      ...config,
+      anthropic: { ...config.anthropic, apiKey: '' },
+      brain: { ...config.brain, openaiApiKey: '' },
+      twitch: { ...config.twitch, clientSecret: '' },
+    };
     res.json({
       config: redacted,
       configPath,
       firstRun: !state.apiKeySet,
       apiKeySaved: Boolean(config.anthropic.apiKey),
+      openaiKeySaved: Boolean(config.brain.openaiApiKey),
+      twitchSecretSaved: Boolean(config.twitch.clientSecret),
       models: MODELS,
       // The cast editor builds itself from these: the resolved roster (so 2.x
       // configs show their migrated ghosts), the color palette, and archetypes.
-      cast: cast.map((c) => ({ name: c.name, personality: c.personality, color: c.colorKey })),
+      cast: cast.map((c) => ({ name: c.name, personality: c.personality, color: c.colorKey, archetype: c.archetype })),
       palette: GHOST_COLORS,
       archetypes: ARCHETYPES,
+      accents: ACCENT_COLORS,
       canRestart: Boolean(opts.onConfigSaved),
     });
   });
+
+  // Settings nothing captures at construction time can apply live — no app
+  // relaunch mid-stream. Everything wired at startup (brain, cast, OBS,
+  // transcripts, Twitch, port) still restarts.
+  const HOT_PATHS = [
+    'energy', 'talkingPoints', 'theme.', 'overlay.', 'moments.', 'memory.', 'stream.',
+    'app.costMeter', 'app.uiLanguage', 'app.autoPause', 'app.autoPauseMinutes', 'app.autoUpdate',
+    'cadence.soloSeconds', 'cadence.quietSeconds', 'cadence.jitter', 'cadence.burstChance',
+    'cadence.lullChance', 'cadence.replyDelaySeconds', 'cadence.minVoiceReplyGapSeconds',
+    'cadence.minScreenshotGapSeconds', 'cadence.minPartyNudgeGapSeconds',
+  ];
+  const isHotPath = (p) => HOT_PATHS.some((h) => (h.endsWith('.') ? p.startsWith(h) : p === h));
+
+  function deepEqual(a, b) {
+    if (a === b) return true;
+    if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((v, i) => deepEqual(v, b[i]));
+    if (isPlainObject(a) && isPlainObject(b)) {
+      const ka = Object.keys(a).filter((k) => a[k] !== undefined);
+      const kb = Object.keys(b).filter((k) => b[k] !== undefined);
+      return ka.length === kb.length && ka.every((k) => deepEqual(a[k], b[k]));
+    }
+    return false;
+  }
+
+  function changedPaths(a, b, prefix = '') {
+    const paths = [];
+    for (const key of new Set([...Object.keys(a ?? {}), ...Object.keys(b ?? {})])) {
+      const va = a?.[key];
+      const vb = b?.[key];
+      const p = prefix ? `${prefix}.${key}` : key;
+      if (isPlainObject(va) && isPlainObject(vb)) paths.push(...changedPaths(va, vb, p));
+      else if (!deepEqual(va, vb)) paths.push(p);
+    }
+    return paths;
+  }
+
+  function deepAssign(target, src) {
+    for (const [key, value] of Object.entries(src)) {
+      if (isPlainObject(value) && isPlainObject(target[key])) deepAssign(target[key], value);
+      else target[key] = value;
+    }
+  }
+
+  function applyHotConfig(next) {
+    deepAssign(config, next); // in place — the loop and pushMoment hold this same object
+    state.accent = config.theme?.accent || 'violet';
+    state.costMeter = config.app.costMeter !== false;
+    state.uiLanguage = config.app.uiLanguage || 'en';
+    broadcast({ type: 'config' }); // overlay clients re-fetch /api/overlay-config
+    broadcastState();
+    console.log('[config] saved — applied live, no restart needed.');
+  }
 
   app.post('/api/config', (req, res) => {
     try {
@@ -170,11 +252,21 @@ export function startServer(opts = {}) {
       if (!next || typeof next !== 'object' || !next.anthropic) {
         return res.status(400).json({ ok: false, error: 'invalid config payload' });
       }
-      // Blank key in the payload means "keep the saved one" (the UI never sees it).
+      // Blank secrets in the payload mean "keep the saved one" (the UI never sees them).
       if (!next.anthropic.apiKey && config.anthropic.apiKey) {
         next.anthropic.apiKey = config.anthropic.apiKey;
       }
+      if (next.brain && !next.brain.openaiApiKey && config.brain.openaiApiKey) {
+        next.brain.openaiApiKey = config.brain.openaiApiKey;
+      }
+      if (next.twitch && !next.twitch.clientSecret && config.twitch.clientSecret) {
+        next.twitch.clientSecret = config.twitch.clientSecret;
+      }
       writeFileSync(configPath, JSON.stringify(next, null, 2) + '\n');
+      if (changedPaths(config, next).every(isHotPath)) {
+        applyHotConfig(next);
+        return res.json({ ok: true, applied: true });
+      }
       res.json({ ok: true, restarting: Boolean(opts.onConfigSaved) });
       // Give the response time to flush, then let the host app restart to apply.
       setTimeout(() => {
@@ -194,6 +286,7 @@ export function startServer(opts = {}) {
         const key = String(req.body.apiKey || '') || config.brain.openaiApiKey;
         const r = await fetch(`${base}/models`, {
           headers: key ? { Authorization: `Bearer ${key}` } : {},
+          signal: AbortSignal.timeout(10_000), // Node fetch never times out on its own
         });
         if (!r.ok) throw new Error(`${base} returned ${r.status}`);
         const data = await r.json().catch(() => null);
@@ -221,7 +314,7 @@ export function startServer(opts = {}) {
 
   // Overlay reads only what it needs — never the full config (which holds secrets).
   app.get('/api/overlay-config', (_req, res) => {
-    res.json({ overlay: config.overlay, personas: state.personas, cast: state.cast, accent: state.accent });
+    res.json({ overlay: config.overlay, personas: state.personas, cast: state.cast, accent: state.accent, accents: ACCENT_COLORS });
   });
 
   // Post-stream recap: session notes + timestamped chat log as markdown.
@@ -318,6 +411,7 @@ export function startServer(opts = {}) {
     history.push(msg);
     if (history.length > MAX_HISTORY) history.shift();
     broadcast({ type: 'chat', msg });
+    saveSession();
     return msg;
   }
 
@@ -327,6 +421,14 @@ export function startServer(opts = {}) {
     if (highlights.length > MAX_HIGHLIGHTS) highlights.shift();
     broadcast({ type: 'moment', moment });
     console.log('[moment]', moment.label);
+    // Moment clipping: if OBS is running a replay buffer, the ✨ becomes an
+    // actual clip on disk. Best-effort — a no-op when the buffer is off.
+    if (config.moments?.saveReplay !== false) {
+      obs.saveReplay().then((saved) => {
+        if (saved) console.log('[moment] OBS replay buffer saved.');
+      });
+    }
+    saveSession();
     return moment;
   }
 
@@ -406,6 +508,7 @@ export function startServer(opts = {}) {
         state.usage.outputTokens += usage.output_tokens || 0;
         if (cost === null) state.usage.costKnown = false;
         else state.usage.cost += cost;
+        saveSession();
       },
     },
   });
@@ -421,7 +524,7 @@ export function startServer(opts = {}) {
       ws.close();
       return;
     }
-    ws.send(JSON.stringify({ type: 'init', state, history, highlights }));
+    ws.send(JSON.stringify({ type: 'init', state, history, highlights, accents: ACCENT_COLORS }));
     ws.on('message', (raw) => {
       let cmd;
       try {
@@ -464,16 +567,22 @@ export function startServer(opts = {}) {
   // ---------- twitch chat awareness (read-only, anonymous) ----------
   let chatMonitor = null;
   if (config.twitch.channel && config.twitch.chatAwareness !== false) {
-    chatMonitor = new TwitchChat({
-      channel: config.twitch.channel,
-      onActivity: (perMin) => {
-        const prevMode = state.mode;
-        state.chatPerMin = Math.round(perMin * 10) / 10;
-        if (resolveMode() !== prevMode) loop.scheduleNext();
-        else broadcastState();
-      },
-    });
+    const updateChatActivity = (perMin) => {
+      const prevMode = state.mode;
+      state.chatPerMin = Math.round(perMin * 10) / 10;
+      if (resolveMode() !== prevMode) loop.scheduleNext();
+      else broadcastState();
+    };
+    chatMonitor = new TwitchChat({ channel: config.twitch.channel, onActivity: updateChatActivity });
     chatMonitor.start();
+    // onActivity only fires on new messages, so once chat goes quiet the
+    // deck's chat orb would freeze at its last reading — let the decay show.
+    // (Mode resolution is unaffected: resolveMode() asks isActive() live.)
+    setInterval(() => {
+      if (state.chatPerMin === null) return; // nothing heard yet — orb stays hidden
+      const perMin = chatMonitor.perMinute();
+      if (Math.round(perMin * 10) / 10 !== state.chatPerMin) updateChatActivity(perMin);
+    }, 30_000);
   }
 
   // ---------- twitch viewer polling ----------
@@ -503,9 +612,10 @@ export function startServer(opts = {}) {
   // Capture provides a game fallback when Twitch isn't configured (or has no
   // category set). The result feeds every generation so the cast always knows
   // what's actually being played.
-  const autoInfo = config.stream?.autoInfo !== false;
-  const gameFromObs = config.stream?.gameFromObs !== false;
   async function refreshStreamInfo() {
+    // Read the flags live — stream.* is hot-applied from Settings without a restart.
+    const autoInfo = config.stream?.autoInfo !== false;
+    const gameFromObs = config.stream?.gameFromObs !== false;
     let title = '';
     let game = '';
     let source = null;
@@ -531,11 +641,11 @@ export function startServer(opts = {}) {
       broadcastState();
     }
   }
-  if (autoInfo || gameFromObs) {
-    refreshStreamInfo();
-    // Title/category change rarely — a relaxed poll keeps it fresh without cost.
-    setInterval(refreshStreamInfo, Math.max(60, config.cadence.viewerPollSeconds) * 1000 * 1.5);
-  }
+  refreshStreamInfo();
+  // Title/category change rarely — a relaxed poll keeps it fresh without cost.
+  // Always registered (it's a no-op network-wise with both flags off) so a
+  // hot-applied enable starts working without a restart.
+  setInterval(refreshStreamInfo, Math.max(60, config.cadence.viewerPollSeconds) * 1000 * 1.5);
 
   // ---------- mic transcript polling ----------
   if (state.transcriptMode !== 'off') {

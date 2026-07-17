@@ -84,6 +84,7 @@ Quit Hype Ghost.
 | `cast` | The roster: 1–4 ghosts, each `{ name, personality, color, enabled }`. Colors: `aqua rose mint gold coral sky` (violet is reserved for you). Edit on Settings → Cast. A 2.x config with no `cast` is migrated from `bot`/`bot2` automatically. |
 | `energy` | Default room energy 0–100 (default 55). The deck's live energy dial overrides this per session; low = calmer/slower, high = livelier/faster. |
 | `moments.enabled` | Let the cast flag clip-worthy plays into the highlight reel + recap VOD chapters (default true). |
+| `moments.saveReplay` | When a moment is flagged and OBS's **replay buffer** is running, save it — the ✨ becomes an actual clip on disk (default true; a no-op if the buffer is off). |
 | `theme.accent` | Your (the human's) accent color on the deck: `violet cyan emerald amber magenta` (default violet). |
 | `overlay.theme` / `overlay.reactions` | Overlay style (`cards` or `compact`) and whether a ✨ moment pop shows on the overlay. |
 | `app.autoUpdate` | Check GitHub for new versions at launch and update automatically (default true). |

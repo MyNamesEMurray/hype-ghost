@@ -30,7 +30,7 @@ A ground-up reimagining of the interface and a jump from two ghosts to a directa
 - **Per-ghost attention** — one ghost watches gameplay closely, another lurks; distinct
   screenshot/transcript weighting per persona.
 - **Scene-aware casts** — swap energy/behavior presets per OBS scene (BRB vs. gameplay).
-- **Moment clipping** — trigger an OBS replay-buffer save when a moment is flagged.
+- ✅ **Moment clipping** — a flagged moment saves the OBS replay buffer when one is running (`moments.saveReplay`).
 - **Deck analytics** — a richer post-stream view than the markdown recap.
 - **Code signing / distribution** — kill the SmartScreen warning (cert ~$100+/yr) or MS Store.
 

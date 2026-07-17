@@ -94,6 +94,23 @@ export class ObsCapture {
   }
 
   /**
+   * Save the OBS replay buffer, turning a flagged ✨ moment into an actual
+   * clip on disk. Best-effort: returns false (never throws) when OBS is
+   * unreachable or the streamer isn't running a replay buffer.
+   */
+  async saveReplay() {
+    try {
+      await this.ensureConnected();
+      const { outputActive } = await this.obs.call('GetReplayBufferStatus');
+      if (!outputActive) return false;
+      await this.obs.call('SaveReplayBuffer');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Current text of an OBS text source (used to read LocalVocal's caption
    * output). Returns null if OBS is unreachable or the source doesn't exist.
    */
