@@ -49,6 +49,11 @@ personality, your Anthropic API key (with a live "test key" button), the OBS con
 (with a live connection test), message cadence, and optional extras (voice awareness,
 Twitch viewer detection). Re-run it anytime from the tray → **Run Setup Wizard**.
 
+Just want a look around first? The brain step has a **"Skip this step"** link — the app
+then opens in **preview mode**: the full deck, settings, and overlay to explore, zero cost,
+but the cast stays quiet until you connect a brain (Settings → Brain). A key isn't required
+to poke around; the free local-model route (Ollama / LM Studio) never needs one at all.
+
 Closing the window **minimizes to the system tray** — the ghost keeps chatting until you
 Quit from the tray menu.
 
@@ -98,6 +103,7 @@ Quit Hype Ghost.
 | `theme.accent` | Your (the human's) accent color on the deck: `violet cyan emerald amber magenta` (default violet). |
 | `overlay.theme` / `overlay.reactions` | Overlay style (`cards` or `compact`) and whether a ✨ moment pop shows on the overlay. |
 | `app.autoUpdate` | Check GitHub for new versions at launch and update automatically (default true). |
+| `app.setupComplete` | Set by the setup wizard when you finish it (even via the brain step's "skip"). Once true, `/` opens the dashboard — without a brain that's **preview mode**: everything explorable, cast quiet, $0. |
 | `app.costMeter` | Show the live session cost readout in the deck's top bar (default true). |
 | `app.ttsOutputDevice` | Which speaker/headphone spoken cast messages play on (Settings → App → 🔊, with a test button). Picking a specific device keeps chat out of your stream mix and off the VOD; that path speaks with Windows (SAPI) voices. Blank = system default device with browser voices. |
 | `bot.language` | Language the whole cast chats in (default English). |

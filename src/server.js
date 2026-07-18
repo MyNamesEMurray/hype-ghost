@@ -53,12 +53,7 @@ export function startServer(opts = {}) {
   // ---------- config (defaults deep-merged from config.example.json) ----------
   const { config, warning } = loadConfig(configPath);
   if (warning) console.warn(`[config] ${warning}`);
-  const apiKey = config.anthropic.apiKey || process.env.ANTHROPIC_API_KEY || '';
   const port = config.port;
-  const usingAnthropic = config.brain.provider !== 'openai';
-  // "Brain is configured" gates the wizard redirect: Anthropic needs a key,
-  // an OpenAI-compatible endpoint just needs a model name.
-  const brainReady = usingAnthropic ? Boolean(apiKey) : Boolean(config.brain.openaiModel);
 
   // The cast: 1–4 simulated viewers, resolved from the 3.x `cast` roster (or
   // migrated from a 2.x bot/bot2 config). Each carries a stage color.
@@ -89,6 +84,9 @@ export function startServer(opts = {}) {
     personas,
     language: config.bot.language,
   });
+  // "Brain is configured" gates the wizard redirect and preview mode: the
+  // wizard can be finished without one (skip), and then the loop stays quiet.
+  const brainReady = brain.ready();
 
   // ---------- state ----------
   const state = {
@@ -186,9 +184,12 @@ export function startServer(opts = {}) {
     res.status(403).end('forbidden');
   });
   app.use(express.static(publicDir));
-  // First launch (no API key yet) lands on the setup wizard instead of the dashboard.
+  // First launch lands on the setup wizard instead of the dashboard — until
+  // the wizard has been finished once. Finishing without a brain (the "just
+  // looking" skip) still counts: the deck then runs in preview mode rather
+  // than trapping the user in the wizard.
   app.get('/', (_req, res) => {
-    if (!state.apiKeySet) return res.redirect('/setup');
+    if (!state.apiKeySet && config.app.setupComplete !== true) return res.redirect('/setup');
     res.sendFile(path.join(publicDir, 'dashboard.html'));
   });
   app.get('/overlay', (_req, res) => res.sendFile(path.join(publicDir, 'overlay.html')));
@@ -787,7 +788,13 @@ export function startServer(opts = {}) {
     console.log(`  Dashboard (your chat window): http://localhost:${port}/`);
     console.log(`  OBS Browser Source overlay:   http://localhost:${port}/overlay`);
     console.log('');
-    if (!state.apiKeySet) console.warn('  ⚠ No Anthropic API key set — open the dashboard to run the setup wizard.');
+    if (!state.apiKeySet) {
+      console.warn(
+        config.app.setupComplete === true
+          ? '  ⚠ Preview mode — no brain configured, the cast stays quiet. Add a Claude API key or a local model in Settings → Brain.'
+          : '  ⚠ No brain configured — open the dashboard to run the setup wizard.'
+      );
+    }
     loop.start();
   });
 

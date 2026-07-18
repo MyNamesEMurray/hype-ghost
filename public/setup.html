@@ -95,6 +95,7 @@
       <input type="password" id="oaiKey">
     </div>
     <div class="test"><button id="testKey">Test brain</button><span class="result" id="keyResult"></span></div>
+    <p class="hint" style="margin-top:14px">Just looking? <a href="#" id="skipBrain">Skip this step</a> — the app opens in preview mode ($0, no messages) so you can explore the deck first. Add a brain any time in Settings → Brain.</p>
   </div>
 
   <!-- Step 4: OBS -->
@@ -239,6 +240,10 @@
     el.className = 'result ' + (r.ok ? 'ok':'err'); el.textContent = r.ok ? `✓ connected — current scene: "${r.scene}"` : '✗ ' + (r.error || 'failed');
   };
 
+  // "Just looking" escape hatch on the brain step: advance without a key so
+  // the whole app is explorable in preview mode (Next still validates).
+  $('skipBrain').onclick = (e) => { e.preventDefault(); $('keyResult').className = 'result'; $('keyResult').textContent = ''; step++; show(); };
+
   $('back').onclick = () => { if (step > 0) { step--; show(); } };
   $('next').onclick = async () => {
     if (step === 2) {
@@ -260,15 +265,22 @@
     const mode = $('trMode').value, target = $('trTarget').value.trim();
     cfg.transcript = { ...cfg.transcript, mode: mode !== 'off' && !target ? 'off' : mode, ...(mode === 'file' ? { file: target } : {}), ...(mode === 'textSource' ? { textSource: target } : {}) };
     cfg.twitch = { ...cfg.twitch, channel: $('twChannel').value.trim(), clientId: $('twId').value.trim(), clientSecret: $('twSecret').value.trim() };
+    // Finishing the wizard — with or without a brain — means '/' serves the
+    // dashboard from now on instead of bouncing back here.
+    cfg.app = { ...cfg.app, setupComplete: true };
 
     $('next').disabled = true;
     const r = await fetch('/api/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cfg) }).then((x)=>x.json()).catch((e)=>({ok:false,error:e.message}));
     if (!r.ok) { $('next').disabled = false; alert('Saving failed: ' + (r.error || 'unknown error')); return; }
     document.querySelectorAll('.step').forEach((el) => el.classList.remove('active'));
     document.querySelector('nav').style.display = 'none'; bar.style.display = 'none'; $('done').style.display = 'block';
-    $('doneMsg').textContent = r.restarting ? 'Saving and restarting Hype Ghost…'
+    const brainConfigured = $('provider').value === 'openai'
+      ? Boolean($('oaiModel').value.trim())
+      : Boolean($('apiKey').value.trim() || apiKeySaved);
+    const preview = brainConfigured ? '' : " You're in preview mode — the cast stays quiet until you add a brain in Settings.";
+    $('doneMsg').textContent = (r.restarting ? 'Saving and restarting Hype Ghost…'
       : r.applied ? 'Saved — your room is live.'
-      : 'Saved — restart the server to apply your settings.';
+      : 'Saved — restart the server to apply your settings.') + preview;
     if (r.restarting) setTimeout(() => { location.href = '/'; }, 4000);
     else if (r.applied) setTimeout(() => { location.href = '/'; }, 1500);
   };

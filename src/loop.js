@@ -58,7 +58,25 @@ export class GhostLoop {
   }
 
   start() {
+    // Preview mode (wizard skipped, no brain configured): stay paused instead
+    // of burning cadence ticks on guaranteed API errors. resume()/nudge()
+    // explain what's missing; a config save relaunches the app, so readiness
+    // can't change within this loop's lifetime.
+    if (!this.brain.ready()) {
+      this.paused = true;
+      this.hooks.onState();
+      return;
+    }
     this.scheduleNext(15_000); // first message ~15s after startup
+  }
+
+  /** Preview-mode gate: true when the brain can be called, else a dashboard hint. */
+  requireBrain() {
+    if (this.brain.ready()) return true;
+    this.hooks.onSystem(
+      'The cast has no brain yet — add your Claude API key (or a free local model) in Settings → Brain to bring them to life.'
+    );
+    return false;
   }
 
   snapshot() {
@@ -103,6 +121,7 @@ export class GhostLoop {
   }
 
   resume() {
+    if (!this.requireBrain()) return; // preview mode: stay paused, explain why
     this.paused = false;
     this.autoPaused = false;
     this.stopResumeWatcher();
@@ -110,6 +129,7 @@ export class GhostLoop {
   }
 
   nudge() {
+    if (!this.requireBrain()) return;
     clearTimeout(this.timer);
     this.timer = null;
     this.speak('nudge');
@@ -118,6 +138,7 @@ export class GhostLoop {
   /** The streamer typed a message — answer it soon, with the reply prompt. */
   onStreamerMessage() {
     this.lastStreamerActivityAt = Date.now();
+    if (!this.requireBrain()) return; // their message still shows; explain the silence
     this.scheduleNext((this.config.cadence.replyDelaySeconds ?? 6) * 1000, 'reply');
   }
 
@@ -214,6 +235,7 @@ export class GhostLoop {
 
   async speak(trigger) {
     if (this.paused) return;
+    if (!this.brain.ready()) return; // backstop — entry points already hinted
     if (this.busy) {
       // A reply or nudge that fires while a generation is in flight must not
       // be silently dropped — the streamer is waiting on it. Hold the trigger;

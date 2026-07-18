@@ -70,6 +70,7 @@ export class Brain {
     this.language = language || 'English';
     if (this.provider === 'anthropic') {
       const apiKey = anthropic.apiKey || process.env.ANTHROPIC_API_KEY || '';
+      this.hasKey = Boolean(apiKey);
       this.client = new Anthropic(apiKey ? { apiKey } : {});
       this.model = anthropic.model;
     } else {
@@ -77,6 +78,17 @@ export class Brain {
       this.model = brain.openaiModel;
       this.apiKey = brain.openaiApiKey || '';
     }
+  }
+
+  /**
+   * False when there is nothing to call — no Anthropic key, or no model name
+   * for an OpenAI-compatible endpoint. The wizard's "skip for now" path lands
+   * here: the app runs in preview mode and the loop stays quiet instead of
+   * erroring on every cadence tick. (Config changes relaunch the app, so
+   * readiness never flips within a Brain's lifetime.)
+   */
+  ready() {
+    return this.provider === 'anthropic' ? this.hasKey : Boolean(this.model);
   }
 
   // Byte-stable across the whole session — per-message state (energy, notes,
