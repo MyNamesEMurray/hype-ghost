@@ -42,6 +42,7 @@
     "ttsRate": 1,
     "ttsOutputDevice": "",
     "uiLanguage": "en",
+    "fontScale": 1,
     "setupComplete": false
   },
   "stream": {

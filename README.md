@@ -108,6 +108,7 @@ Quit Hype Ghost.
 | `app.autoUpdate` | Check GitHub for new versions at launch and update automatically (default true). |
 | `app.setupComplete` | Set by the setup wizard when you finish it (even via the brain step's "skip"). Once true, `/` opens the dashboard — without a brain that's **preview mode**: everything explorable, cast quiet, $0. |
 | `app.costMeter` | Show the live session cost readout in the deck's top bar (default true). |
+| `app.fontScale` | UI text size for the deck/settings/wizard: `1` default, `1.1` large, `1.25` extra large (Settings → App, applies live). Never shrinks below default, and the on-stream overlay is unaffected. |
 | `app.ttsOutputDevice` | Which speaker/headphone spoken cast messages play on (Settings → App → 🔊, with a test button). Picking a specific device keeps chat out of your stream mix and off the VOD; that path speaks with Windows (SAPI) voices. Blank = system default device with browser voices. |
 | `bot.language` | Language the whole cast chats in (default English). |
 | `stream.context` | Standing context about your stream (game, format, vibe) the cast always knows. It also sees your current OBS scene name automatically. |
