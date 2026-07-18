@@ -88,3 +88,33 @@ test('getWindow prunes entries older than the window and honors sinceTs', (t) =>
   assert.equal(feed.getWindow(), 'new speech');
   assert.equal(feed.getWindow(Date.now() + 1000), ''); // nothing newer than the future
 });
+
+// textSource mode must drive the exact same onSpeech path as file mode — the
+// deck's "heard" feed echo and voice replies hang off that callback, so both
+// transcription modes get identical behavior.
+test('textSource mode fires onSpeech on changed captions, same as file mode', async (t) => {
+  let sourceText = 'stale pre-launch caption';
+  const heard = [];
+  const feed = new TranscriptFeed({
+    mode: 'textSource',
+    textSource: 'LocalVocal Captions',
+    pollSeconds: 999,
+    windowSeconds: 120,
+    obs: { getTextSourceText: async () => sourceText },
+    onSpeech: (line) => heard.push(line),
+  });
+  // Prime exactly like start() does: the pre-launch caption is not fresh speech.
+  feed.lastSourceText = await feed.obs.getTextSourceText(feed.textSource);
+  await feed.pollTextSource();
+  assert.deepEqual(heard, [], 'primed caption must not fire');
+  sourceText = 'did you see that dragon';
+  await feed.pollTextSource();
+  await feed.pollTextSource(); // unchanged caption fires only once
+  assert.deepEqual(heard, ['did you see that dragon']);
+  sourceText = null; // OBS unreachable mid-stream
+  await feed.pollTextSource();
+  sourceText = '00:01:02,000 --> 00:01:04,000'; // SRT timing junk is filtered here too
+  await feed.pollTextSource();
+  assert.deepEqual(heard, ['did you see that dragon']);
+  assert.equal(feed.getWindow(), 'did you see that dragon');
+});

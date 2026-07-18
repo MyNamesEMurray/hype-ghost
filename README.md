@@ -87,7 +87,9 @@ Quit Hype Ghost.
   OBS plugin (local whisper.cpp — audio never leaves your PC), add its Transcription filter
   to your mic source, output to a text file or a (hidden) text source, and point the wizard's
   voice-awareness step (or the `transcript` config section) at it. Then answering the ghost
-  out loud *is* replying.
+  out loud *is* replying. Everything it hears also shows up as faint 🎙 lines in the deck
+  feed (toggle in Settings → Voice), so when the cast reacts oddly you can see exactly what
+  the transcription thought you said.
 - **Party / co-op audio (second channel):** streaming alongside friends? Route their audio
   (Discord/TeamSpeak/party chat) to a separate OBS source, add a *second* LocalVocal
   Transcription filter to it, output to a **different** file/text source than your mic, and
@@ -124,6 +126,7 @@ Quit Hype Ghost.
 | `twitch.decapi` | Fetch viewer count + stream info keylessly via [DecAPI](https://decapi.me), a community-run Twitch API proxy (default true). Only your public channel name is sent to it. Set false to opt out. |
 | `twitch.clientId` / `clientSecret` | *(Optional, power users)* App credentials from dev.twitch.tv — when set, the official Helix API is used directly instead of DecAPI. |
 | `transcript.mode` | `off`, `file` (tail LocalVocal's .txt/.srt output), or `textSource` (poll a text source over OBS WebSocket). |
+| `transcript.showInFeed` | Echo what voice awareness hears into the deck feed as faint 🎙 lines (party audio as 🎧) so you can spot mishears the cast might be reacting to (default true). Deck only — never in the cast's chat history, the recap, or the on-stream overlay. |
 | `transcript2.*` | *(Optional)* A **second** transcription channel for party/co-op audio (a separate audio device with its own LocalVocal filter). Same `mode`/`file`/`textSource`/`pollSeconds` as `transcript`, plus `label` — how the cast refers to those people (e.g. "my co-op squad"). Treated as *other people*, never as the streamer. |
 | `cadence.soloSeconds` / `quietSeconds` | Average gap between messages when alone / when real viewers are present. |
 | `cadence.jitter`, `burstChance`, `lullChance` | Natural rhythm: ±jitter on normal gaps, occasional quick bursts (0.3–0.6x) and long lulls (1.6–3x). |
