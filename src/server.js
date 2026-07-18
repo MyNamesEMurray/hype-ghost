@@ -230,7 +230,7 @@ export function startServer(opts = {}) {
   const HOT_PATHS = [
     'energy', 'talkingPoints', 'theme.', 'overlay.', 'moments.', 'memory.', 'stream.',
     'app.costMeter', 'app.uiLanguage', 'app.autoPause', 'app.autoPauseMinutes', 'app.autoUpdate',
-    'app.ttsVoice', 'app.ttsRate', 'app.ttsOutputDevice',
+    'app.ttsVoice', 'app.ttsRate', 'app.ttsOutputDevice', 'transcript.showInFeed',
     'cadence.soloSeconds', 'cadence.quietSeconds', 'cadence.jitter', 'cadence.burstChance',
     'cadence.lullChance', 'cadence.replyDelaySeconds', 'cadence.minVoiceReplyGapSeconds',
     'cadence.minScreenshotGapSeconds', 'cadence.minPartyNudgeGapSeconds',
@@ -551,6 +551,13 @@ export function startServer(opts = {}) {
     obs,
     onSpeech: (line) => {
       state.lastHeard = { text: line, ts: Date.now() };
+      // Deck-only echo of what was transcribed, so mishears are visible the
+      // moment they happen. Never enters `history` (the brain already gets
+      // the transcript window separately) and never reaches the overlay
+      // (its client ignores the type). Read live — the toggle hot-applies.
+      if (config.transcript.showInFeed !== false) {
+        broadcast({ type: 'heard', heard: { channel: 'mic', text: line, ts: Date.now() } });
+      }
       broadcastState();
       loop.onSpeech();
     },
@@ -566,6 +573,13 @@ export function startServer(opts = {}) {
     obs,
     onSpeech: (line) => {
       state.lastHeardParty = { text: line, ts: Date.now() };
+      // Same deck-only echo as the mic channel, labeled as "other people".
+      if (config.transcript.showInFeed !== false) {
+        broadcast({
+          type: 'heard',
+          heard: { channel: 'party', label: config.transcript2?.label || 'Party', text: line, ts: Date.now() },
+        });
+      }
       broadcastState();
       loop.onPartySpeech();
     },

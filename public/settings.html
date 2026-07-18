@@ -212,6 +212,10 @@
           <div><label>Recent speech window (seconds)</label><input type="number" data-path="cadence.transcriptWindowSeconds" min="30" max="600"></div>
           <div><label>Check for new speech every (seconds)</label><input type="number" data-path="transcript.pollSeconds" min="1" max="30"></div>
         </div>
+        <div class="check">
+          <input type="checkbox" id="showHeard" data-path="transcript.showInFeed" data-type="bool">
+          <label for="showHeard">Show what it hears in the deck feed — faint 🎙 lines of your transcribed speech (and 🎧 party audio), so you can spot mishears the cast might react to. Deck only; never on the stream overlay. Applies live on save.</label>
+        </div>
 
         <div style="margin-top:24px">
           <h2>🎧 Second channel — party / co-op audio</h2>

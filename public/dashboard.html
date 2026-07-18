@@ -120,6 +120,14 @@
   .msg.streamer .meta { flex-direction: row-reverse; }
   .msg.streamer .nm { color: var(--accent-2); }
   .msg.streamer .bubble { background: var(--accent-soft); border-color: var(--accent-line); border-radius: var(--r-lg); border-top-right-radius: 4px; }
+  /* "heard" rows — what voice awareness transcribed. Faint and italic on
+     purpose: this is sensor readout (possibly misheard), not chat. Mic lines
+     sit right like your typed messages; party lines sit left (other people). */
+  .heard { align-self: flex-end; display: flex; align-items: baseline; gap: 8px; max-width: 640px; font-size: var(--fs-sm); font-style: italic; color: var(--faint); animation: rise .28s ease-out; }
+  .heard.party { align-self: flex-start; }
+  .heard .ic { font-style: normal; flex: none; }
+  .heard .txt { overflow-wrap: anywhere; min-width: 0; }
+  .heard .tm { font-style: normal; font-size: var(--fs-xs); flex: none; }
   .moment-card { align-self: center; display: flex; align-items: center; gap: 10px; padding: 7px 15px; border-radius: var(--r-full); background: var(--glass); border: 1px solid var(--accent-line); font-size: var(--fs-sm); animation: pop .4s cubic-bezier(.2,1.3,.5,1); }
   @keyframes pop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: none; } }
   .moment-card .spark { background: var(--aurora); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 800; }
@@ -260,7 +268,8 @@
       next:'up next', obsOk:'OBS connected', obsNo:'OBS offline', brainOk:'Brain ready', brainNo:'No brain', viewersManual:'manual',
       micOff:'off', micQuiet:'quiet', micWait:'waiting', party:'Party', partyQuiet:'quiet', partyWait:'waiting', chatQuiet:'quiet', chatActive:'active', lost:'Connection lost — reconnecting…',
       msgs:'msgs', watching:'watching', idle:'idle', noMoments:'No moments yet — the cast flags clip-worthy plays here.',
-      previewBody:'Preview mode — your cast has no brain yet, so the room stays quiet.', previewCta:'Connect one in Settings' },
+      previewBody:'Preview mode — your cast has no brain yet, so the room stays quiet.', previewCta:'Connect one in Settings',
+      heardTip:'What voice awareness transcribed — the cast may be reacting to this. If it misheard you, that explains their reaction. (Deck only — never shown on stream.)' },
     es: { brain:'Cerebro', viewers:'Espectadores', mic:'Micro', chat:'Chat', cast:'El elenco', energy:'Energía',
       chill:'Tranqui', balanced:'Normal', hype:'Máx', room:'Sala', modeAuto:'Auto', modeSolo:'Solo', modeViewers:'Público',
       say:'Di algo', pause:'Pausar', resume:'Reanudar', moments:'Momentos', recap:'Exportar', send:'Enviar', you:'Tú',
@@ -269,7 +278,8 @@
       next:'siguiente', obsOk:'OBS conectado', obsNo:'OBS desconectado', brainOk:'Cerebro listo', brainNo:'Sin cerebro', viewersManual:'manual',
       micOff:'apagado', micQuiet:'silencio', micWait:'esperando', party:'Grupo', partyQuiet:'silencio', partyWait:'esperando', chatQuiet:'tranquilo', chatActive:'activo', lost:'Conexión perdida — reconectando…',
       msgs:'msjs', watching:'mirando', idle:'inactivo', noMoments:'Aún no hay momentos — el elenco marcará jugadas destacadas aquí.',
-      previewBody:'Modo vista previa — tu elenco aún no tiene cerebro, así que la sala sigue en silencio.', previewCta:'Conéctalo en Ajustes' },
+      previewBody:'Modo vista previa — tu elenco aún no tiene cerebro, así que la sala sigue en silencio.', previewCta:'Conéctalo en Ajustes',
+      heardTip:'Lo que la escucha de voz transcribió — el elenco puede estar reaccionando a esto. Si te entendió mal, eso explica su reacción. (Solo en la consola — nunca en el stream.)' },
   };
   let L = STR.en;
   const T = (k) => (L[k] ?? STR.en[k] ?? k);
@@ -391,6 +401,24 @@
     feed.appendChild(div);
     feed.scrollTop = feed.scrollHeight;
     renderMoments();
+  }
+
+  // What voice awareness heard (mic or party channel) — deck-only, ephemeral
+  // (not in history, not on the overlay, gone on reload). Capped so hours of
+  // talking can't grow the DOM without bound.
+  const MAX_HEARD_ROWS = 30;
+  function addHeard(h) {
+    clearEmpty();
+    const rows = feed.querySelectorAll('.heard');
+    if (rows.length >= MAX_HEARD_ROWS) rows[0].remove();
+    const div = document.createElement('div');
+    div.className = 'heard' + (h.channel === 'party' ? ' party' : '');
+    div.title = T('heardTip');
+    const time = new Date(h.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    div.innerHTML = `<span class="ic">${h.channel === 'party' ? '🎧' : '🎙️'}</span><span class="txt"></span><span class="tm">${time}</span>`;
+    div.querySelector('.txt').textContent = (h.channel === 'party' && h.label ? h.label + ' · ' : '') + '“' + h.text + '”';
+    feed.appendChild(div);
+    feed.scrollTop = feed.scrollHeight;
   }
 
   function addSystem(text) {
@@ -533,6 +561,7 @@
       else if (msg.type === 'moment') { momentsData.push(msg.moment); addMoment(msg.moment, true); }
       else if (msg.type === 'state') { const s = state._startedAt; state = msg.state; state._startedAt = state.startedAt || s || Date.now(); renderState(); }
       else if (msg.type === 'system') { addSystem(msg.text); }
+      else if (msg.type === 'heard') { addHeard(msg.heard); }
     };
     ws.onclose = () => { if (!announcedDrop) { announcedDrop = true; toast(T('lost')); } setTimeout(connect, 3000); };
   }

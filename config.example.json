@@ -93,7 +93,8 @@
     "mode": "off",
     "file": "",
     "textSource": "LocalVocal Captions",
-    "pollSeconds": 2
+    "pollSeconds": 2,
+    "showInFeed": true
   },
   "transcript2": {
     "mode": "off",
