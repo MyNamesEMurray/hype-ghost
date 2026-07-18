@@ -69,7 +69,7 @@
       <button class="tabbtn on" data-tab="cast">👻 <span>Cast</span></button>
       <button class="tabbtn" data-tab="brain">🧠 <span>Brain</span></button>
       <button class="tabbtn" data-tab="stream">📷 <span>Stream</span></button>
-      <button class="tabbtn" data-tab="voice">🎙 <span>Voice</span></button>
+      <button class="tabbtn" data-tab="voice">🎙️ <span>Voice</span></button>
       <button class="tabbtn" data-tab="behavior">💬 <span>Behavior</span></button>
       <button class="tabbtn" data-tab="look">🎨 <span>Look</span></button>
       <button class="tabbtn" data-tab="app">🔧 <span>App</span></button>
@@ -189,7 +189,7 @@
 
       <!-- ============ VOICE ============ -->
       <section class="card" data-tab="voice">
-        <h2>🎙 Voice awareness</h2>
+        <h2>🎙️ Voice awareness</h2>
         <p class="desc">Local mic transcription via the <a href="https://obsproject.com/forum/resources/localvocal-local-live-captions-translation-on-the-go.1769/" target="_blank">LocalVocal</a> OBS plugin, so answering out loud is replying. It's third-party — keep it updated to match your OBS version (an outdated build can crash OBS, e.g. when switching Scene Collections). Optional: leave this Off to reply by typing.</p>
         <label>Mode</label>
         <select data-path="transcript.mode">
@@ -306,6 +306,13 @@
       <!-- ============ APP ============ -->
       <section class="card" data-tab="app">
         <h2>🔧 App</h2>
+        <label>Font size</label>
+        <select data-path="app.fontScale" data-type="num" id="fontScale" style="max-width:220px">
+          <option value="1">Default</option>
+          <option value="1.1">Large</option>
+          <option value="1.25">Extra large</option>
+        </select>
+        <p class="hint">Scales the text across the deck, settings, and wizard (preview is instant; Save keeps it). The on-stream overlay is untouched — its look lives on the Stream tab.</p>
         <div class="check">
           <input type="checkbox" id="autoUpdate" data-path="app.autoUpdate" data-type="bool">
           <label for="autoUpdate">Update automatically (checks GitHub for new versions at launch)</label>
@@ -542,6 +549,7 @@
     $('aboutVersion').textContent = 'v' + (data.version || '?');
     $('aboutConfigPath').textContent = data.configPath || '';
     initStorage();
+    applyFontScale(cfg.app && cfg.app.fontScale);
     if (apiKeySaved) $('apiKeyField').placeholder = 'saved ✓ — leave blank to keep the current key';
     const saved = 'saved ✓ — leave blank to keep';
     if (data.openaiKeySaved) fields.find((f) => f.dataset.path === 'brain.openaiApiKey').placeholder = saved;
@@ -672,6 +680,12 @@
   $('browseFile').onclick = () => pickInto('transcript.file', 'transcript.mode');
   $('browseFile2').onclick = () => pickInto('transcript2.file', 'transcript2.mode');
 
+  // ---- font scale (instant preview; Save persists + hot-applies) ----
+  function applyFontScale(v) {
+    document.documentElement.style.setProperty('--font-scale', Math.min(1.5, Math.max(1, Number(v) || 1)));
+  }
+  $('fontScale').onchange = () => applyFontScale($('fontScale').value);
+
   // ---- storage (data folder) ----
   // Desktop only: the server fronts Electron's folder dialog + file migration,
   // then relaunches. Headless/dev just shows where the data lives.
@@ -723,6 +737,7 @@
     for (const f of fields) {
       let v;
       if (f.dataset.type === 'bool') v = f.checked;
+      else if (f.dataset.type === 'num') v = Number(f.value) || 0; // selects with numeric values
       else if (f.type === 'number') { if (f.value === '') continue; v = Number(f.value); }
       else v = f.value.trim ? f.value.trim() : f.value;
       setPath(cfg, f.dataset.path, v);

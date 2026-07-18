@@ -78,6 +78,9 @@ export function startServer(opts = {}) {
     outputDevice: config.app.ttsOutputDevice || '',
     engine: sapiTts.available() ? 'sapi' : 'browser',
   });
+  // UI font scale (Settings → App). Never below 1: text can grow, not shrink —
+  // and the 🤖 AI badge inherits the same guarantee.
+  const fontScale = () => Math.min(1.5, Math.max(1, Number(config.app.fontScale) || 1));
   const brain = new Brain({
     brain: config.brain,
     anthropic: config.anthropic,
@@ -114,6 +117,7 @@ export function startServer(opts = {}) {
     costMeter: config.app.costMeter !== false,
     tts: ttsState(),
     uiLanguage: config.app.uiLanguage || 'en',
+    fontScale: fontScale(),
     usage: { messages: 0, inputTokens: 0, outputTokens: 0, cost: 0, costKnown: true },
   };
   const history = []; // {id, author, role: 'bot'|'streamer', text, ts}
@@ -229,7 +233,7 @@ export function startServer(opts = {}) {
   // transcripts, Twitch, port) still restarts.
   const HOT_PATHS = [
     'energy', 'talkingPoints', 'theme.', 'overlay.', 'moments.', 'memory.', 'stream.',
-    'app.costMeter', 'app.uiLanguage', 'app.autoPause', 'app.autoPauseMinutes', 'app.autoUpdate',
+    'app.costMeter', 'app.uiLanguage', 'app.fontScale', 'app.autoPause', 'app.autoPauseMinutes', 'app.autoUpdate',
     'app.ttsVoice', 'app.ttsRate', 'app.ttsOutputDevice', 'transcript.showInFeed',
     'cadence.soloSeconds', 'cadence.quietSeconds', 'cadence.jitter', 'cadence.burstChance',
     'cadence.lullChance', 'cadence.replyDelaySeconds', 'cadence.minVoiceReplyGapSeconds',
@@ -272,6 +276,7 @@ export function startServer(opts = {}) {
     state.accent = config.theme?.accent || 'violet';
     state.costMeter = config.app.costMeter !== false;
     state.uiLanguage = config.app.uiLanguage || 'en';
+    state.fontScale = fontScale();
     state.tts = ttsState(); // voice/rate/output device are hot; the on/off toggle is not
     broadcast({ type: 'config' }); // overlay clients re-fetch /api/overlay-config
     broadcastState();

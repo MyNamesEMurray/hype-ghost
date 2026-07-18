@@ -123,7 +123,7 @@
   <div class="step" data-step="5">
     <b>Optional extras</b>
     <details>
-      <summary>🎙 Voice awareness — the cast hears what you say (recommended)</summary>
+      <summary>🎙️ Voice awareness — the cast hears what you say (recommended)</summary>
       <p class="hint">Install the free <a href="https://obsproject.com/forum/resources/localvocal-local-live-captions-translation-on-the-go.1769/" target="_blank">LocalVocal</a> OBS plugin (speech-to-text runs 100% locally), add its filter to your mic, and point it at a file or text source. Keep LocalVocal updated to match your OBS version — an outdated build can crash OBS on newer OBS releases (it's third-party, not part of Hype Ghost). Voice awareness is optional; leave this Off to reply by typing.</p>
       <label>Mode</label>
       <select id="trMode"><option value="off">Off</option><option value="file">File — tail LocalVocal's .txt/.srt output</option><option value="textSource">Text source — read via OBS WebSocket</option></select>
@@ -170,6 +170,7 @@
 
   fetch('/api/config').then((r) => r.json()).then((data) => {
     cfg = data.config; apiKeySaved = data.apiKeySaved; canRestart = data.canRestart;
+    document.documentElement.style.setProperty('--font-scale', Math.min(1.5, Math.max(1, Number(cfg.app?.fontScale) || 1)));
     archetypes = data.archetypes || []; palette = data.palette || {};
     $('model').innerHTML = data.models.map((m) => `<option value="${m.id}">${m.label}</option>`).join('');
     // archetype cards

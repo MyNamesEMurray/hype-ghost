@@ -468,7 +468,7 @@
 
   function setOrb(id, cls, text) { const el = $(id); el.className = 'orb ' + cls; el.querySelector('.lbl').textContent = text; }
 
-  let appliedLang = null, appliedAccent = null;
+  let appliedLang = null, appliedAccent = null, appliedScale = null;
   function renderState() {
     // Language + accent apply only when they actually change — applyI18n
     // sweeps the whole DOM and state broadcasts arrive constantly.
@@ -477,6 +477,10 @@
       L = STR[state.uiLanguage] ?? STR.en;
       applyAccent(state.accent);
       applyI18n();
+    }
+    if (state.fontScale !== appliedScale) {
+      appliedScale = state.fontScale;
+      document.documentElement.style.setProperty('--font-scale', Math.min(1.5, Math.max(1, Number(state.fontScale) || 1)));
     }
     if (JSON.stringify(cast) !== JSON.stringify(state.cast || [])) { cast = state.cast || []; renderStage(); }
 
