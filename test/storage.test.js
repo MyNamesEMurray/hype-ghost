@@ -70,6 +70,7 @@ test('dataFilePaths covers every file factory reset must delete', () => {
     sessionPath: 'session.json',
     profilePath: 'profile.md',
     logPath: 'hype-ghost.log',
+    skipPath: 'update-skip.json',
   };
   for (const [key, name] of Object.entries(expected)) {
     assert.equal(path.dirname(p[key]), dir, key);

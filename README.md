@@ -70,7 +70,10 @@ Quit Hype Ghost.
   (or add one manually: URL `http://localhost:3777/overlay`, ~460×600, transparent). This
   puts the chat on your stream/VOD.
 - **Updates:** the app checks GitHub Releases at launch and updates itself (toggle in
-  Settings → App).
+  Settings → App). When an update is ready you choose: **Restart now**, **Later** (from the
+  tray menu, or it installs when you quit), or **Skip this update** — a skipped version is
+  never offered again (not even downloaded); you're only asked again when something newer
+  is released.
 - **Settings → About** shows the app version, the honesty/privacy rules at a glance, where
   your data lives, and **Reset to factory defaults** — wipes all settings and memory, then
   re-runs the setup wizard.

@@ -8,6 +8,7 @@ import { startServer } from '../src/server.js';
 import { loadConfig } from '../src/config.js';
 import { POINTER_FILE, dataFilePaths, migrateDataFiles, resolveDataDir, setDataDir } from '../src/storage.js';
 import { FileLog } from '../src/logfile.js';
+import { UpdateSkip } from '../src/updateskip.js';
 
 // Resource posture: this app shares a machine with OBS and a game. Software
 // rendering is plenty for our simple UI and keeps VRAM/GPU cycles for the
@@ -39,7 +40,7 @@ if (!gotLock) {
 // Dev (npm start): the project folder, so hacking on it stays simple.
 const defaultDataDir = app.isPackaged ? app.getPath('userData') : packageRoot;
 const { dir: dataDir, custom: customDataDir } = resolveDataDir(defaultDataDir);
-const { configPath, notesPath, sessionPath, profilePath, logPath } = dataFilePaths(dataDir);
+const { configPath, notesPath, sessionPath, profilePath, logPath, skipPath } = dataFilePaths(dataDir);
 
 // A tray-resident app has no visible console — keep a rotating file log next
 // to the data for bug reports. Packaged only: dev has a real terminal.
@@ -196,9 +197,10 @@ app.whenReady().then(() => {
           return copied;
         },
       },
-      // Factory reset must also clear the pointer, the active log, and any
-      // stale copies left in the default dir from before a folder move.
-      resetPaths: [path.join(defaultDataDir, POINTER_FILE), logPath, ...Object.values(dataFilePaths(defaultDataDir))],
+      // Factory reset must also clear the pointer, the active log and
+      // update-skip marker, and any stale copies left in the default dir
+      // from before a folder move.
+      resetPaths: [path.join(defaultDataDir, POINTER_FILE), logPath, skipPath, ...Object.values(dataFilePaths(defaultDataDir))],
       // The setup wizard saved a new config — restart the whole app to apply it.
       onConfigSaved: () => {
         quitting = true;
@@ -249,20 +251,42 @@ app.whenReady().then(() => {
   const autoUpdateEnabled = appCfg.autoUpdate !== false;
   if (app.isPackaged && !SMOKE && autoUpdateEnabled) {
     const { autoUpdater } = electronUpdater;
+    // "Skip this update" memory: a skipped version (or older) is never even
+    // downloaded again — the user is asked only when something strictly newer
+    // is out. Once we're running at/past the skipped version, the marker has
+    // no meaning left and is dropped.
+    const updateSkip = new UpdateSkip(skipPath);
+    updateSkip.clearIfNotNewer(app.getVersion());
+    autoUpdater.autoDownload = false; // decide *before* pulling ~80MB
+    autoUpdater.on('update-available', (info) => {
+      if (updateSkip.isSkipped(info.version)) {
+        console.log(`[update] v${info.version} is out, but you skipped it — staying quiet until something newer.`);
+        return;
+      }
+      autoUpdater.downloadUpdate().catch((err) => console.warn('[update] download failed:', err.message));
+    });
     autoUpdater.on('update-downloaded', (info) => {
       updateReady = info.version;
       if (tray) tray.setContextMenu(trayMenu());
       const visible = win && !win.isDestroyed() && win.isVisible();
       const choice = dialog.showMessageBoxSync(visible ? win : undefined, {
         type: 'info',
-        buttons: ['Restart now', 'Later'],
+        buttons: ['Restart now', 'Later', 'Skip this update'],
         defaultId: 0,
-        cancelId: 1,
+        cancelId: 1, // Esc = Later, the do-nothing-destructive default
         title: 'Update ready',
         message: `Hype Ghost v${info.version} is ready to install.`,
-        detail: 'Restart to apply it now — or do it later from the tray menu, or just quit whenever (it installs on the way out).',
+        detail: 'Restart to apply it now, install later from the tray menu (or on your way out) — or skip this version and only get asked again when a newer one is released.',
       });
-      if (choice === 0) installUpdateNow();
+      if (choice === 0) {
+        installUpdateNow();
+      } else if (choice === 2) {
+        updateSkip.skip(info.version);
+        updateReady = null; // no tray install item for a version they declined
+        autoUpdater.autoInstallOnAppQuit = false; // and no surprise install on quit
+        if (tray) tray.setContextMenu(trayMenu());
+        console.log(`[update] v${info.version} skipped — you'll be asked again for the next release.`);
+      }
     });
     autoUpdater.checkForUpdates().catch((err) => console.warn('[update] check failed:', err.message));
   }
