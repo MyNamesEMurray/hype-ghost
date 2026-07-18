@@ -25,12 +25,21 @@ const SMOKE = Boolean(process.env.HG_SMOKE); // CI/smoke mode: no UI, auto-quit
 // Required for Windows notifications/toasts to render at all.
 app.setAppUserModelId('com.hypeghost.app');
 
-// Only one Hype Ghost at a time — a second launch just shows the existing window.
+// Only one Hype Ghost at a time — a second launch hands focus to the first
+// instance instead of starting a rival. NOTE: app.quit() is asynchronous, so
+// losing the lock must also gate the whenReady() block below — otherwise the
+// doomed second instance still boots a server into the occupied port and
+// flashes a "port already in use" error before its quit lands.
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 } else {
-  app.on('second-instance', () => showWindow());
+  // Fired in the FIRST instance when a second launch is attempted: restore
+  // from minimized, recreate from tray mode, and bring to the foreground.
+  app.on('second-instance', () => {
+    if (win && !win.isDestroyed() && win.isMinimized()) win.restore();
+    showWindow();
+  });
 }
 
 // Installed app: data lives in %APPDATA%/Hype Ghost (writable, survives
@@ -163,7 +172,9 @@ function createTray() {
   tray.on('double-click', () => showWindow());
 }
 
-app.whenReady().then(() => {
+// Gated on the lock: without this, the losing instance's whenReady still
+// fires before its queued app.quit() and boots a second server (see above).
+if (gotLock) app.whenReady().then(() => {
   ensureConfig();
   try {
     server = startServer({
