@@ -46,7 +46,7 @@ stage presence, and the streamer is the director. The visuals moved with the met
    | 👻 | app identity / a ghost |
    | 🧠 | brain / model / API |
    | 📷 | stream & OBS |
-   | 🎙 | voice / mic transcription |
+   | 🎙️ | voice / mic transcription |
    | 💬 | chat behavior & cadence |
    | 🎨 | look / theming |
    | 🔧 | app plumbing |

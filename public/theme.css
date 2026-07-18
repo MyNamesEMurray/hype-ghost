@@ -48,12 +48,16 @@
   --r-full: 999px;
 
   /* --- type scale --- */
-  --fs-xs: 11px;
-  --fs-sm: 13px;
-  --fs-base: 15px;
-  --fs-lg: 18px;
-  --fs-xl: 22px;
-  --fs-2xl: 30px;
+  /* Every size scales with the font-size setting (Settings → App): pages set
+     --font-scale from app.fontScale (1 / 1.1 / 1.25). The overlay never sets
+     it — the on-stream look (and the watermark) stays as designed. */
+  --font-scale: 1;
+  --fs-xs: calc(12px * var(--font-scale));
+  --fs-sm: calc(14px * var(--font-scale));
+  --fs-base: calc(15px * var(--font-scale));
+  --fs-lg: calc(18px * var(--font-scale));
+  --fs-xl: calc(22px * var(--font-scale));
+  --fs-2xl: calc(30px * var(--font-scale));
 
   /* --- depth --- */
   --shadow: 0 18px 44px -20px rgba(0, 0, 0, 0.75);
@@ -192,7 +196,7 @@ input:focus:not(:focus-visible), textarea:focus:not(:focus-visible), select:focu
 
 /* the AI label — the ethics promise made visible; identical on every surface */
 .badge-ai {
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale)); /* grows with the UI; --font-scale never goes below 1 */
   font-weight: 800;
   letter-spacing: .6px;
   padding: 2px 7px;
@@ -218,7 +222,7 @@ input:focus:not(:focus-visible), textarea:focus:not(:focus-visible), select:focu
 /* ---------- layout helpers ---------- */
 .row { display: flex; gap: 14px; }
 .row > div { flex: 1; }
-.check { display: flex; align-items: flex-start; gap: 10px; margin-top: 14px; font-size: 14px; }
+.check { display: flex; align-items: flex-start; gap: 10px; margin-top: 14px; font-size: var(--fs-sm); }
 .check input { width: auto; margin-top: 3px; flex: none; }
 .check label { margin: 0; color: var(--text); font-weight: 450; }
 .withbtn { display: flex; gap: 8px; }
