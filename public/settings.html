@@ -369,7 +369,13 @@
         <p class="hint">Stream screenshots and (if enabled) your mic transcript go to the brain you chose — the Anthropic API, or your own local/OpenAI-compatible endpoint — to write messages, and nowhere else. Speech-to-text runs entirely locally inside OBS. With Twitch features on and no app credentials, your (public) channel name is sent to DecAPI. The app's server binds to 127.0.0.1 only. Your API key is stored unencrypted in the config file below — treat that folder like a password.</p>
 
         <label>Your data lives at</label>
-        <p class="hint"><code id="aboutConfigPath">…</code> — settings (config.json), session memory, chat history, and the cross-stream profile.</p>
+        <p class="hint"><code id="aboutConfigPath">…</code> — settings (config.json), session memory, chat history, the cross-stream profile<span id="aboutLogNote"></span>.<span id="storageCustomNote"></span></p>
+        <div class="test" id="storageActions" style="display:none">
+          <button id="storageMove">Move data folder…</button>
+          <button id="storageReset" style="display:none">Back to default location</button>
+          <span class="result" id="storageResult"></span>
+        </div>
+        <p class="hint" id="storageHint" style="display:none">Files are copied to the new folder (the originals stay behind as a backup) and the app restarts. Handy for keeping logs and memory on another drive or in a synced folder.</p>
 
         <div style="margin-top:22px">
           <h2 style="color:var(--bad)">Danger zone</h2>
@@ -531,6 +537,7 @@
     }
     $('aboutVersion').textContent = 'v' + (data.version || '?');
     $('aboutConfigPath').textContent = data.configPath || '';
+    initStorage();
     if (apiKeySaved) $('apiKeyField').placeholder = 'saved ✓ — leave blank to keep the current key';
     const saved = 'saved ✓ — leave blank to keep';
     if (data.openaiKeySaved) fields.find((f) => f.dataset.path === 'brain.openaiApiKey').placeholder = saved;
@@ -660,6 +667,33 @@
   }
   $('browseFile').onclick = () => pickInto('transcript.file', 'transcript.mode');
   $('browseFile2').onclick = () => pickInto('transcript2.file', 'transcript2.mode');
+
+  // ---- storage (data folder) ----
+  // Desktop only: the server fronts Electron's folder dialog + file migration,
+  // then relaunches. Headless/dev just shows where the data lives.
+  async function initStorage() {
+    const s = await fetch('/api/storage').then((x) => x.json()).catch(() => null);
+    if (!s) return;
+    if (s.dir) $('aboutConfigPath').textContent = s.dir;
+    if (s.logFile) $('aboutLogNote').textContent = `, and the app log (${s.logFile})`;
+    if (s.custom) $('storageCustomNote').textContent = ` Custom location — the default is ${s.defaultDir}.`;
+    if (!s.supported) return;
+    $('storageActions').style.display = '';
+    $('storageHint').style.display = '';
+    $('storageReset').style.display = s.custom ? '' : 'none';
+  }
+  async function moveStorage(reset) {
+    const el = $('storageResult');
+    el.className = 'result'; el.textContent = reset ? 'moving back…' : 'choose a folder in the dialog…';
+    const r = await fetch('/api/storage/move', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ reset }) }).then((x)=>x.json()).catch((e)=>({ok:false,error:e.message}));
+    if (r.cancelled) { el.textContent = ''; return; }
+    if (!r.ok) { el.className = 'result err'; el.textContent = '✗ ' + (r.error || 'failed'); return; }
+    el.className = 'result ok';
+    el.textContent = `✓ ${(r.copied || []).length} file(s) copied — restarting…`;
+    setTimeout(() => location.reload(), 4000);
+  }
+  $('storageMove').onclick = () => moveStorage(false);
+  $('storageReset').onclick = () => moveStorage(true);
 
   // ---- factory reset ----
   $('factoryReset').onclick = async () => {
