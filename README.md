@@ -90,6 +90,27 @@ Quit Hype Ghost.
   out loud *is* replying. Everything it hears also shows up as faint 🎙 lines in the deck
   feed (toggle in Settings → Voice), so when the cast reacts oddly you can see exactly what
   the transcription thought you said.
+- **Getting transcription accurate:** run **Settings → Voice → Mic check**. It hands you a
+  short script built from your ghosts' names, your channel, and anything in
+  `speech.vocabulary`; you read it out loud, and Hype Ghost lines it up against what
+  LocalVocal actually heard. You get your real word error rate and one-click **word fixes**
+  for the names it got wrong, applied to every transcript line from then on (live, no
+  restart). It is a measurement, not training — nothing is uploaded and no model is
+  modified. Tuning that helps *before* you get there, in order of impact:
+  - **Use a bigger, English-only model.** LocalVocal defaults to `tiny.en`. Moving to
+    `small.en` (or `medium.en` on a strong PC) is the single biggest accuracy win, and at
+    equal size the `.en` models beat the multilingual ones for English.
+  - **Trade latency for accuracy.** Most LocalVocal guides tune for snappy on-screen
+    captions; that's the wrong target here. The cast speaks on a cadence of *minutes*, so a
+    longer processing buffer costs you nothing and gives Whisper more context per chunk.
+  - **Turn partial transcriptions off.** They write half-finished duplicate lines into the
+    file Hype Ghost tails.
+  - **Fix the audio first.** Noise suppression *before* the Transcription filter in the
+    chain, and no game or music audio bleeding into the mic track — no model recovers from
+    a dirty input.
+  - Note the trade-off with the OBS crash below: the CPU backend is the safe one, and it's
+    also what limits how big a model you can run. Move up model sizes until OBS starts
+    struggling, then step back one.
 - **Party / co-op audio (second channel):** streaming alongside friends? Route their audio
   (Discord/TeamSpeak/party chat) to a separate OBS source, add a *second* LocalVocal
   Transcription filter to it, output to a **different** file/text source than your mic, and
@@ -128,6 +149,9 @@ Quit Hype Ghost.
 | `transcript.mode` | `off`, `file` (tail LocalVocal's .txt/.srt output), or `textSource` (poll a text source over OBS WebSocket). |
 | `transcript.showInFeed` | Echo what voice awareness hears into the deck feed as faint 🎙 lines (party audio as 🎧) so you can spot mishears the cast might be reacting to (default true). Deck only — never in the cast's chat history, the recap, or the on-stream overlay. |
 | `transcript2.*` | *(Optional)* A **second** transcription channel for party/co-op audio (a separate audio device with its own LocalVocal filter). Same `mode`/`file`/`textSource`/`pollSeconds` as `transcript`, plus `label` — how the cast refers to those people (e.g. "my co-op squad"). Treated as *other people*, never as the streamer. |
+| `speech.dropHallucinations` | Discard speech-to-text filler invented on silence and music — "Thank you.", "[Music]", "please subscribe", words stuck on repeat (default true). Matched whole-line only, so a real sentence containing those words survives. Applies to both channels. |
+| `speech.corrections` | Word fixes applied to every transcript line before the cast sees it: `[{ "from": "bacon", "to": "Beacon" }]`. Whole words only, case-insensitive; a blank `to` deletes the phrase. Build this from **Settings → Voice → Mic check**, or by hand. Applies live on save. |
+| `speech.vocabulary` | Extra proper nouns worth getting right — the game, in-jokes, regulars' names. Your ghosts' names and `twitch.channel` are included automatically. Used to build the mic-check script, and told to the cast so it reads a near-miss as the real word. |
 | `cadence.soloSeconds` / `quietSeconds` | Average gap between messages when alone / when real viewers are present. |
 | `cadence.jitter`, `burstChance`, `lullChance` | Natural rhythm: ±jitter on normal gaps, occasional quick bursts (0.3–0.6x) and long lulls (1.6–3x). |
 | `cadence.minScreenshotGapSeconds` | Skip re-screenshotting on quick follow-ups (default 25). |

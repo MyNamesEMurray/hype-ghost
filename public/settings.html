@@ -44,6 +44,18 @@
   .arche { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 8px; }
   #addGhost { margin-top: 2px; }
 
+  /* mic check */
+  .miccheck { border: 1px solid var(--border); border-radius: var(--r-lg); padding: 14px 16px; background: var(--glass-2); margin-top: 12px; }
+  .miccheck ol { margin: 10px 0; padding-left: 22px; display: flex; flex-direction: column; gap: 7px; }
+  .miccheck li { line-height: 1.5; }
+  .miccheck .heard { color: var(--dim); font-size: var(--fs-sm); word-break: break-word; }
+  .wer { display: flex; gap: 22px; align-items: baseline; flex-wrap: wrap; margin-bottom: 4px; }
+  .wer b { font-size: var(--fs-lg); }
+  .fixrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 9px; }
+  .fixrow .from { color: var(--bad); }
+  .fixrow .to { color: var(--good); }
+  .fixrow button { padding: 5px 11px; }
+
   .accent-row { display: flex; gap: 10px; margin-top: 6px; }
   .accent-dot { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
   .accent-dot.on { border-color: #fff; box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px currentColor; }
@@ -215,6 +227,37 @@
         <div class="check">
           <input type="checkbox" id="showHeard" data-path="transcript.showInFeed" data-type="bool">
           <label for="showHeard">Show what it hears in the deck feed — faint 🎙 lines of your transcribed speech (and 🎧 party audio), so you can spot mishears the cast might react to. Deck only; never on the stream overlay. Applies live on save.</label>
+        </div>
+        <div class="check">
+          <input type="checkbox" id="dropHall" data-path="speech.dropHallucinations" data-type="bool">
+          <label for="dropHall">Ignore transcription hallucinations — speech-to-text invents filler on silence and music ("Thank you.", "[Music]", "please subscribe", words stuck on repeat). Left in, the cast replies to things you never said. Applies live on save.</label>
+        </div>
+
+        <div style="margin-top:24px">
+          <h2>🎙️ Mic check &amp; word fixes</h2>
+          <p class="desc">Transcription garbles <b>names</b> worst — and names are what this room runs on. Read a short script out loud and Hype Ghost lines it up against what LocalVocal actually heard: you get your real error rate on your mic, and one-click fixes for the words it got wrong. Nothing is uploaded and no model is trained — this builds a find-and-replace list applied to the transcript before the cast ever sees it.</p>
+        <div class="test">
+          <button id="micStart">Start mic check</button>
+          <span class="result" id="micResult"></span>
+        </div>
+        <div id="micPanel" class="miccheck" style="display:none">
+          <p class="hint">Read these out loud at your normal streaming volume — one line at a time, then press Finish.</p>
+          <ol id="micScript"></ol>
+          <p class="heard">Heard so far: <span id="micHeard">…</span></p>
+          <div class="test">
+            <button id="micFinish" class="primary">Finish &amp; compare</button>
+            <button id="micCancel">Cancel</button>
+          </div>
+        </div>
+        <div id="micReport" class="miccheck" style="display:none"></div>
+
+        <label style="margin-top:16px">Word fixes</label>
+        <textarea id="corrections" rows="4" placeholder="bacon = Beacon"></textarea>
+        <p class="hint">One per line, <b>what it hears</b> = <b>what you meant</b>. Applied to every transcript line before the cast sees it — whole words only, case-insensitive. Leave the right side blank to drop a phrase entirely. Applies live on save.</p>
+
+        <label class="adv">Names to protect</label>
+        <textarea class="adv" id="vocabulary" rows="2" placeholder="one per line — e.g. Hollow Knight, Steamboat, Kyleigh"></textarea>
+        <p class="hint adv">Extra proper nouns worth getting right: the game, in-jokes, regulars' names. Your ghosts' names and Twitch channel are already included. These go into the mic-check script, and the cast is told to read a near-miss of one as the real word. Changing these restarts the app.</p>
         </div>
 
         <div style="margin-top:24px">
@@ -555,6 +598,9 @@
     if (data.openaiKeySaved) fields.find((f) => f.dataset.path === 'brain.openaiApiKey').placeholder = saved;
     if (data.twitchSecretSaved) fields.find((f) => f.dataset.path === 'twitch.clientSecret').placeholder = saved;
     $('talkingPoints').value = (cfg.talkingPoints || []).join('\n');
+    const speech = cfg.speech || {};
+    $('corrections').value = (speech.corrections || []).map((c) => `${c.from} = ${c.to}`).join('\n');
+    $('vocabulary').value = (speech.vocabulary || []).join('\n');
     renderCast();
     // accent picker
     const acc = (cfg.theme && cfg.theme.accent) || 'violet';
@@ -567,6 +613,125 @@
     toggleProvider();
     initTts();
   });
+
+  // ---- mic check ----
+  // The script is read into the *live* LocalVocal path, so the number it
+  // reports is the accuracy the cast actually gets — not a lab measurement.
+  let micPoll = null;
+  const pct = (v) => Math.round((Number(v) || 0) * 100) + '%';
+
+  function micReset() {
+    clearInterval(micPoll); micPoll = null;
+    $('micPanel').style.display = 'none';
+    $('micStart').disabled = false;
+  }
+
+  function parseFixes(text) {
+    return text.split('\n').map((line) => {
+      const at = line.indexOf('=');
+      if (at < 0) return null;
+      const from = line.slice(0, at).trim();
+      return from ? { from, to: line.slice(at + 1).trim() } : null;
+    }).filter(Boolean);
+  }
+
+  function addFix(fix, btn) {
+    const existing = parseFixes($('corrections').value);
+    if (!existing.some((f) => f.from.toLowerCase() === fix.from.toLowerCase())) {
+      const box = $('corrections');
+      box.value = (box.value.trim() ? box.value.replace(/\s*$/, '\n') : '') + `${fix.from} = ${fix.to}`;
+    }
+    if (btn) { btn.textContent = 'added ✓'; btn.disabled = true; }
+    $('saveResult').className = 'result'; $('saveResult').textContent = 'press Save changes to apply';
+  }
+
+  $('micStart').onclick = async () => {
+    $('micResult').className = 'result'; $('micResult').textContent = 'starting…';
+    $('micReport').style.display = 'none';
+    const r = await fetch('/api/miccheck/start', { method: 'POST' }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
+    if (!r.ok) { $('micResult').className = 'result err'; $('micResult').textContent = '✗ ' + r.error; return; }
+    $('micResult').textContent = 'listening…';
+    $('micStart').disabled = true;
+    const list = $('micScript');
+    list.innerHTML = '';
+    for (const line of r.script) { const li = document.createElement('li'); li.textContent = line; list.appendChild(li); }
+    $('micHeard').textContent = '…';
+    $('micPanel').style.display = '';
+    micPoll = setInterval(async () => {
+      const p = await fetch('/api/miccheck/progress').then((x) => x.json()).catch(() => null);
+      if (!p) return;
+      if (!p.active) return micReset();
+      $('micHeard').textContent = p.heard.length ? p.heard.join(' ') : '…';
+    }, 1200);
+  };
+
+  $('micCancel').onclick = async () => {
+    await fetch('/api/miccheck/cancel', { method: 'POST' }).catch(() => {});
+    micReset();
+    $('micResult').className = 'result'; $('micResult').textContent = '';
+  };
+
+  $('micFinish').onclick = async () => {
+    const r = await fetch('/api/miccheck/finish', { method: 'POST' }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
+    micReset();
+    if (!r.ok) { $('micResult').className = 'result err'; $('micResult').textContent = '✗ ' + r.error; return; }
+    $('micResult').textContent = '';
+    const box = $('micReport');
+    box.innerHTML = '';
+    const wer = document.createElement('div');
+    wer.className = 'wer';
+    const score = document.createElement('span');
+    score.innerHTML = 'Word errors: <b>' + pct(r.wer) + '</b>';
+    wer.appendChild(score);
+    if (r.suggestions.length && r.projectedWer < r.wer) {
+      const after = document.createElement('span');
+      after.className = 'result ok';
+      after.textContent = '→ ' + pct(r.projectedWer) + ' with the fixes below';
+      wer.appendChild(after);
+    }
+    box.appendChild(wer);
+
+    const heard = document.createElement('p');
+    heard.className = 'heard';
+    heard.textContent = 'Heard: ' + r.heard;
+    box.appendChild(heard);
+
+    const note = document.createElement('p');
+    note.className = 'hint';
+    note.textContent = r.suggestions.length
+      ? 'Fixes it found for the names it got wrong. Ordinary words are ignored on purpose — a fumbled "the" costs nothing, a fumbled ghost name breaks a reply.'
+      : (r.wer > 0.35
+        ? 'No name fixes to suggest, but the error rate is high — try a bigger LocalVocal model, a longer buffer, and check for game audio bleeding into your mic (see the README).'
+        : 'Clean run — it got every name right. Nothing to fix.');
+    box.appendChild(note);
+
+    for (const fix of r.suggestions) {
+      const row = document.createElement('div');
+      row.className = 'fixrow';
+      const from = document.createElement('span'); from.className = 'from'; from.textContent = fix.from;
+      const arrow = document.createElement('span'); arrow.textContent = '→';
+      const to = document.createElement('span'); to.className = 'to'; to.textContent = fix.to;
+      const btn = document.createElement('button'); btn.textContent = 'Add fix';
+      btn.onclick = () => addFix(fix, btn);
+      row.append(from, arrow, to, btn);
+      box.appendChild(row);
+    }
+    if (r.suggestions.length > 1) {
+      const all = document.createElement('div');
+      all.className = 'fixrow';
+      const btn = document.createElement('button');
+      btn.className = 'primary';
+      btn.textContent = 'Add all ' + r.suggestions.length;
+      btn.onclick = () => {
+        r.suggestions.forEach((f) => addFix(f, null));
+        box.querySelectorAll('.fixrow button').forEach((b) => { b.disabled = true; });
+        btn.textContent = 'added ✓';
+      };
+      all.appendChild(btn);
+      box.appendChild(all);
+    }
+    box.style.display = '';
+  };
 
   function toggleProvider() {
     const oai = $('providerSel').value === 'openai';
@@ -743,6 +908,9 @@
       setPath(cfg, f.dataset.path, v);
     }
     cfg.talkingPoints = $('talkingPoints').value.split('\n').map((s)=>s.trim()).filter(Boolean);
+    cfg.speech = { ...(cfg.speech || {}),
+      corrections: parseFixes($('corrections').value),
+      vocabulary: $('vocabulary').value.split('\n').map((s)=>s.trim()).filter(Boolean) };
     // the cast (new source of truth) + mirror into bot/bot2 for back-compat
     const roster = collectCast();
     cfg.cast = roster;

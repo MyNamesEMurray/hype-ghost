@@ -104,6 +104,11 @@
     "pollSeconds": 2,
     "label": "the people the streamer is playing with (co-op partners / a Discord or party call)"
   },
+  "speech": {
+    "dropHallucinations": true,
+    "vocabulary": [],
+    "corrections": []
+  },
   "cadence": {
     "soloSeconds": 120,
     "quietSeconds": 480,

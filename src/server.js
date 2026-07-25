@@ -14,6 +14,7 @@ import { Brain } from './brain.js';
 import { TwitchViewers, DecApi } from './twitch.js';
 import { TwitchChat } from './twitchchat.js';
 import { TranscriptFeed } from './transcript.js';
+import { collectTerms, buildMicCheckScript, deriveCorrections, wordErrorRate, compileCorrections, applyCorrections } from './speech.js';
 import { SapiTts } from './tts.js';
 import { GhostLoop } from './loop.js';
 
@@ -81,11 +82,22 @@ export function startServer(opts = {}) {
   // UI font scale (Settings → App). Never below 1: text can grow, not shrink —
   // and the 🤖 AI badge inherits the same guarantee.
   const fontScale = () => Math.min(1.5, Math.max(1, Number(config.app.fontScale) || 1));
+  // Proper nouns speech-to-text garbles worst — cast names, the Twitch channel,
+  // plus anything the streamer added by hand. The mic check builds its reading
+  // script from these, and the brain is told to recover near-misses of them.
+  if (!isPlainObject(config.speech)) config.speech = { dropHallucinations: true, vocabulary: [], corrections: [] };
+  const speechTerms = () =>
+    collectTerms({
+      cast: personas,
+      twitchChannel: config.twitch?.channel,
+      vocabulary: config.speech.vocabulary,
+    });
   const brain = new Brain({
     brain: config.brain,
     anthropic: config.anthropic,
     personas,
     language: config.bot.language,
+    vocabulary: speechTerms(),
   });
   // "Brain is configured" gates the wizard redirect and preview mode: the
   // wizard can be finished without one (skip), and then the loop stays quiet.
@@ -235,6 +247,10 @@ export function startServer(opts = {}) {
     'energy', 'talkingPoints', 'theme.', 'overlay.', 'moments.', 'memory.', 'stream.',
     'app.costMeter', 'app.uiLanguage', 'app.fontScale', 'app.autoPause', 'app.autoPauseMinutes', 'app.autoUpdate',
     'app.ttsVoice', 'app.ttsRate', 'app.ttsOutputDevice', 'transcript.showInFeed',
+    // The feeds read config.speech live, so accepting mic-check corrections
+    // mid-stream applies to the very next line. (speech.vocabulary is not hot:
+    // it is baked into the brain's cached system prompt at startup.)
+    'speech.corrections', 'speech.dropHallucinations',
     'cadence.soloSeconds', 'cadence.quietSeconds', 'cadence.jitter', 'cadence.burstChance',
     'cadence.lullChance', 'cadence.replyDelaySeconds', 'cadence.minVoiceReplyGapSeconds',
     'cadence.minScreenshotGapSeconds', 'cadence.minPartyNudgeGapSeconds',
@@ -502,6 +518,69 @@ export function startServer(opts = {}) {
     }
   });
 
+  // ---------- mic check (Settings → Voice) ----------
+  // Hand the streamer a short script, listen to what LocalVocal makes of it,
+  // and align the two. Because the reference text is known, the result is a
+  // measurement (word error rate) plus evidence-based correction candidates —
+  // no model is trained or touched, and the audio path is the live one, so
+  // what it measures is exactly what the cast will hear all stream.
+  let micCheck = null; // {script, terms, heard[], startedAt}
+  const MIC_CHECK_MAX_MS = 5 * 60 * 1000;
+
+  // Self-expiring: a check abandoned by closing the settings page must not keep
+  // suppressing voice replies (below) for the rest of the session.
+  function activeMicCheck() {
+    if (micCheck && Date.now() - micCheck.startedAt > MIC_CHECK_MAX_MS) micCheck = null;
+    return micCheck;
+  }
+
+  app.post('/api/miccheck/start', (_req, res) => {
+    if (config.transcript.mode === 'off') {
+      return res.json({ ok: false, error: 'Turn on voice awareness above (and save) before running a mic check.' });
+    }
+    const terms = speechTerms();
+    const { lines, terms: covered } = buildMicCheckScript({ terms });
+    micCheck = { script: lines, terms: covered, heard: [], startedAt: Date.now() };
+    res.json({ ok: true, script: lines, terms: covered });
+  });
+
+  app.get('/api/miccheck/progress', (_req, res) => {
+    const check = activeMicCheck();
+    res.json({ active: Boolean(check), heard: check ? check.heard : [] });
+  });
+
+  app.post('/api/miccheck/cancel', (_req, res) => {
+    micCheck = null;
+    res.json({ ok: true });
+  });
+
+  app.post('/api/miccheck/finish', (_req, res) => {
+    const check = activeMicCheck();
+    if (!check) return res.json({ ok: false, error: 'No mic check is running — start one first.' });
+    const { script, terms, heard } = check;
+    micCheck = null;
+    const reference = script.join(' ');
+    const transcribed = heard.join(' ');
+    if (!transcribed.trim()) {
+      return res.json({
+        ok: false,
+        error: 'Nothing came through. Check that OBS is running with the LocalVocal filter on your mic, and that the file/text source above is the one it writes to.',
+      });
+    }
+    const suggestions = deriveCorrections(reference, transcribed, terms);
+    // What the same reading would have scored with these corrections in place —
+    // so the streamer can see whether accepting them is actually worth it.
+    const projected = applyCorrections(transcribed, compileCorrections(suggestions));
+    res.json({
+      ok: true,
+      reference,
+      heard: transcribed,
+      wer: wordErrorRate(reference, transcribed),
+      projectedWer: wordErrorRate(reference, projected),
+      suggestions,
+    });
+  });
+
   const httpServer = createServer(app);
   const wss = new WebSocketServer({ server: httpServer });
 
@@ -553,8 +632,11 @@ export function startServer(opts = {}) {
   const transcriptFeed = new TranscriptFeed({
     ...config.transcript,
     windowSeconds: config.cadence.transcriptWindowSeconds,
+    speech: config.speech,
     obs,
     onSpeech: (line) => {
+      const check = activeMicCheck();
+      if (check) check.heard.push(line);
       state.lastHeard = { text: line, ts: Date.now() };
       // Deck-only echo of what was transcribed, so mishears are visible the
       // moment they happen. Never enters `history` (the brain already gets
@@ -564,7 +646,9 @@ export function startServer(opts = {}) {
         broadcast({ type: 'heard', heard: { channel: 'mic', text: line, ts: Date.now() } });
       }
       broadcastState();
-      loop.onSpeech();
+      // Reading the mic-check script is talking *at* the app, not to chat —
+      // replying to it would cost a generation and drown out the check.
+      if (!check) loop.onSpeech();
     },
   });
 
@@ -575,6 +659,7 @@ export function startServer(opts = {}) {
   const partyFeed = new TranscriptFeed({
     ...config.transcript2,
     windowSeconds: config.cadence.transcriptWindowSeconds,
+    speech: config.speech,
     obs,
     onSpeech: (line) => {
       state.lastHeardParty = { text: line, ts: Date.now() };

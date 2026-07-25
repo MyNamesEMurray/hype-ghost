@@ -64,10 +64,11 @@ export class Brain {
    * @param {Array<{name:string, personality:string}>} opts.personas 1–4 entries
    * @param {string} opts.language
    */
-  constructor({ brain, anthropic, personas, language }) {
+  constructor({ brain, anthropic, personas, language, vocabulary }) {
     this.provider = brain.provider === 'openai' ? 'openai' : 'anthropic';
     this.personas = personas;
     this.language = language || 'English';
+    this.vocabulary = Array.isArray(vocabulary) ? vocabulary : [];
     if (this.provider === 'anthropic') {
       const apiKey = anthropic.apiKey || process.env.ANTHROPIC_API_KEY || '';
       this.hasKey = Boolean(apiKey);
@@ -115,6 +116,14 @@ export class Brain {
       `You may be given an auto-generated transcript of what the streamer said out loud on mic.`,
       `Treat it as the streamer talking to chat: follow up naturally, never quote it verbatim`,
       `or correct its errors.`,
+      // Speech-to-text fails hardest on proper nouns, and proper nouns are what
+      // this room runs on. Naming them lets the model recover the intended word
+      // from a near-miss instead of reacting to nonsense.
+      ...(this.vocabulary.length
+        ? [`That transcript comes from speech-to-text and garbles names worst. These names matter`,
+           `here: ${this.vocabulary.join(', ')}. If a transcript word is a near-miss for one of them,`,
+           `assume that is what the streamer said — silently, never announcing the fix.`]
+        : []),
       ``,
       `You may ALSO be given a separate "party audio" transcript: OTHER people the streamer`,
       `is playing with (co-op partners, a Discord or party call). These are DIFFERENT people`,

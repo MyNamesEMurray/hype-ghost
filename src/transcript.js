@@ -1,4 +1,5 @@
 import { openSync, readSync, fstatSync, closeSync, existsSync, statSync } from 'node:fs';
+import { isHallucination, compileCorrections, applyCorrections } from './speech.js';
 
 /**
  * LocalVocal can write plain text or SRT subtitles. In SRT, only every third
@@ -25,9 +26,13 @@ const MAX_CHUNK = 256 * 1024; // safety cap on a single delta read
  * session reusing the path) are detected by comparing the first bytes of the
  * file, and reset the offset. A trailing line with no newline yet is held
  * back until it completes, so half-written words never enter the transcript.
+ *
+ * Every line then passes through the speech-quality layer (`src/speech.js`):
+ * Whisper's silence hallucinations are dropped, and the streamer's correction
+ * map is applied, before anything reaches the cast or the deck feed.
  */
 export class TranscriptFeed {
-  constructor({ mode, file, textSource, pollSeconds, windowSeconds, obs, onSpeech }) {
+  constructor({ mode, file, textSource, pollSeconds, windowSeconds, obs, onSpeech, speech }) {
     this.mode = mode || 'off';
     this.file = file;
     this.textSource = textSource;
@@ -35,6 +40,11 @@ export class TranscriptFeed {
     this.windowMs = (windowSeconds ?? 120) * 1000;
     this.obs = obs;
     this.onSpeech = onSpeech || (() => {});
+    // Live reference to config.speech — hot config saves deep-assign into the
+    // same object, so corrections apply mid-stream without a relaunch.
+    this.speech = speech || {};
+    this.compiled = null; // corrections compiled once, keyed on array identity
+    this.compiledFrom = null;
     this.entries = []; // {ts, text}
     this.lastHeardAt = null;
     // file-mode tail state
@@ -76,9 +86,25 @@ export class TranscriptFeed {
     }
   }
 
+  /** Compiled corrections, rebuilt only when the config array is swapped out. */
+  corrections() {
+    const list = this.speech?.corrections;
+    if (list !== this.compiledFrom) {
+      this.compiledFrom = list;
+      this.compiled = compileCorrections(list);
+    }
+    return this.compiled;
+  }
+
   addLine(text) {
-    const cleaned = String(text).trim();
-    if (!cleaned || isSrtMetadata(cleaned)) return;
+    const raw = String(text).trim();
+    if (!raw || isSrtMetadata(raw)) return;
+    // Whisper filler on silence/music would otherwise read as the streamer
+    // speaking — and a voice reply to something nobody said is worse than
+    // missing a line, so this is on by default.
+    if (this.speech?.dropHallucinations !== false && isHallucination(raw)) return;
+    const cleaned = applyCorrections(raw, this.corrections());
+    if (!cleaned) return; // a correction mapping to "" deletes the line
     this.entries.push({ ts: Date.now(), text: cleaned });
     this.lastHeardAt = Date.now();
     this.prune();
