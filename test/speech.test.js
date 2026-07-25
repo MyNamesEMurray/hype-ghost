@@ -114,6 +114,24 @@ test('a partly-mangled multi-word name widens to the whole name', () => {
   assert.deepEqual(fixes, [{ from: 'hollow night', to: 'Hollow Knight' }]);
 });
 
+// Click-to-fix in the deck: the streamer retyped the line, so they are the
+// authority — the term gate and the look-alike gate both stand down, or an
+// explicit correction of an untracked word would be silently discarded.
+test('an explicit correction bypasses the term and similarity gates', () => {
+  const opts = { requireTerm: false, minSimilarity: 0 };
+  assert.deepEqual(
+    deriveCorrections('lets go to the shrine', 'lets go to the shine', [], opts),
+    [{ from: 'shine', to: 'shrine' }]
+  );
+  // Untracked and nothing like each other — still honored when typed by hand.
+  assert.deepEqual(
+    deriveCorrections('that was a gank', 'that was a gong', [], opts),
+    [{ from: 'gong', to: 'gank' }]
+  );
+  // …but the same pair is rejected on the mic-check path, which must not guess.
+  assert.deepEqual(deriveCorrections('that was a gank', 'that was a gong', []), []);
+});
+
 test('a clean reading yields no suggestions', () => {
   assert.deepEqual(deriveCorrections('hey Wisp you there', 'hey wisp you there', ['Wisp']), []);
 });

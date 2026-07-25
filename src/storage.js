@@ -17,7 +17,10 @@ export const POINTER_FILE = 'storage.json';
 // Every data file the app writes, relative to its data dir. The log and the
 // update-skip marker are listed so migration and factory reset carry/clear
 // them with everything else.
-export const DATA_FILES = ['config.json', 'session-notes.txt', 'session.json', 'profile.md', 'hype-ghost.log', 'update-skip.json'];
+export const DATA_FILES = [
+  'config.json', 'session-notes.txt', 'session.json', 'profile.md',
+  'game-notes.json', 'miccheck.json', 'hype-ghost.log', 'update-skip.json',
+];
 
 export function dataFilePaths(dir) {
   return {
@@ -25,6 +28,8 @@ export function dataFilePaths(dir) {
     notesPath: path.join(dir, 'session-notes.txt'),
     sessionPath: path.join(dir, 'session.json'),
     profilePath: path.join(dir, 'profile.md'),
+    gameInfoPath: path.join(dir, 'game-notes.json'),
+    micCheckPath: path.join(dir, 'miccheck.json'),
     logPath: path.join(dir, 'hype-ghost.log'),
     skipPath: path.join(dir, 'update-skip.json'),
   };

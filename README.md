@@ -77,6 +77,13 @@ Quit Hype Ghost.
 - **Settings → About** shows the app version, the honesty/privacy rules at a glance, where
   your data lives, and **Reset to factory defaults** — wipes all settings and memory, then
   re-runs the setup wizard.
+- **Game screen guide:** the cast learns how to *read* each game it watches — where the
+  health bar is, what a death or menu screen looks like, where your webcam and alerts sit —
+  and reuses it on later streams of that game. It writes this itself from screenshots it is
+  already being shown, so it costs no extra API calls, and it sits in the cached part of the
+  prompt. The point is reacting to game **state** ("your health is gone") rather than just
+  appearance. It's plain text at **Settings → Stream → Screen guide**: read it, and edit it
+  if it gets something wrong, because it's treated as truth on every message.
 - **Data folder:** settings, session memory, the cross-stream profile, and the app log
   (`hype-ghost.log`, rotating) live in `%APPDATA%\Hype Ghost` by default. **Settings →
   About → Move data folder…** relocates all of it to any folder you like (another drive, a
@@ -108,6 +115,12 @@ Quit Hype Ghost.
   - **Fix the audio first.** Noise suppression *before* the Transcription filter in the
     chain, and no game or music audio bleeding into the mic track — no model recovers from
     a dirty input.
+  - **Fix mishears as they happen.** Click any 🎙 line in the deck feed, retype what you
+    actually said, press Enter — the words that changed become permanent corrections and
+    apply to the very next line, no save or restart. This is where the correction map
+    really grows: the mic check covers names you can predict up front, this covers whatever
+    a real stream throws at it. Re-running the mic check shows your past scores, so a
+    LocalVocal change can be judged by a number instead of a feeling.
   - Note the trade-off with the OBS crash below: the CPU backend is the safe one, and it's
     also what limits how big a model you can run. Move up model sizes until OBS starts
     struggling, then step back one.
@@ -151,6 +164,7 @@ Quit Hype Ghost.
 | `transcript2.*` | *(Optional)* A **second** transcription channel for party/co-op audio (a separate audio device with its own LocalVocal filter). Same `mode`/`file`/`textSource`/`pollSeconds` as `transcript`, plus `label` — how the cast refers to those people (e.g. "my co-op squad"). Treated as *other people*, never as the streamer. |
 | `speech.dropHallucinations` | Discard speech-to-text filler — "Thank you.", "Thanks for watching!", "please subscribe", words stuck on repeat (default true). Whisper invents these during near-silence, which is most of a mic-only track: the pauses between sentences, breaths, keyboard, room tone. Matched whole-line only, so a real sentence containing those words survives. Applies to both channels. |
 | `speech.corrections` | Word fixes applied to every transcript line before the cast sees it: `[{ "from": "bacon", "to": "Beacon" }]`. Whole words only, case-insensitive; a blank `to` deletes the phrase. Build this from **Settings → Voice → Mic check**, or by hand. Applies live on save. |
+| `memory.gameInfoEvery` | How often (in cast messages) the cast refreshes its **screen guide** for the current game — what the HUD means, what a death screen looks like, where your overlay sits (default 8). Written as a tail section on generations that are already happening, so it costs no extra API calls. Stored per game in `game-notes.json` and reused on later streams; view and edit it at Settings → Stream. |
 | `speech.vocabulary` | Extra proper nouns worth getting right — the game, in-jokes, regulars' names. Your ghosts' names and `twitch.channel` are included automatically. Used to build the mic-check script, and told to the cast so it reads a near-miss as the real word. |
 | `cadence.soloSeconds` / `quietSeconds` | Average gap between messages when alone / when real viewers are present. |
 | `cadence.jitter`, `burstChance`, `lullChance` | Natural rhythm: ±jitter on normal gaps, occasional quick bursts (0.3–0.6x) and long lulls (1.6–3x). |

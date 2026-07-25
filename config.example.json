@@ -81,7 +81,8 @@
   "memory": {
     "enabled": true,
     "updateEvery": 4,
-    "profileEvery": 12
+    "profileEvery": 12,
+    "gameInfoEvery": 8
   },
   "twitch": {
     "clientId": "",

@@ -189,6 +189,37 @@ export function startServer(opts = {}) {
     }
   } catch {}
 
+  // Per-game visual primer: how to READ this game's screen (HUD, screen
+  // states, where the streamer's overlay sits). Keyed by game name and kept
+  // across streams — the layout of a game doesn't change between sessions, so
+  // relearning it every night would be pure waste. Built incrementally by the
+  // brain from screenshots it is already being shown; see loop.js.
+  const gameInfoPath = opts.gameInfoPath ?? path.join(path.dirname(notesPath), 'game-notes.json');
+  let gameInfo = {};
+  try {
+    if (existsSync(gameInfoPath)) {
+      const parsed = JSON.parse(readFileSync(gameInfoPath, 'utf8'));
+      if (isPlainObject(parsed)) gameInfo = parsed;
+      const count = Object.keys(gameInfo).length;
+      if (count) console.log(`[memory] loaded screen guides for ${count} game(s).`);
+    }
+  } catch {
+    console.warn('[memory] game-notes.json unreadable — starting fresh.');
+  }
+  const gameKey = (name) => String(name ?? '').trim().toLowerCase();
+  const currentGame = () => state.streamInfo?.game || '';
+  const readGameInfo = () => gameInfo[gameKey(currentGame())] || '';
+  function writeGameInfo(game, text) {
+    const key = gameKey(game);
+    if (!key) return;
+    const trimmed = String(text ?? '').trim();
+    if (trimmed) gameInfo[key] = trimmed;
+    else delete gameInfo[key];
+    try {
+      writeFileSync(gameInfoPath, JSON.stringify(gameInfo, null, 2) + '\n');
+    } catch {}
+  }
+
   // ---------- web server ----------
   const app = express();
   app.use(express.json());
@@ -337,7 +368,7 @@ export function startServer(opts = {}) {
   // confirms before calling; this endpoint is the point of no return.
   app.post('/api/factory-reset', (_req, res) => {
     try {
-      for (const p of [configPath, notesPath, sessionPath, profilePath, ...(opts.resetPaths ?? [])]) {
+      for (const p of [configPath, notesPath, sessionPath, profilePath, gameInfoPath, micCheckPath, ...(opts.resetPaths ?? [])]) {
         try {
           rmSync(p, { force: true });
         } catch {}
@@ -518,6 +549,64 @@ export function startServer(opts = {}) {
     }
   });
 
+  // ---------- fix a mishear from the deck feed ----------
+  // The streamer sees a 🎙 line go by wrong, retypes it, and the words that
+  // changed become permanent corrections — applied to the very next line,
+  // since the feeds read config.speech live. This is where the correction map
+  // actually grows: the mic check covers the names we can predict, this covers
+  // everything real gameplay throws at it.
+  app.post('/api/speech/correct', (req, res) => {
+    const heard = String(req.body?.heard ?? '').trim();
+    const corrected = String(req.body?.corrected ?? '').trim();
+    if (!heard || !corrected) return res.json({ ok: false, error: 'nothing to compare' });
+    if (heard === corrected) return res.json({ ok: true, added: [] });
+
+    // The streamer is authoritative here, so neither the tracked-term gate nor
+    // the look-alike gate applies — they are telling us, not guessing.
+    const fixes = deriveCorrections(corrected, heard, [], { requireTerm: false, minSimilarity: 0 });
+    const existing = Array.isArray(config.speech.corrections) ? config.speech.corrections : [];
+    const seen = new Set(existing.map((c) => String(c?.from ?? '').toLowerCase()));
+    const added = fixes.filter((f) => !seen.has(f.from.toLowerCase()));
+    if (!added.length) return res.json({ ok: true, added: [] });
+
+    // Replace the array rather than mutating it, so TranscriptFeed's compiled
+    // cache (keyed on array identity) rebuilds on the next line.
+    config.speech.corrections = [...existing, ...added];
+    try {
+      writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+    } catch (err) {
+      return res.status(500).json({ ok: false, error: err.message });
+    }
+    console.log('[speech] learned ' + added.map((f) => `"${f.from}" → "${f.to}"`).join(', '));
+    res.json({ ok: true, added });
+  });
+
+  // ---------- game screen guide (Settings → Stream) ----------
+  // Visible and editable on purpose: a wrong primer is worse than none, since
+  // it gets asserted as truth on every message until something corrects it.
+  app.get('/api/gameinfo', (req, res) => {
+    // ?game= reads a specific saved guide, so one written on a past stream can
+    // still be reviewed and corrected while playing something else.
+    const asked = String(req.query.game || '').trim();
+    const game = asked || currentGame();
+    res.json({
+      game,
+      current: currentGame(),
+      text: gameInfo[gameKey(game)] || '',
+      games: Object.keys(gameInfo).sort(),
+      enabled: config.memory?.enabled !== false,
+    });
+  });
+
+  app.post('/api/gameinfo', (req, res) => {
+    const game = String(req.body?.game || currentGame()).trim();
+    if (!game) {
+      return res.json({ ok: false, error: 'No game detected yet — set a Twitch category, or turn on "detect game from OBS" above.' });
+    }
+    writeGameInfo(game, String(req.body?.text ?? '').slice(0, 1200));
+    res.json({ ok: true, game, text: gameInfo[gameKey(game)] || '' });
+  });
+
   // ---------- mic check (Settings → Voice) ----------
   // Hand the streamer a short script, listen to what LocalVocal makes of it,
   // and align the two. Because the reference text is known, the result is a
@@ -526,6 +615,28 @@ export function startServer(opts = {}) {
   // what it measures is exactly what the cast will hear all stream.
   let micCheck = null; // {script, terms, heard[], startedAt}
   const MIC_CHECK_MAX_MS = 5 * 60 * 1000;
+
+  // Results are kept so a re-run answers "did that LocalVocal change help?"
+  // with a number instead of a feeling. Small and append-only.
+  const MIC_CHECK_HISTORY = 10;
+  const micCheckPath = opts.micCheckPath ?? path.join(path.dirname(notesPath), 'miccheck.json');
+  let micHistory = [];
+  try {
+    if (existsSync(micCheckPath)) {
+      const parsed = JSON.parse(readFileSync(micCheckPath, 'utf8'));
+      if (Array.isArray(parsed)) micHistory = parsed.slice(-MIC_CHECK_HISTORY);
+    }
+  } catch {
+    console.warn('[miccheck] history unreadable — starting fresh.');
+  }
+  function recordMicCheck(entry) {
+    micHistory = [...micHistory, entry].slice(-MIC_CHECK_HISTORY);
+    try {
+      writeFileSync(micCheckPath, JSON.stringify(micHistory, null, 2) + '\n');
+    } catch {}
+  }
+
+  app.get('/api/miccheck/history', (_req, res) => res.json({ history: micHistory }));
 
   // Self-expiring: a check abandoned by closing the settings page must not keep
   // suppressing voice replies (below) for the rest of the session.
@@ -571,13 +682,19 @@ export function startServer(opts = {}) {
     // What the same reading would have scored with these corrections in place —
     // so the streamer can see whether accepting them is actually worth it.
     const projected = applyCorrections(transcribed, compileCorrections(suggestions));
+    const wer = wordErrorRate(reference, transcribed);
+    // Captured before the new entry lands, so the UI can say "was X% last time".
+    const previous = micHistory.length ? micHistory[micHistory.length - 1] : null;
+    recordMicCheck({ ts: Date.now(), wer, model: config.transcript.mode });
     res.json({
       ok: true,
       reference,
       heard: transcribed,
-      wer: wordErrorRate(reference, transcribed),
+      wer,
       projectedWer: wordErrorRate(reference, projected),
       suggestions,
+      previous,
+      history: micHistory,
     });
   });
 
@@ -675,6 +792,28 @@ export function startServer(opts = {}) {
     },
   });
 
+  // Voice configured but nothing has EVER arrived is almost always a wrong
+  // file path or a missing LocalVocal filter — and it looks exactly like the
+  // cast ignoring you, so say it out loud. Deliberately gated on "nothing
+  // ever", not "nothing lately": a streamer who simply hasn't talked yet is
+  // not a misconfiguration, and a false alarm here would be noise every stream.
+  const SILENT_WARN_MS = opts.silentWarnMs ?? 10 * 60_000; // overridable so tests don't wait 10 minutes
+  if (config.transcript.mode !== 'off') {
+    const startedAt = Date.now();
+    const silentCheck = setInterval(() => {
+      if (transcriptFeed.lastHeardAt) return clearInterval(silentCheck);
+      if (!obs.connected || Date.now() - startedAt < SILENT_WARN_MS) return;
+      clearInterval(silentCheck);
+      const where = config.transcript.mode === 'file'
+        ? `the file it writes to (currently ${config.transcript.file || 'not set'})`
+        : `the text source it writes to (currently "${config.transcript.textSource || 'not set'}")`;
+      const text = `Voice awareness is on, but nothing has come through in 10 minutes. Check that OBS has the LocalVocal filter on your mic source, and that Settings → Voice points at ${where}.`;
+      broadcast({ type: 'system', text });
+      console.warn('[transcript] ' + text);
+    }, Math.min(60_000, SILENT_WARN_MS));
+    silentCheck.unref?.();
+  }
+
   // ---------- the ghost ----------
   const loop = new GhostLoop({
     config,
@@ -701,6 +840,13 @@ export function startServer(opts = {}) {
         console.log('[memory] session notes updated:', sessionNotes.replace(/\s+/g, ' ').slice(0, 100) + '…');
       },
       onMoment: (label) => pushMoment(label),
+      getGameInfo: readGameInfo,
+      setGameInfo: (next) => {
+        const game = currentGame();
+        if (!game) return; // nothing to key it to; don't write an orphan entry
+        writeGameInfo(game, next);
+        console.log(`[memory] screen guide updated for "${game}".`);
+      },
       getProfile: () => profile,
       setProfile: (next) => {
         profile = next;

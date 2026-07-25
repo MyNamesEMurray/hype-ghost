@@ -340,7 +340,11 @@ export function wordErrorRate(reference, heard) {
  * both sides must actually resemble each other. A bad suggestion is worse than
  * a missing one: it silently rewrites real speech for the rest of the stream.
  */
-export function deriveCorrections(reference, heard, terms = []) {
+export function deriveCorrections(reference, heard, terms = [], options = {}) {
+  // The mic check derives rules from a script, so both gates apply. A fix the
+  // streamer typed themselves is authoritative — they are not guessing at what
+  // they said — so that path turns the gates off.
+  const { requireTerm = true, minSimilarity = MIN_SIMILARITY } = options;
   const ref = tokenize(reference);
   const hyp = tokenize(heard);
   const refNorms = ref.map((t) => t.norm);
@@ -393,7 +397,7 @@ export function deriveCorrections(reference, heard, terms = []) {
     if (span) {
       refStart = Math.min(refStart, span[0]);
       refEnd = Math.max(refEnd, span[1]);
-    } else if (!refIdx.some((i) => termWords.has(refNorms[i]))) {
+    } else if (requireTerm && !refIdx.some((i) => termWords.has(refNorms[i]))) {
       continue; // nothing worth protecting in this mismatch
     }
 
@@ -406,7 +410,7 @@ export function deriveCorrections(reference, heard, terms = []) {
     const from = clean(hyp.slice(Math.min(...hypRange), Math.max(...hypRange) + 1).map((t) => t.raw).join(' '));
     const to = clean(ref.slice(refStart, refEnd + 1).map((t) => t.raw).join(' '));
     if (!from || !to || normalizeForCompare(from) === normalizeForCompare(to)) continue;
-    if (similarity(from, to) < MIN_SIMILARITY) continue;
+    if (similarity(from, to) < minSimilarity) continue;
     const key = `${from.toLowerCase()}→${to.toLowerCase()}`;
     if (seen.has(key)) continue;
     seen.add(key);

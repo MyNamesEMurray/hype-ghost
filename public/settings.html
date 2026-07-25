@@ -197,6 +197,17 @@
             <input type="checkbox" id="gameFromObs" data-path="stream.gameFromObs" data-type="bool">
             <label for="gameFromObs">Detect the game from an OBS Game/Window Capture source <span style="color:var(--faint)">(fallback when Twitch has no category set)</span></label>
           </div>
+          <div style="margin-top:20px">
+            <label>Screen guide <span id="giGame" style="color:var(--faint);font-weight:450"></span></label>
+            <select id="giPick" style="display:none;margin-bottom:8px"></select>
+            <textarea id="gameInfo" rows="5" placeholder="Nothing learned yet — the cast fills this in as it watches."></textarea>
+            <div class="test">
+              <button id="giSave">Save screen guide</button>
+              <button id="giClear">Clear</button>
+              <span class="result" id="giResult"></span>
+            </div>
+            <p class="hint">How to <b>read the screen</b> in this game — where the health bar is, what a death screen looks like, where your webcam and alerts sit. The cast writes this itself from screenshots it's already being shown (no extra API calls), and refines it as it watches. It's kept per game and reused on future streams. Edit it if it gets something wrong: it's treated as truth on every message, so a bad line is worse than a blank one. Saves immediately — separate from the button below.</p>
+          </div>
         </div>
 
         <label class="adv">Screenshot width (px)</label>
@@ -245,6 +256,7 @@
           <button id="micStart">Start mic check</button>
           <span class="result" id="micResult"></span>
         </div>
+        <p class="hint" id="micHistory"></p>
         <div id="micPanel" class="miccheck" style="display:none">
           <p class="hint">Read these out loud at your normal streaming volume — one line at a time, then press Finish.</p>
           <ol id="micScript"></ol>
@@ -625,6 +637,7 @@
     syncModelChoice();
     toggleProvider();
     initTts();
+    loadGameInfo();
   });
 
   // ---- mic check ----
@@ -632,6 +645,17 @@
   // reports is the accuracy the cast actually gets — not a lab measurement.
   let micPoll = null;
   const pct = (v) => Math.round((Number(v) || 0) * 100) + '%';
+  const shortDate = (ts) => new Date(ts).toLocaleDateString([], { month: 'short', day: 'numeric' });
+
+  // Past scores, so changing a LocalVocal setting can be judged by a number
+  // rather than a feeling.
+  function renderMicHistory(history) {
+    const list = (history || []).slice().reverse();
+    $('micHistory').textContent = list.length
+      ? 'Past checks: ' + list.map((h) => `${pct(h.wer)} (${shortDate(h.ts)})`).join(' · ')
+      : '';
+  }
+  fetch('/api/miccheck/history').then((r) => r.json()).then((d) => renderMicHistory(d.history)).catch(() => {});
 
   function micReset() {
     clearInterval(micPoll); micPoll = null;
@@ -689,6 +713,7 @@
     micReset();
     if (!r.ok) { $('micResult').className = 'result err'; $('micResult').textContent = '✗ ' + r.error; return; }
     $('micResult').textContent = '';
+    renderMicHistory(r.history);
     const box = $('micReport');
     box.innerHTML = '';
     const wer = document.createElement('div');
@@ -696,6 +721,15 @@
     const score = document.createElement('span');
     score.innerHTML = 'Word errors: <b>' + pct(r.wer) + '</b>';
     wer.appendChild(score);
+    // Whether the last thing you changed actually helped.
+    if (r.previous) {
+      const delta = document.createElement('span');
+      const better = r.wer < r.previous.wer;
+      const same = Math.round(r.wer * 100) === Math.round(r.previous.wer * 100);
+      delta.className = 'result' + (same ? '' : better ? ' ok' : ' err');
+      delta.textContent = `was ${pct(r.previous.wer)} on ${shortDate(r.previous.ts)}`;
+      wer.appendChild(delta);
+    }
     if (r.suggestions.length && r.projectedWer < r.wer) {
       const after = document.createElement('span');
       after.className = 'result ok';
@@ -745,6 +779,46 @@
     }
     box.style.display = '';
   };
+
+  // ---- game screen guide ----
+  // Saved on its own endpoint rather than through the config form: it's memory
+  // the cast maintains, not a setting, and it changes while you're looking at it.
+  let giEditing = ''; // which game's guide is in the textarea
+  async function loadGameInfo(game) {
+    const d = await fetch('/api/gameinfo' + (game ? '?game=' + encodeURIComponent(game) : ''))
+      .then((r) => r.json()).catch(() => null);
+    if (!d) return;
+    giEditing = d.game || '';
+    $('gameInfo').value = d.text || '';
+    $('giGame').textContent = giEditing
+      ? `— ${giEditing}` + (d.current && d.current !== giEditing ? ' (not the game you’re on now)' : '')
+      : '— no game detected yet';
+    // Guides written on past streams stay reachable, so a wrong one can be
+    // fixed without booting the game back up.
+    const pick = $('giPick');
+    if (d.games.length > 1 || (d.games.length === 1 && d.games[0] !== giEditing)) {
+      pick.style.display = '';
+      pick.innerHTML = d.games.map((g) => `<option${g === giEditing ? ' selected' : ''}>${g}</option>`).join('');
+      if (!d.games.includes(giEditing) && giEditing) {
+        pick.insertAdjacentHTML('afterbegin', `<option selected>${giEditing}</option>`);
+      }
+    } else {
+      pick.style.display = 'none';
+    }
+    if (d.enabled === false) $('giResult').textContent = 'memory is off (Behavior tab), so this will not update on its own';
+  }
+  $('giPick').onchange = () => loadGameInfo($('giPick').value);
+
+  async function saveGameInfo(text) {
+    $('giResult').className = 'result'; $('giResult').textContent = 'saving…';
+    const r = await fetch('/api/gameinfo', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ game: giEditing, text }) }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
+    $('giResult').className = 'result ' + (r.ok ? 'ok' : 'err');
+    $('giResult').textContent = r.ok ? '✓ saved' : '✗ ' + r.error;
+    if (r.ok) await loadGameInfo(text ? giEditing : '');
+  }
+  $('giSave').onclick = () => saveGameInfo($('gameInfo').value);
+  $('giClear').onclick = () => saveGameInfo('');
 
   // ---- model choice ----
   // The saved id is the source of truth. One that isn't in the catalog is a

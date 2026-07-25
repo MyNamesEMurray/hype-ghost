@@ -36,11 +36,12 @@ export function energyTone(energy) {
 
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// Pull a labeled tail section (---NOTES---, ---PROFILE---, ---MOMENT---) out of
-// the model's raw output, tolerant of dash count and stopping at the next label.
+// Pull a labeled tail section (---NOTES---, ---PROFILE---, ---MOMENT---,
+// ---GAMEINFO---) out of the model's raw output, tolerant of dash count and
+// stopping at the next label.
 function extractSection(raw, label) {
   const re = new RegExp(
-    `-{2,}\\s*${label}\\s*-{2,}([\\s\\S]*?)(?=-{2,}\\s*(?:NOTES|PROFILE|MOMENT)\\s*-{2,}|$)`,
+    `-{2,}\\s*${label}\\s*-{2,}([\\s\\S]*?)(?=-{2,}\\s*(?:NOTES|PROFILE|MOMENT|GAMEINFO)\\s*-{2,}|$)`,
     'i'
   );
   const m = re.exec(raw);
@@ -163,10 +164,19 @@ export class Brain {
    * messages). A separate block with its own cache breakpoint, so a profile
    * update doesn't bust the cached rules prefix above it.
    */
-  buildContextBlock({ streamContext, profile } = {}) {
+  buildContextBlock({ streamContext, profile, gameInfo, gameInfoLabel } = {}) {
     const parts = [];
     if (streamContext) parts.push(`About this stream (from the streamer): ${streamContext}`);
     if (profile) parts.push(`Viewer profile (long-term memory from previous streams):\n${profile}`);
+    // The visual primer for this game: what the HUD elements are and what the
+    // screen states mean. Lets the cast react to game *state* ("your health is
+    // gone") instead of only surface appearance ("big room").
+    if (gameInfo) {
+      parts.push(
+        `Reading the screen in ${gameInfoLabel || 'this game'} (learned from watching this stream — ` +
+        `use it to interpret the screenshot, and silently correct it if the screen clearly disagrees):\n${gameInfo}`
+      );
+    }
     return parts.length ? parts.join('\n\n') : null;
   }
 
@@ -176,7 +186,7 @@ export class Brain {
   async generate({
     history, screenshot, staleScreenshot, mode, trigger, transcript, partyTranscript, partyLabel,
     notes, profile, updateNotes, updateProfile, flagMoments, energy, sceneName, streamContext,
-    streamInfo, talkingPoint, allowExchange,
+    streamInfo, talkingPoint, allowExchange, gameInfo, updateGameInfo,
   }) {
     const names = this.personas.map((p) => p.name);
     const historyText = history.length
@@ -237,16 +247,23 @@ export class Brain {
     const notesInstruction = updateNotes
       ? `\n\nAfter the chat message(s), on a new line write exactly ---NOTES--- followed by updated session notes: plain text, under 100 words — current game/activity, notable events, topics discussed, running jokes.`
       : '';
+    // Built from screenshots the cast is already being shown, on a slow
+    // cadence — no extra API call, and it corrects itself across a session
+    // instead of baking in whatever the first frame happened to be.
+    const gameInfoInstruction = updateGameInfo
+      ? `\n\nThen on a new line write exactly ---GAMEINFO--- followed by a guide to READING THE SCREEN in ${streamInfo?.game || 'this game'}: plain text, under 120 words. Where the HUD elements are and what they mean (health/resource bars, minimap, objective text, timers), what distinct screen states look like (menu, loading, death/defeat, victory), and where the streamer's own overlay sits (webcam, alerts, chat box). Merge with the existing guide below rather than starting over; correct anything it got wrong, and only state what you can actually see — write nothing you are guessing at.`
+      : '';
     const profileInstruction = updateProfile
       ? `\n\nThen on a new line write exactly ---PROFILE--- followed by an updated viewer profile: plain text, under 150 words of LONG-TERM memory worth keeping across streams — per-game progress ("Hades: reached heat 16"), recurring jokes, facts about the streamer. Merge with the existing profile; drop stale trivia.`
       : '';
-    blocks.push({ text: `Room energy right now: ${energyTone(energy)}\n\n${situation}\n\nRecent chat:\n${historyText}\n\n${task}${pointInstruction}${momentInstruction}${notesInstruction}${profileInstruction}` });
+    blocks.push({ text: `Room energy right now: ${energyTone(energy)}\n\n${situation}\n\nRecent chat:\n${historyText}\n\n${task}${pointInstruction}${momentInstruction}${notesInstruction}${profileInstruction}${gameInfoInstruction}` });
 
     const systemParts = [this.buildSystemPrompt()];
-    const context = this.buildContextBlock({ streamContext, profile });
+    const context = this.buildContextBlock({ streamContext, profile, gameInfo, gameInfoLabel: streamInfo?.game });
     if (context) systemParts.push(context);
 
-    const maxTokens = 200 + (updateNotes ? 250 : 0) + (updateProfile ? 300 : 0) + (flagMoments ? 20 : 0);
+    const maxTokens =
+      200 + (updateNotes ? 250 : 0) + (updateProfile ? 300 : 0) + (flagMoments ? 20 : 0) + (updateGameInfo ? 250 : 0);
     const { raw, usage } =
       this.provider === 'anthropic'
         ? await this.callAnthropic(blocks, maxTokens, systemParts)
@@ -256,12 +273,14 @@ export class Brain {
     const newNotes = extractSection(raw, 'NOTES');
     const newProfile = extractSection(raw, 'PROFILE');
     const moment = extractSection(raw, 'MOMENT');
-    const msgPart = raw.split(/-{2,}\s*(?:NOTES|PROFILE|MOMENT)\s*-{2,}/i)[0];
+    const newGameInfo = extractSection(raw, 'GAMEINFO');
+    const msgPart = raw.split(/-{2,}\s*(?:NOTES|PROFILE|MOMENT|GAMEINFO)\s*-{2,}/i)[0];
     return {
       messages: this.parseMessages(msgPart),
       notes: newNotes ? newNotes.slice(0, 1000) : null,
       profile: newProfile ? newProfile.slice(0, 1500) : null,
       moment: moment ? moment.replace(/^["']|["']$/g, '').slice(0, 60) : null,
+      gameInfo: newGameInfo ? newGameInfo.slice(0, 1200) : null,
       usage,
     };
   }
@@ -296,10 +315,17 @@ export class Brain {
       model: this.model,
       max_tokens: maxTokens,
       // Two cache breakpoints: the byte-stable rules prefix, then the slow-
-      // moving context (stream context + viewer profile). Inert below the
-      // model's minimum cacheable prefix; engages automatically (and
-      // beneficially, at this cadence) once the prompt grows past it.
-      system: systemParts.map((text) => ({ type: 'text', text, cache_control: { type: 'ephemeral' } })),
+      // moving context (stream context + viewer profile + game primer). Inert
+      // below the model's minimum cacheable prefix; engages automatically once
+      // the prompt grows past it.
+      //
+      // The 1-hour TTL, not the 5-minute default: with real viewers around the
+      // cadence is `quietSeconds` (8 minutes by default), so a 5-minute entry
+      // expires between messages and every call pays the write premium instead
+      // of ever reading. A 1h write costs 2x versus 1.25x, but survives the
+      // gaps — at an 8-minute cadence that's one write and six reads an hour
+      // rather than seven full-price calls.
+      system: systemParts.map((text) => ({ type: 'text', text, cache_control: { type: 'ephemeral', ttl: '1h' } })),
       messages: [{ role: 'user', content }],
     });
     const raw = response.content.filter((b) => b.type === 'text').map((b) => b.text).join(' ').trim();
