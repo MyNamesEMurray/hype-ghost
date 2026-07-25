@@ -99,9 +99,9 @@ export class TranscriptFeed {
   addLine(text) {
     const raw = String(text).trim();
     if (!raw || isSrtMetadata(raw)) return;
-    // Whisper filler on silence/music would otherwise read as the streamer
-    // speaking — and a voice reply to something nobody said is worse than
-    // missing a line, so this is on by default.
+    // Whisper filler invented during the near-silence between sentences would
+    // otherwise read as the streamer speaking — and a voice reply to something
+    // nobody said is worse than missing a line, so this is on by default.
     if (this.speech?.dropHallucinations !== false && isHallucination(raw)) return;
     const cleaned = applyCorrections(raw, this.corrections());
     if (!cleaned) return; // a correction mapping to "" deletes the line

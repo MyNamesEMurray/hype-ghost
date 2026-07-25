@@ -6,10 +6,12 @@
  * without running a second speech model on a machine that is already sharing
  * a GPU with OBS and a game:
  *
- * 1. Drop Whisper's well-known hallucinations on silence/music ("Thank you.",
- *    "[Music]", subtitle-credit lines, stuck repetition loops). Left alone,
- *    each one looks like the streamer speaking and can trigger a voice reply
- *    to something nobody said.
+ * 1. Drop Whisper's well-known hallucinations ("Thank you.", "Thanks for
+ *    watching!", subtitle-credit lines, stuck repetition loops). These are
+ *    triggered by near-silence, and a mic-only feed is mostly near-silence —
+ *    pauses between sentences, breaths, keyboard clatter, fan and room tone.
+ *    Left alone, each one looks like the streamer speaking and can trigger a
+ *    voice reply to something nobody said.
  * 2. Apply a per-streamer correction map — Whisper mangles proper nouns worst
  *    (ghost names, channel name, game titles), and those are exactly the words
  *    that matter here.
@@ -67,7 +69,7 @@ export function tokenize(text) {
 // ---------------------------------------------------------------------------
 
 /**
- * Whisper's greatest hits when fed silence, music, or mic noise. Matched
+ * Whisper's greatest hits when fed silence or mic noise. Matched
  * against the WHOLE normalized line only — never as a substring — because
  * every one of these is also something a streamer might genuinely say inside
  * a longer sentence ("thank you for the follow" must survive; a bare
@@ -100,7 +102,11 @@ const FILLER_LINES = new Set([
   'all rights reserved',
 ]);
 
-/** A line of only bracketed sound events / music glyphs: "[Music]", "♪♪♪". */
+/**
+ * A line of only bracketed sound events: "[BLANK_AUDIO]", "[Music]", "♪♪♪".
+ * Rarer on a mic-only feed than the filler phrases above, but it costs nothing
+ * to catch — a line with no words in it is never speech.
+ */
 function isSoundEventOnly(text) {
   const stripped = String(text ?? '')
     .replace(/[[(][^\])]*[\])]/g, ' ')
