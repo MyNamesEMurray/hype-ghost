@@ -792,7 +792,9 @@
     $('gameInfo').value = d.text || '';
     $('giGame').textContent = giEditing
       ? `— ${giEditing}` + (d.current && d.current !== giEditing ? ' (not the game you’re on now)' : '')
-      : '— no game detected yet';
+      : d.skipped
+        ? `— “${d.skipped}” isn’t a single game, so nothing is learned under it`
+        : '— no game detected yet';
     // Guides written on past streams stay reachable, so a wrong one can be
     // fixed without booting the game back up.
     const pick = $('giPick');

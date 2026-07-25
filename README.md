@@ -83,7 +83,9 @@ Quit Hype Ghost.
   already being shown, so it costs no extra API calls, and it sits in the cached part of the
   prompt. The point is reacting to game **state** ("your health is gone") rather than just
   appearance. It's plain text at **Settings → Stream → Screen guide**: read it, and edit it
-  if it gets something wrong, because it's treated as truth on every message.
+  if it gets something wrong, because it's treated as truth on every message. Nothing is
+  learned under a category that isn't one game (`Just Chatting`, `Music`, …) — see
+  `memory.gameInfoSkip`.
 - **Data folder:** settings, session memory, the cross-stream profile, and the app log
   (`hype-ghost.log`, rotating) live in `%APPDATA%\Hype Ghost` by default. **Settings →
   About → Move data folder…** relocates all of it to any folder you like (another drive, a
@@ -165,6 +167,7 @@ Quit Hype Ghost.
 | `speech.dropHallucinations` | Discard speech-to-text filler — "Thank you.", "Thanks for watching!", "please subscribe", words stuck on repeat (default true). Whisper invents these during near-silence, which is most of a mic-only track: the pauses between sentences, breaths, keyboard, room tone. Matched whole-line only, so a real sentence containing those words survives. Applies to both channels. |
 | `speech.corrections` | Word fixes applied to every transcript line before the cast sees it: `[{ "from": "bacon", "to": "Beacon" }]`. Whole words only, case-insensitive; a blank `to` deletes the phrase. Build this from **Settings → Voice → Mic check**, or by hand. Applies live on save. |
 | `memory.gameInfoEvery` | How often (in cast messages) the cast refreshes its **screen guide** for the current game — what the HUD means, what a death screen looks like, where your overlay sits (default 8). Written as a tail section on generations that are already happening, so it costs no extra API calls. Stored per game in `game-notes.json` and reused on later streams; view and edit it at Settings → Stream. |
+| `memory.gameInfoSkip` | Categories that aren't a single game — `Just Chatting`, `Music`, `IRL` and friends, pre-filled with the common Twitch ones. No screen guide is learned, stored, or read under these, because one keyed to "Just Chatting" would blend every game played beneath it and describe none of them. Whole-name match, case- and space-insensitive (so `Music` skips but `Music Racer` doesn't). Add your own if a Window Capture reports something like a browser as the "game". |
 | `speech.vocabulary` | Extra proper nouns worth getting right — the game, in-jokes, regulars' names. Your ghosts' names and `twitch.channel` are included automatically. Used to build the mic-check script, and told to the cast so it reads a near-miss as the real word. |
 | `cadence.soloSeconds` / `quietSeconds` | Average gap between messages when alone / when real viewers are present. |
 | `cadence.jitter`, `burstChance`, `lullChance` | Natural rhythm: ±jitter on normal gaps, occasional quick bursts (0.3–0.6x) and long lulls (1.6–3x). |

@@ -11,7 +11,7 @@ import { MODELS, messageCost } from './models.js';
 import { resolveCast, GHOST_COLORS, ARCHETYPES, ACCENT_COLORS } from './cast.js';
 import { ObsCapture } from './obs.js';
 import { Brain } from './brain.js';
-import { TwitchViewers, DecApi } from './twitch.js';
+import { TwitchViewers, DecApi, isGameCategory } from './twitch.js';
 import { TwitchChat } from './twitchchat.js';
 import { TranscriptFeed } from './transcript.js';
 import { collectTerms, buildMicCheckScript, deriveCorrections, wordErrorRate, compileCorrections, applyCorrections } from './speech.js';
@@ -208,7 +208,12 @@ export function startServer(opts = {}) {
   }
   const gameKey = (name) => String(name ?? '').trim().toLowerCase();
   const currentGame = () => state.streamInfo?.game || '';
-  const readGameInfo = () => gameInfo[gameKey(currentGame())] || '';
+  // The category the guide may be keyed to — blank while the stream is under a
+  // non-game category, so "Just Chatting" never accrues a guide blending every
+  // game played beneath it. The cast is still told the category as usual; only
+  // the guide is gated.
+  const guideGame = () => (isGameCategory(currentGame(), config.memory?.gameInfoSkip) ? currentGame() : '');
+  const readGameInfo = () => gameInfo[gameKey(guideGame())] || '';
   function writeGameInfo(game, text) {
     const key = gameKey(game);
     if (!key) return;
@@ -588,10 +593,12 @@ export function startServer(opts = {}) {
     // ?game= reads a specific saved guide, so one written on a past stream can
     // still be reviewed and corrected while playing something else.
     const asked = String(req.query.game || '').trim();
-    const game = asked || currentGame();
+    const game = asked || guideGame();
+    const skipped = Boolean(currentGame()) && !isGameCategory(currentGame(), config.memory?.gameInfoSkip);
     res.json({
       game,
       current: currentGame(),
+      skipped: skipped ? currentGame() : '',
       text: gameInfo[gameKey(game)] || '',
       games: Object.keys(gameInfo).sort(),
       enabled: config.memory?.enabled !== false,
@@ -599,9 +606,20 @@ export function startServer(opts = {}) {
   });
 
   app.post('/api/gameinfo', (req, res) => {
-    const game = String(req.body?.game || currentGame()).trim();
+    const game = String(req.body?.game || guideGame()).trim();
     if (!game) {
-      return res.json({ ok: false, error: 'No game detected yet — set a Twitch category, or turn on "detect game from OBS" above.' });
+      const skipped = currentGame();
+      return res.json({
+        ok: false,
+        error: skipped
+          ? `"${skipped}" isn't a single game, so no screen guide is kept for it (memory.gameInfoSkip). Set a game category to start one.`
+          : 'No game detected yet — set a Twitch category, or turn on "detect game from OBS" above.',
+      });
+    }
+    // Refuse a hand-written guide for a skipped category too: it could never be
+    // read back, so accepting it would just look broken.
+    if (!isGameCategory(game, config.memory?.gameInfoSkip)) {
+      return res.json({ ok: false, error: `"${game}" is on the skip list (memory.gameInfoSkip), so a guide for it would never be used.` });
     }
     writeGameInfo(game, String(req.body?.text ?? '').slice(0, 1200));
     res.json({ ok: true, game, text: gameInfo[gameKey(game)] || '' });
@@ -841,8 +859,11 @@ export function startServer(opts = {}) {
       },
       onMoment: (label) => pushMoment(label),
       getGameInfo: readGameInfo,
+      // Asked before spending output tokens on a guide the server would refuse
+      // to store — no game detected, or a category that isn't one game.
+      canLearnGame: () => Boolean(guideGame()),
       setGameInfo: (next) => {
-        const game = currentGame();
+        const game = guideGame();
         if (!game) return; // nothing to key it to; don't write an orphan entry
         writeGameInfo(game, next);
         console.log(`[memory] screen guide updated for "${game}".`);

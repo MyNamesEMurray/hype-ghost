@@ -189,3 +189,21 @@ export class DecApi {
     }
   }
 }
+
+/**
+ * Is this category actually a single game?
+ *
+ * Twitch categories are not all games — "Just Chatting", "Music", "IRL" and
+ * friends cover whole streams that may cut across several games or none. They
+ * matter because the per-game screen guide is keyed by category name: a guide
+ * accumulated under "Just Chatting" would blend every game played beneath it
+ * and end up describing none of them accurately. Matching is case-insensitive
+ * and whitespace-trimmed; the skip list is user-extendable in config, since a
+ * Window Capture can also report things like a browser or Discord.
+ */
+export function isGameCategory(name, skip = []) {
+  const key = (s) => String(s ?? '').trim().toLowerCase();
+  const category = key(name);
+  if (!category) return false;
+  return !(Array.isArray(skip) ? skip : []).some((entry) => key(entry) === category);
+}

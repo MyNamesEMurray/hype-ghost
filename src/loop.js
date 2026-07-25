@@ -296,7 +296,7 @@ export class GhostLoop {
       const updateGameInfo =
         memory.enabled &&
         Boolean(screenshot) &&
-        Boolean(this.hooks.getStreamInfo?.()?.game) &&
+        this.hooks.canLearnGame?.() &&
         (this.botMessageCount + 1) % (memory.gameInfoEvery ?? 8) === 0;
       const allowExchange = this.lastStreamerActivityAt > this.lastExchangeAt;
       // Moment flags only make sense on a fresh frame, and no faster than once

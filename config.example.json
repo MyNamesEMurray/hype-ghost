@@ -82,7 +82,29 @@
     "enabled": true,
     "updateEvery": 4,
     "profileEvery": 12,
-    "gameInfoEvery": 8
+    "gameInfoEvery": 8,
+    "gameInfoSkip": [
+      "Just Chatting",
+      "IRL",
+      "Music",
+      "Art",
+      "Makers & Crafting",
+      "Food & Drink",
+      "Travel & Outdoors",
+      "Fitness & Health",
+      "Beauty & Body Art",
+      "Science & Technology",
+      "Software and Game Development",
+      "Talk Shows & Podcasts",
+      "Sports",
+      "ASMR",
+      "DJs",
+      "Watch Parties",
+      "Special Events",
+      "Politics",
+      "Animals, Aquariums, and Zoos",
+      "Pools, Hot Tubs, and Beaches"
+    ]
   },
   "twitch": {
     "clientId": "",
