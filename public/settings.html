@@ -130,6 +130,11 @@
           <p class="hint">Keys at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>.</p>
           <label>Model</label>
           <select data-path="anthropic.model" id="modelSelect"></select>
+          <div id="customModelRow" style="display:none;margin-top:10px">
+            <label>Model ID</label>
+            <input type="text" id="customModel" placeholder="claude-opus-4-7" spellcheck="false">
+            <p class="hint">Any model ID your API key can reach — a newer release, an older one you want to pin, or a dated snapshot. Exact string from <a href="https://platform.claude.com/docs/en/about-claude/models/overview" target="_blank">Anthropic's model list</a>; <b>Test brain</b> below confirms it works before you save. The cast needs <b>vision</b> to see your stream. <span id="customModelCost"></span></p>
+          </div>
         </div>
         <div id="oaiFields">
           <label>Endpoint URL</label>
@@ -454,6 +459,8 @@
   const fields = [...document.querySelectorAll('[data-path]')];
   let cfg = null, apiKeySaved = false, canRestart = false;
   let palette = {}, archetypes = [], castData = [];
+  const CUSTOM_MODEL = '__custom';
+  let modelIds = []; // ids the cost meter has rates for
 
   let ACCENTS = {}; // accent hex values come from /api/config
   function applyAccent(name) {
@@ -583,7 +590,12 @@
     cfg = data.config; apiKeySaved = data.apiKeySaved; canRestart = data.canRestart;
     palette = data.palette || {}; archetypes = data.archetypes || []; castData = data.cast || [];
     ACCENTS = data.accents || {};
-    $('modelSelect').innerHTML = data.models.map((m) => `<option value="${m.id}">${m.label}</option>`).join('');
+    modelIds = data.models.map((m) => m.id);
+    // The catalog, plus an escape hatch: any model id the key can reach, so a
+    // release newer than this build (or an older one worth pinning) isn't
+    // gated behind an app update.
+    $('modelSelect').innerHTML = data.models.map((m) => `<option value="${m.id}">${m.label}</option>`).join('')
+      + `<option value="${CUSTOM_MODEL}">Custom model ID…</option>`;
     for (const f of fields) {
       const v = getPath(cfg, f.dataset.path);
       if (f.dataset.type === 'bool') f.checked = v !== false;
@@ -610,6 +622,7 @@
       $('accentField').value = d.dataset.acc; applyAccent(d.dataset.acc);
       $('accentRow').querySelectorAll('.accent-dot').forEach((x) => x.classList.toggle('on', x === d));
     });
+    syncModelChoice();
     toggleProvider();
     initTts();
   });
@@ -733,6 +746,34 @@
     box.style.display = '';
   };
 
+  // ---- model choice ----
+  // The saved id is the source of truth. One that isn't in the catalog is a
+  // custom pick, not a broken one — show it in the text field rather than
+  // silently snapping the dropdown to a different model.
+  const chosenModel = () =>
+    $('modelSelect').value === CUSTOM_MODEL ? $('customModel').value.trim() : $('modelSelect').value;
+
+  function syncModelChoice() {
+    const saved = (cfg.anthropic && cfg.anthropic.model) || '';
+    const known = modelIds.includes(saved);
+    $('modelSelect').value = known ? saved : CUSTOM_MODEL;
+    if (!known && saved) $('customModel').value = saved;
+    toggleCustomModel();
+  }
+
+  function toggleCustomModel() {
+    const custom = $('modelSelect').value === CUSTOM_MODEL;
+    $('customModelRow').style.display = custom ? '' : 'none';
+    if (!custom) return;
+    // Say so plainly when the meter can't price it, rather than showing $0.00.
+    const id = $('customModel').value.trim();
+    $('customModelCost').textContent = !id || modelIds.some((known) => id.startsWith(known))
+      ? ''
+      : 'No published rates for this one, so the deck shows a message count without a dollar figure.';
+  }
+  $('modelSelect').onchange = toggleCustomModel;
+  $('customModel').oninput = toggleCustomModel;
+
   function toggleProvider() {
     const oai = $('providerSel').value === 'openai';
     $('anthFields').style.display = oai ? 'none' : '';
@@ -818,7 +859,7 @@
     const oai = $('providerSel').value === 'openai';
     const body = oai
       ? { provider: 'openai', baseUrl: val('brain.openaiBaseUrl').trim(), model: val('brain.openaiModel').trim(), apiKey: val('brain.openaiApiKey').trim() }
-      : { apiKey: val('anthropic.apiKey').trim(), model: val('anthropic.model') };
+      : { apiKey: val('anthropic.apiKey').trim(), model: chosenModel() };
     const r = await fetch('/api/test-key', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }).then((x)=>x.json()).catch((e)=>({ok:false,error:e.message}));
     el.className = 'result ' + (r.ok ? 'ok':'err');
     el.textContent = r.ok ? '✓ works' + (r.note ? ' — '+r.note : '') : '✗ ' + (r.error || 'failed');
@@ -919,6 +960,12 @@
       ? { ...cfg.bot2, enabled: true, name: roster[1].name, personality: roster[1].personality }
       : { ...cfg.bot2, enabled: false };
 
+    // The dropdown's own value is a sentinel when "Custom model ID…" is picked,
+    // so the real id has to be written after the generic field loop.
+    setPath(cfg, 'anthropic.model', chosenModel());
+    if (cfg.brain.provider === 'anthropic' && !cfg.anthropic.model) {
+      $('saveResult').className = 'result err'; $('saveResult').textContent = 'enter a model ID, or pick one from the list (Brain tab)'; setTab('brain'); return;
+    }
     if (cfg.brain.provider === 'anthropic' && !cfg.anthropic.apiKey && !apiKeySaved) {
       $('saveResult').className = 'result err'; $('saveResult').textContent = 'an API key is required (Brain tab)'; setTab('brain'); return;
     }

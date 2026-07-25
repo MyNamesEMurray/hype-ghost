@@ -185,6 +185,13 @@
     $('apiKey').placeholder = apiKeySaved ? 'saved ✓ — leave blank to keep the current key' : 'sk-ant-…';
     if (data.openaiKeySaved) $('oaiKey').placeholder = 'saved ✓ — leave blank to keep';
     if (data.twitchSecretSaved) $('twSecret').placeholder = 'saved ✓ — leave blank to keep';
+    // A model set in Settings → Brain → "Custom model ID…" isn't in the catalog.
+    // Carry it as its own option so re-running the wizard keeps it instead of
+    // blanking it (an unmatched value would leave the select with no selection).
+    if (cfg.anthropic.model && !data.models.some((m) => m.id === cfg.anthropic.model)) {
+      $('model').insertAdjacentHTML('beforeend',
+        `<option value="${cfg.anthropic.model.replace(/"/g, '&quot;')}">${cfg.anthropic.model} (custom)</option>`);
+    }
     $('model').value = cfg.anthropic.model; $('provider').value = cfg.brain.provider;
     $('oaiBase').value = cfg.brain.openaiBaseUrl; $('oaiModel').value = cfg.brain.openaiModel; $('oaiKey').value = cfg.brain.openaiApiKey;
     toggleProvider();

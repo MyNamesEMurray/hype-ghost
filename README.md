@@ -139,7 +139,7 @@ Quit Hype Ghost.
 | `stream.gameFromObs` | Fallback: guess the game from an OBS **Game/Window Capture** source's captured window when Twitch has no category (default true). |
 | `talkingPoints` | Topics you want covered; the cast works one in occasionally when it fits naturally. |
 | `anthropic.apiKey` | Anthropic API key (console.anthropic.com), or set `ANTHROPIC_API_KEY` env var. |
-| `anthropic.model` | `claude-sonnet-5` is the sweet spot; `claude-haiku-4-5` ~3x cheaper, `claude-opus-4-8` ~3x pricier and chattiest. |
+| `anthropic.model` | `claude-sonnet-5` is the sweet spot; `claude-haiku-4-5` ~3x cheaper, `claude-opus-5` ~1.7x pricier and chattiest. Any other model ID your key can reach also works — Settings → Brain → **Custom model ID…** (or just set it here), so a new release isn't gated behind an app update. It must be **vision-capable**, and the cost meter only prices the listed models: on anything else the deck shows a message count with no dollar figure. |
 | `bot.name` / `bot.personality` | Legacy single-ghost fields, kept in sync with `cast[0]` for backward compatibility. |
 | `obs.url` / `obs.password` | OBS WebSocket (default port 4455). |
 | `obs.screenshotWidth` | Screenshot width in px (default 800). Image tokens scale with pixels (w×h÷750) — JPEG quality has no effect on tokens. |

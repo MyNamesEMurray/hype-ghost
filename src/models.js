@@ -6,8 +6,14 @@
 export const MODELS = [
   { id: 'claude-sonnet-5', label: 'Sonnet — recommended (~$0.20/hr)', inRate: 3, outRate: 15 },
   { id: 'claude-haiku-4-5', label: 'Haiku — budget (~$0.07/hr)', inRate: 1, outRate: 5 },
-  { id: 'claude-opus-4-8', label: 'Opus — premium (~$0.60/hr)', inRate: 5, outRate: 25 },
+  { id: 'claude-opus-5', label: 'Opus — premium (~$0.33/hr)', inRate: 5, outRate: 25 },
+  { id: 'claude-opus-4-8', label: 'Opus 4.8 — previous premium (~$0.33/hr)', inRate: 5, outRate: 25 },
 ];
+
+/** True when the cost meter has published rates for this model id. */
+export function isKnownModel(modelId) {
+  return MODELS.some((m) => modelId && modelId.startsWith(m.id));
+}
 
 /**
  * Cost of one API response in dollars, or null for models we have no rates
