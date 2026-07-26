@@ -245,6 +245,10 @@
           <label for="showHeard">Show what it hears in the deck feed — faint 🎙 lines of your transcribed speech (and 🎧 party audio), so you can spot mishears the cast might react to. Deck only; never on the stream overlay. Applies live on save.</label>
         </div>
         <div class="check">
+          <input type="checkbox" id="voiceAddressed" data-path="cadence.voiceReplyRequiresAddress" data-type="bool">
+          <label for="voiceAddressed">Only reply out loud when the cast is <b>actually addressed</b> — you say a ghost's name, or answer a question one of them just asked. Most of what you say on stream isn't aimed at them, and replying to all of it spends an API call after nearly every message. Everything you say still reaches them either way: it's in the transcript the next scheduled message reads. Turning this off restores the old "reply to any speech" behaviour, and roughly doubles cost on a talkative stream. Applies live on save.</label>
+        </div>
+        <div class="check">
           <input type="checkbox" id="dropHall" data-path="speech.dropHallucinations" data-type="bool">
           <label for="dropHall">Ignore transcription hallucinations — in the quiet between sentences (breaths, keyboard, room tone) speech-to-text invents filler: "Thank you.", "Thanks for watching!", "please subscribe", words stuck on repeat. Left in, the cast replies to things you never said. Only ever drops a line that is <em>entirely</em> filler, so a real sentence is never touched. Applies live on save.</label>
         </div>
@@ -320,6 +324,7 @@
         <div class="row adv">
           <div><label>Reply delay after you type (s)</label><input type="number" data-path="cadence.replyDelaySeconds" min="2" max="60"></div>
           <div><label>Min gap between voice replies (s)</label><input type="number" data-path="cadence.minVoiceReplyGapSeconds" min="0" max="300"></div>
+          <div><label>Voice reply delay (s)</label><input type="number" data-path="cadence.voiceReplyDelaySeconds" min="2" max="60"></div>
           <div><label>Min gap between screenshots (s)</label><input type="number" data-path="cadence.minScreenshotGapSeconds" min="0" max="300"></div>
         </div>
 

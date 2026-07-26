@@ -171,6 +171,10 @@ Quit Hype Ghost.
 | `speech.vocabulary` | Extra proper nouns worth getting right — the game, in-jokes, regulars' names. Your ghosts' names and `twitch.channel` are included automatically. Used to build the mic-check script, and told to the cast so it reads a near-miss as the real word. |
 | `cadence.soloSeconds` / `quietSeconds` | Average gap between messages when alone / when real viewers are present. |
 | `cadence.jitter`, `burstChance`, `lullChance` | Natural rhythm: ±jitter on normal gaps, occasional quick bursts (0.3–0.6x) and long lulls (1.6–3x). |
+| `cadence.voiceReplyRequiresAddress` | Only spend a voice reply when the cast is actually addressed — a ghost named out loud, or a prompt answer to a question one just asked (default true). Most stream talk is narration, and replying to all of it fires an extra generation after nearly every message; turning this off restores the old behaviour and roughly doubles cost on a talkative stream. Undirected speech still reaches the cast — it's in the transcript the next scheduled message reads. |
+| `cadence.voiceReplyDelaySeconds` | How long after you stop talking a voice reply lands (default 8). |
+| `cadence.voiceReplyWindowSeconds` | How recent the cast's last message must be for your speech to count as answering it (default 120). |
+| `cadence.voiceAnswerWindowSeconds` | How soon after a ghost's *question* your speech still counts as answering it (default 30). Short on purpose: the curious archetype ends a lot of messages with "?", so a generous window would match nearly everything. |
 | `cadence.minScreenshotGapSeconds` | Skip re-screenshotting on quick follow-ups (default 25). |
 | `cadence.transcriptWindowSeconds` | How much recent mic speech the ghost hears (default 120). |
 | `memory.enabled` / `memory.updateEvery` | Rolling session memory: every N messages the model refreshes a <100-word stream summary, kept as context in every call. Persists across restarts (`session-notes.txt`, ignored after 6h). |
@@ -182,6 +186,13 @@ history/transcript/notes). At a 90s solo cadence that's ~40 messages/hour ≈ **
 The dashboard's cost pill shows the real number live, and if OBS disappears for 10 minutes
 the ghost **auto-pauses** so a forgotten tray app can't burn money overnight — it resumes
 by itself when OBS is back (Settings → App).
+
+**Message count, not per-message price, is usually what makes a bill surprising.** Three things
+multiply it: the **energy dial** (100 shortens every gap to ~0.45x, more than doubling volume),
+**voice replies** (see `cadence.voiceReplyRequiresAddress`), and the model itself (Opus is ~1.7x
+Sonnet, ~5x Haiku). Hover the cost pill for the token split — the share of input served from
+cache, and output-tokens-per-message. A one-line chat message is ~60 output tokens, so a number
+far above that means thinking is doing the spending.
 
 Current-generation models think by default, and thinking tokens bill at output rates — on a
 one-line chat message that is mostly waste, so the app pins **`effort: low`** for models that

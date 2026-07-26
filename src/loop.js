@@ -17,10 +17,15 @@
  *   getNotes()/setNotes(s) -> rolling session memory persistence
  *   addUsage(usage)      -> token usage for the cost meter
  */
+// The only import here on purpose: a pure text helper, no host coupling — the
+// loop still reaches the outside world exclusively through `hooks`.
+import { mentionsAny } from './speech.js';
+
 export class GhostLoop {
-  constructor({ config, brain, obs, transcriptFeed, partyFeed, hooks }) {
+  constructor({ config, brain, obs, transcriptFeed, partyFeed, hooks, castNames }) {
     this.config = config;
     this.brain = brain;
+    this.castNames = Array.isArray(castNames) ? castNames : []; // for "were they talking to us?"
     this.obs = obs;
     this.feed = transcriptFeed;
     this.partyFeed = partyFeed; // second LocalVocal channel: co-op / party audio
@@ -161,26 +166,56 @@ export class GhostLoop {
   }
 
   /**
-   * The streamer said something on mic. If it lands after the ghost's latest
-   * message, treat it as a spoken answer: reply ~8s after they stop talking.
-   * Guards: once per bot message, a rate floor so continuous conversation
-   * can't run unbounded past the configured cadence, and a busy retry so a
+   * The streamer said something on mic.
+   *
+   * Most of what a streamer says is not aimed at the cast — narrating a fight,
+   * talking to a co-op partner, thinking out loud. Treating all of it as "they
+   * answered me" fires an extra generation after nearly every cast message,
+   * which roughly doubles API spend on a talkative stream and makes the cast
+   * read as interrupting rather than listening.
+   *
+   * So a voice reply now needs the speech to be *addressed* to them. Nothing is
+   * lost when it isn't: the transcript window is read by the next scheduled
+   * generation either way, so undirected talk still reaches the cast — it just
+   * doesn't buy its own API call.
+   *
+   * Guards, unchanged: once per bot message, a rate floor so continuous
+   * conversation can't outrun the configured cadence, and a busy retry so a
    * reply isn't silently dropped (and marked answered) mid-generation.
    */
-  onSpeech() {
+  onSpeech(text = '') {
     this.lastStreamerActivityAt = Date.now();
-    const minGapMs = (this.config.cadence.minVoiceReplyGapSeconds ?? 35) * 1000;
+    const c = this.config.cadence;
+    const minGapMs = (c.minVoiceReplyGapSeconds ?? 35) * 1000;
+    const windowMs = (c.voiceReplyWindowSeconds ?? 120) * 1000;
     const last = this.hooks.getHistory().at(-1);
     const answerable =
       last &&
       last.role === 'bot' &&
       last.id !== this.voiceRepliedTo &&
-      Date.now() - last.ts < 120_000 &&
+      Date.now() - last.ts < windowMs &&
       Date.now() - this.lastVoiceReplyAt >= minGapMs;
     if (!answerable || this.paused) return;
+    if (c.voiceReplyRequiresAddress !== false && !this.isAddressedToCast(text, last)) return;
     clearTimeout(this.voiceReplyTimer);
     this.voiceBusyRetries = 0;
-    this.voiceReplyTimer = setTimeout(() => this.fireVoiceReply(), 8000);
+    this.voiceReplyTimer = setTimeout(() => this.fireVoiceReply(), (c.voiceReplyDelaySeconds ?? 8) * 1000);
+  }
+
+  /**
+   * Was that line aimed at the cast? Two signals, both free and local:
+   *
+   * 1. A ghost named out loud — unambiguous, and the correction map already
+   *    works to keep those names intact through transcription.
+   * 2. A prompt answer to a ghost's question. Deliberately on a short fuse:
+   *    the "curious" archetype ends a lot of messages with "?", so a generous
+   *    window would match nearly everything and undo the whole point.
+   */
+  isAddressedToCast(text, last) {
+    if (mentionsAny(text, this.castNames)) return true;
+    const answerMs = (this.config.cadence.voiceAnswerWindowSeconds ?? 30) * 1000;
+    const askedSomething = /\?['")\]]*\s*$/.test((last?.text || '').trim());
+    return askedSomething && Date.now() - last.ts <= answerMs;
   }
 
   fireVoiceReply() {
