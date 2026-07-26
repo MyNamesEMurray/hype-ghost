@@ -33,6 +33,8 @@ npm run smoke
 
 **Branch off `main`, PR into `main`.** `main` is the only long-lived branch — the trunk and the released line the installer/auto-updater builds from; released states are pinned by `vX.Y.Z` tags, and older lines (1.x/2.x/the retired `v3` integration branch) live in `main`'s history. Feature branches are `claude/<topic>` or `feature/<topic>`. Releasing is automatic: merging app-code changes to `main` tags the next version (patch by default; a `Release-Bump: minor|major` trailer line in any PR commit raises it, `Release-Skip: true` suppresses it) and CI builds + publishes the installer. The version authority is the git tag — CI stamps `package.json` at build time. The Release workflow also remains manually runnable against an existing tag.
 
+**Beta builds** come from `beta-release.yml` (Actions → Beta Release → pick a branch): it tags `vX.Y.Z-beta.N` off the newest *stable* tag, builds the installer, and publishes a GitHub prerelease — testable without merging, and invisible to stable installs because the `-beta.N` suffix makes electron-builder write `beta.yml` rather than the `latest.yml` they poll. The channel is a *file*, not a version comparison, so a beta install never drifts back to stable by itself — `app.updateChannel` (`auto` | `stable` | `beta`, Settings → App) is the escape hatch, and the only case where `allowDowngrade` is set. Anywhere the next stable version is computed, beta tags **must** be filtered out (`^v[0-9]+\.[0-9]+\.[0-9]+$`): they sort above the release they precede, and splitting `3.8.0-beta.1` on `.` puts `0-beta.1` where a number belongs, which is a fatal arithmetic error rather than a wrong answer.
+
 ## Architecture
 
 The app is a local Express + WebSocket server with two hosts:

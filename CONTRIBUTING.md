@@ -20,6 +20,24 @@ notes are generated from PR titles — label PRs `enhancement`/`bug` to sort the
 (`.github/release.yml`). Manual fallback: run the Release workflow from Actions against
 an existing tag, or push a `vX.Y.Z` tag by hand.
 
+**Beta builds ship from any branch, without merging.** Actions → **Beta Release** → Run
+workflow, pick a branch. It tags `vX.Y.Z-beta.N` (climbing from the newest *stable* tag),
+builds the installer, and publishes a GitHub **prerelease** — so a change can be tested on
+a real stream without anyone compiling anything. Stable installs are never offered these:
+the `-beta.N` suffix makes electron-builder write the update feed as `beta.yml`, and a
+stable install only ever reads `latest.yml`. A beta install does **not** find its way back
+on its own — a stable release publishes only `latest.yml`, so `beta.yml` goes on advertising
+the last beta. Leaving the channel is deliberate: Settings → App → *Which builds to update
+to* → **Stable only** (`app.updateChannel`), which is also the only path allowed to step the
+version down.
+
+> Beta tags are excluded wherever the next stable version is computed. They sort *above*
+> the release they precede, and `3.8.0-beta.1` split on `.` puts `0-beta.1` where a number
+> belongs — which is a fatal arithmetic error, not a wrong answer. Keep the
+> `^v[0-9]+\.[0-9]+\.[0-9]+$` filter in `auto-release.yml`, and the prerelease guard on
+> `release.yml`'s job (its `v*` tag trigger matches beta tags too, and publishing one there
+> would write `latest.yml` — pushing a test build to everybody).
+
 > The one rule worth remembering: **branch off `main`, PR into `main`.**
 
 ## Making a change

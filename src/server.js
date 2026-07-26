@@ -130,7 +130,10 @@ export function startServer(opts = {}) {
     tts: ttsState(),
     uiLanguage: config.app.uiLanguage || 'en',
     fontScale: fontScale(),
-    usage: { messages: 0, inputTokens: 0, outputTokens: 0, cost: 0, costKnown: true },
+    // cachedInputTokens is tracked separately from inputTokens (which is the
+    // total): without the split there's no way to tell whether prompt caching
+    // is engaging, and output-per-message is what reveals runaway thinking.
+    usage: { messages: 0, inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, cost: 0, costKnown: true },
   };
   const history = []; // {id, author, role: 'bot'|'streamer', text, ts}
   const MAX_HISTORY = 40;
@@ -289,6 +292,8 @@ export function startServer(opts = {}) {
     'speech.corrections', 'speech.dropHallucinations',
     'cadence.soloSeconds', 'cadence.quietSeconds', 'cadence.jitter', 'cadence.burstChance',
     'cadence.lullChance', 'cadence.replyDelaySeconds', 'cadence.minVoiceReplyGapSeconds',
+    'cadence.voiceReplyRequiresAddress', 'cadence.voiceReplyDelaySeconds',
+    'cadence.voiceReplyWindowSeconds', 'cadence.voiceAnswerWindowSeconds',
     'cadence.minScreenshotGapSeconds', 'cadence.minPartyNudgeGapSeconds',
   ];
   const isHotPath = (p) => HOT_PATHS.some((h) => (h.endsWith('.') ? p.startsWith(h) : p === h));
@@ -783,7 +788,7 @@ export function startServer(opts = {}) {
       broadcastState();
       // Reading the mic-check script is talking *at* the app, not to chat —
       // replying to it would cost a generation and drown out the check.
-      if (!check) loop.onSpeech();
+      if (!check) loop.onSpeech(line);
     },
   });
 
@@ -839,6 +844,7 @@ export function startServer(opts = {}) {
     obs,
     transcriptFeed,
     partyFeed,
+    castNames: personas.map((p) => p.name),
     hooks: {
       getMode: resolveMode,
       getStreamInfo: () => state.streamInfo,
@@ -881,6 +887,7 @@ export function startServer(opts = {}) {
         state.usage.messages++;
         state.usage.inputTokens +=
           (usage.input_tokens || 0) + (usage.cache_read_input_tokens || 0) + (usage.cache_creation_input_tokens || 0);
+        state.usage.cachedInputTokens += usage.cache_read_input_tokens || 0;
         state.usage.outputTokens += usage.output_tokens || 0;
         if (cost === null) state.usage.costKnown = false;
         else state.usage.cost += cost;

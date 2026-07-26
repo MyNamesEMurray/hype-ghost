@@ -178,6 +178,27 @@ export function compileCorrections(corrections) {
   return compiled;
 }
 
+/**
+ * Does this line name one of these, as a whole word? Used to tell speech that
+ * is actually aimed at the cast from speech that merely happened near it.
+ * Whole-word so "Wisp" doesn't fire on "wispy".
+ */
+export function mentionsAny(text, names = []) {
+  const line = String(text ?? '');
+  if (!line.trim()) return false;
+  for (const name of Array.isArray(names) ? names : []) {
+    const trimmed = String(name ?? '').trim();
+    if (!trimmed || trimmed.length > MAX_FROM_LEN) continue;
+    const body = trimmed.split(/\s+/).map(escapeRe).join('\\s+');
+    try {
+      if (new RegExp(`${WORD_START}${body}${WORD_END}`, 'iu').test(line)) return true;
+    } catch {
+      // An unrepresentable name just never matches, rather than throwing.
+    }
+  }
+  return false;
+}
+
 /** Apply compiled corrections; returns '' if the line was fully deleted. */
 export function applyCorrections(text, compiled) {
   let out = String(text ?? '');

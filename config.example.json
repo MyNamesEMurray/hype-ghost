@@ -34,6 +34,7 @@
   },
   "app": {
     "autoUpdate": true,
+    "updateChannel": "auto",
     "costMeter": true,
     "autoPause": true,
     "autoPauseMinutes": 10,
@@ -140,6 +141,10 @@
     "lullChance": 0.15,
     "replyDelaySeconds": 6,
     "minVoiceReplyGapSeconds": 35,
+    "voiceReplyRequiresAddress": true,
+    "voiceReplyDelaySeconds": 8,
+    "voiceReplyWindowSeconds": 120,
+    "voiceAnswerWindowSeconds": 30,
     "viewerPollSeconds": 60,
     "transcriptWindowSeconds": 120,
     "minScreenshotGapSeconds": 25,

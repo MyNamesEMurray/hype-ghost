@@ -586,7 +586,14 @@
     const el = $('cost'); const u = state.usage;
     if (!state.costMeter || !u || u.messages === 0) { el.textContent = ''; return; }
     el.textContent = u.costKnown ? `$${u.cost.toFixed(3)} · ${u.messages} ${T('msgs')}` : `${u.messages} ${T('msgs')}`;
-    el.title = `${(u.inputTokens||0).toLocaleString()} in + ${(u.outputTokens||0).toLocaleString()} out tokens`;
+    // The two numbers that explain a surprising bill: what share of input the
+    // prompt cache is actually serving, and output-per-message (which is where
+    // runaway thinking shows up — a one-line chat message is ~60 tokens).
+    const cached = u.cachedInputTokens || 0;
+    const cachePct = u.inputTokens ? Math.round((cached / u.inputTokens) * 100) : 0;
+    const outPer = Math.round((u.outputTokens || 0) / u.messages);
+    el.title = `${(u.inputTokens||0).toLocaleString()} in (${cachePct}% from cache) + ${(u.outputTokens||0).toLocaleString()} out`
+      + `\n~${outPer} output tokens per message`;
   }
 
   // ---------- session clock + countdown ----------
