@@ -1,0 +1,146 @@
+name: Beta Release
+
+# Builds a Windows installer from ANY branch and publishes it as a GitHub
+# **prerelease**, so a change can be tested on a real stream without merging to
+# main and without anyone compiling anything.
+#
+# Why this is safe for people running the stable app: the version carries a
+# `-beta.N` suffix, so electron-builder writes the update feed as `beta.yml`
+# instead of `latest.yml`. A stable install polls `latest.yml` and never sees
+# these builds. Marking the release as a prerelease keeps it off the repo's
+# "Latest release" badge too.
+#
+#   Actions → Beta Release → Run workflow → pick the branch.
+#
+# Versions climb from the newest STABLE tag: on v3.7.0, the first beta of the
+# next minor is v3.8.0-beta.1, then -beta.2, and so on. When v3.8.0 ships for
+# real it supersedes every one of its betas by semver, so a tester is carried
+# onto the stable build rather than stranded on a beta.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch or SHA to build (defaults to the branch you picked above)"
+        required: false
+        type: string
+      bump:
+        description: "Which stable release this beta is heading toward"
+        required: false
+        default: minor
+        type: choice
+        options: [patch, minor, major]
+      notes:
+        description: "What should be tested in this build?"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+# Beta versions are derived from existing tags, so two concurrent runs would
+# compute the same number and one would lose its tag push.
+concurrency:
+  group: beta-release
+  cancel-in-progress: false
+
+jobs:
+  installer:
+    name: Build & publish beta installer
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          fetch-depth: 0 # tags are needed to compute the next beta number
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+
+      # Full install (no --ignore-scripts): the Electron binary is needed
+      # to package the app.
+      - name: Install dependencies
+        run: npm ci
+
+      # A beta is for testing a change, not for shipping something broken.
+      - name: Run tests
+        run: npm test
+
+      - name: Compute the next beta version
+        id: version
+        shell: bash
+        env:
+          BUMP: ${{ inputs.bump || 'minor' }}
+        run: |
+          set -euo pipefail
+          git fetch origin --tags --quiet
+
+          # Stable tags only — a previous beta must never become the base for
+          # the next one, or versions would ratchet away from the real line.
+          latest=$(git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
+          latest=${latest:-v3.2.0}
+          IFS=. read -r major minor patch <<< "${latest#v}"
+
+          case "$BUMP" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            *)     patch=$((patch + 1)) ;;
+          esac
+          base="$major.$minor.$patch"
+
+          # Highest existing beta for this exact base, sorted numerically so
+          # beta.10 lands after beta.9 rather than before it.
+          n=$(git tag --list "v$base-beta.*" | sed -E 's/.*-beta\.([0-9]+)$/\1/' | sort -n | tail -1 || true)
+          n=$(( ${n:-0} + 1 ))
+
+          version="$base-beta.$n"
+          echo "Building $version from $(git rev-parse --short HEAD) (previous stable: $latest)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
+      # The tag is the version authority, exactly as on the stable line.
+      - name: Stamp version and tag the build
+        shell: bash
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          npm pkg set version="$VERSION"
+          git tag "$TAG"
+          git push origin "$TAG"
+
+      # The `-beta.N` suffix is what makes electron-builder emit beta.yml
+      # rather than latest.yml — the whole isolation guarantee rests on it.
+      - name: Build the Windows installer
+        run: npx electron-builder --win --publish never
+
+      - name: Publish the prerelease
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Hype Ghost v${{ steps.version.outputs.version }} (beta)
+          prerelease: true
+          generate_release_notes: true
+          files: |
+            dist/*.exe
+            dist/*.exe.blockmap
+            dist/beta.yml
+          body: |
+            ## 🧪 Test build — not a release
+
+            Built from `${{ inputs.ref || github.ref_name }}` at `${{ github.sha }}`.
+
+            **[⬇ Hype-Ghost-Setup-${{ steps.version.outputs.version }}.exe](https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}/Hype-Ghost-Setup-${{ steps.version.outputs.version }}.exe)** — Windows SmartScreen will warn because the installer is unsigned: **More info → Run anyway**.
+
+            ### What to test
+
+            ${{ inputs.notes || '_(nothing specified)_' }}
+
+            ### Notes
+
+            - Installs over your existing app and **keeps your settings and memory** — the data folder is untouched.
+            - People on the stable build will never be offered this one: it publishes `beta.yml`, and a stable install only reads `latest.yml`.
+            - This build auto-updates to newer betas. To go back to stable, install the latest normal release from the [releases page](https://github.com/${{ github.repository }}/releases/latest) over the top.

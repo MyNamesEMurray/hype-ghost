@@ -27,6 +27,12 @@ permissions:
 jobs:
   installer:
     name: Build installer & publish release
+    # Stable tags only. A hand-pushed beta tag (v3.8.0-beta.1) also matches the
+    # "v*" filter above, and publishing it here would produce a NON-prerelease
+    # release carrying latest.yml — which is the file every stable install
+    # polls, so it would push a test build to everyone. Betas go through
+    # beta-release.yml instead.
+    if: ${{ !contains(github.ref_name, '-') }}
     # Windows because it's the shipping target (tray, NSIS, %APPDATA% paths).
     runs-on: windows-latest
     timeout-minutes: 30

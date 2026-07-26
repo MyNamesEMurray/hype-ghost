@@ -54,7 +54,11 @@ jobs:
           # Refresh tags at the last moment: a queued run's checkout can
           # predate the previous run's tag push.
           git fetch origin --tags --quiet
-          latest=$(git tag --list 'v*' --sort=-v:refname | head -1)
+          # Stable tags only. A beta tag (v3.8.0-beta.1) sorts ABOVE the stable
+          # release it precedes, and splitting it on "." puts "0-beta.1" into
+          # $patch — which is a hard arithmetic error in the bump below, so a
+          # single beta tag would block every stable release until deleted.
+          latest=$(git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
           latest=${latest:-v3.2.0}
           version=${latest#v}
           IFS=. read -r major minor patch <<< "$version"
