@@ -270,6 +270,27 @@ if (gotLock) app.whenReady().then(() => {
     // no meaning left and is dropped.
     const updateSkip = new UpdateSkip(skipPath);
     updateSkip.clearIfNotNewer(app.getVersion());
+
+    // Update channel (Settings → App). "auto" follows whichever build is
+    // running, which is exactly the previous behaviour: a stable install reads
+    // latest.yml, a beta build reads beta.yml.
+    //
+    // The explicit "stable" option exists because leaving the beta channel is
+    // otherwise a one-way door. A stable release publishes only latest.yml, so
+    // beta.yml goes on advertising the last beta and a tester is never offered
+    // the real release. Coming home is also a version *decrease*
+    // (3.8.0-beta.5 → 3.7.0), so without allowDowngrade the escape hatch would
+    // silently do nothing — and that flag is scoped to exactly this case so a
+    // normal install can never be walked backwards.
+    const running = app.getVersion();
+    const onPrerelease = running.includes('-');
+    const setting = ['stable', 'beta'].includes(appCfg.updateChannel) ? appCfg.updateChannel : 'auto';
+    const wantsBeta = setting === 'beta' || (setting === 'auto' && onPrerelease);
+    autoUpdater.allowPrerelease = wantsBeta;
+    autoUpdater.channel = wantsBeta ? 'beta' : 'latest';
+    autoUpdater.allowDowngrade = setting === 'stable' && onPrerelease;
+    console.log(`[update] running v${running}; channel "${setting}" → ${wantsBeta ? 'beta' : 'stable'} builds`);
+
     autoUpdater.autoDownload = false; // decide *before* pulling ~80MB
     autoUpdater.on('update-available', (info) => {
       if (updateSkip.isSkipped(info.version)) {

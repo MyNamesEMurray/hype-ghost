@@ -382,6 +382,15 @@
           <input type="checkbox" id="autoUpdate" data-path="app.autoUpdate" data-type="bool">
           <label for="autoUpdate">Update automatically (checks GitHub for new versions at launch)</label>
         </div>
+        <div class="adv">
+          <label>Which builds to update to</label>
+          <select data-path="app.updateChannel">
+            <option value="auto">Match this build — beta stays on beta, stable stays on stable</option>
+            <option value="stable">Stable only — releases everyone gets</option>
+            <option value="beta">Beta — early test builds, expect rough edges</option>
+          </select>
+          <p class="hint">"Match this build" is the normal choice and changes nothing about how updates already work. Pick <b>Stable only</b> to leave the beta channel: a stable release only ever publishes to the stable feed, so a beta install is never offered it otherwise — this is how you come back, even though it means stepping the version <em>down</em>. Takes effect on the next launch.</p>
+        </div>
         <div class="check">
           <input type="checkbox" id="autoPause" data-path="app.autoPause" data-type="bool">
           <label for="autoPause">Auto-pause when OBS is gone (stops API spend if you forget the app in the tray)</label>

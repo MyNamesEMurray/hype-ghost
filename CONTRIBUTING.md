@@ -25,8 +25,11 @@ workflow, pick a branch. It tags `vX.Y.Z-beta.N` (climbing from the newest *stab
 builds the installer, and publishes a GitHub **prerelease** — so a change can be tested on
 a real stream without anyone compiling anything. Stable installs are never offered these:
 the `-beta.N` suffix makes electron-builder write the update feed as `beta.yml`, and a
-stable install only ever reads `latest.yml`. When the real `vX.Y.Z` ships it supersedes its
-own betas by semver, carrying testers onto the stable build rather than stranding them.
+stable install only ever reads `latest.yml`. A beta install does **not** find its way back
+on its own — a stable release publishes only `latest.yml`, so `beta.yml` goes on advertising
+the last beta. Leaving the channel is deliberate: Settings → App → *Which builds to update
+to* → **Stable only** (`app.updateChannel`), which is also the only path allowed to step the
+version down.
 
 > Beta tags are excluded wherever the next stable version is computed. They sort *above*
 > the release they precede, and `3.8.0-beta.1` split on `.` puts `0-beta.1` where a number

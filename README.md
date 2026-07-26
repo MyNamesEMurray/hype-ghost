@@ -143,6 +143,7 @@ Quit Hype Ghost.
 | `moments.saveReplay` | When a moment is flagged and OBS's **replay buffer** is running, save it — the ✨ becomes an actual clip on disk (default true; a no-op if the buffer is off). |
 | `theme.accent` | Your (the human's) accent color on the deck: `violet cyan emerald amber magenta` (default violet). |
 | `overlay.theme` / `overlay.reactions` | Overlay style (`cards` or `compact`) and whether a ✨ moment pop shows on the overlay. |
+| `app.updateChannel` | Which builds the auto-updater follows: `auto` (default — matches the build you're running, the long-standing behaviour), `stable`, or `beta` (early test builds). Beta builds are published as GitHub prereleases and stable installs never see them. Note a beta install won't return to stable by itself — a stable release only publishes to the stable feed — so `stable` is the deliberate way back, and the only case allowed to step the version down. |
 | `app.autoUpdate` | Check GitHub for new versions at launch and update automatically (default true). |
 | `app.setupComplete` | Set by the setup wizard when you finish it (even via the brain step's "skip"). Once true, `/` opens the dashboard — without a brain that's **preview mode**: everything explorable, cast quiet, $0. |
 | `app.costMeter` | Show the live session cost readout in the deck's top bar (default true). |

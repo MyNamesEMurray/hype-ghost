@@ -13,9 +13,13 @@ name: Beta Release
 #   Actions → Beta Release → Run workflow → pick the branch.
 #
 # Versions climb from the newest STABLE tag: on v3.7.0, the first beta of the
-# next minor is v3.8.0-beta.1, then -beta.2, and so on. When v3.8.0 ships for
-# real it supersedes every one of its betas by semver, so a tester is carried
-# onto the stable build rather than stranded on a beta.
+# next minor is v3.8.0-beta.1, then -beta.2, and so on.
+#
+# Note what a beta install does NOT do: come back on its own. electron-updater
+# follows a channel file, not just the highest version, and a stable release
+# publishes only latest.yml — so beta.yml keeps advertising the last beta and a
+# tester is never offered the real v3.8.0. Leaving the channel is a deliberate
+# act: Settings → App → "Which builds to update to" → Stable only.
 on:
   workflow_dispatch:
     inputs:
@@ -143,4 +147,4 @@ jobs:
 
             - Installs over your existing app and **keeps your settings and memory** — the data folder is untouched.
             - People on the stable build will never be offered this one: it publishes `beta.yml`, and a stable install only reads `latest.yml`.
-            - This build auto-updates to newer betas. To go back to stable, install the latest normal release from the [releases page](https://github.com/${{ github.repository }}/releases/latest) over the top.
+            - This build auto-updates to newer betas, and **will not return to stable on its own** — a stable release publishes only to the stable feed, so this install never sees it. To come back: **Settings → App → Which builds to update to → Stable only**, then relaunch (or just install the latest normal release from the [releases page](https://github.com/${{ github.repository }}/releases/latest) over the top).

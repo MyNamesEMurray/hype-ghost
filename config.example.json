@@ -34,6 +34,7 @@
   },
   "app": {
     "autoUpdate": true,
+    "updateChannel": "auto",
     "costMeter": true,
     "autoPause": true,
     "autoPauseMinutes": 10,
