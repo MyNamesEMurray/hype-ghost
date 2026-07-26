@@ -9,13 +9,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Feeds are driven by calling pollFile() directly — start() is never called,
 // so no intervals are created and tests control every tick.
-function makeFeed(file) {
+function makeFeed(file, speech) {
   const heard = [];
   const feed = new TranscriptFeed({
     mode: 'file',
     file,
     pollSeconds: 999,
     windowSeconds: 120,
+    speech,
     onSpeech: (line) => heard.push(line),
   });
   return { feed, heard };
@@ -87,6 +88,57 @@ test('getWindow prunes entries older than the window and honors sinceTs', (t) =>
   feed.entries[0].ts = Date.now() - 200_000; // beyond the 120s window
   assert.equal(feed.getWindow(), 'new speech');
   assert.equal(feed.getWindow(Date.now() + 1000), ''); // nothing newer than the future
+});
+
+// The speech-quality layer sits between the tail and onSpeech, so a dropped
+// hallucination never reaches the deck feed, a voice reply, or the window.
+test('drops transcription hallucinations before they reach onSpeech', (t) => {
+  const file = withTmp(t);
+  const { feed, heard } = makeFeed(file, {});
+  writeFileSync(file, 'Thank you.\n[Music]\nokay that boss is actually unfair\n');
+  feed.pollFile();
+  assert.deepEqual(heard, ['okay that boss is actually unfair']);
+  assert.equal(feed.getWindow(), 'okay that boss is actually unfair');
+});
+
+test('hallucination filtering can be turned off', (t) => {
+  const file = withTmp(t);
+  const { feed, heard } = makeFeed(file, { dropHallucinations: false });
+  writeFileSync(file, 'Thank you.\n');
+  feed.pollFile();
+  assert.deepEqual(heard, ['Thank you.']);
+});
+
+test('applies word fixes before the line is stored or announced', (t) => {
+  const file = withTmp(t);
+  const { feed, heard } = makeFeed(file, { corrections: [{ from: 'bacon', to: 'Beacon' }] });
+  writeFileSync(file, 'lol bacon is right\n');
+  feed.pollFile();
+  assert.deepEqual(heard, ['lol Beacon is right']);
+  assert.equal(feed.getWindow(), 'lol Beacon is right');
+});
+
+// Accepting mic-check fixes is a hot config save: the server deep-assigns into
+// the same speech object the feed holds, so the next line must already use them
+// without an app relaunch.
+test('picks up corrections swapped in live, without reconstruction', (t) => {
+  const file = withTmp(t);
+  const speech = { corrections: [] };
+  const { feed, heard } = makeFeed(file, speech);
+  writeFileSync(file, 'hey bacon\n');
+  feed.pollFile();
+  speech.corrections = [{ from: 'bacon', to: 'Beacon' }];
+  appendFileSync(file, 'hey bacon again\n');
+  feed.pollFile();
+  assert.deepEqual(heard, ['hey bacon', 'hey Beacon again']);
+});
+
+test('a line deleted entirely by a fix never reaches onSpeech', (t) => {
+  const file = withTmp(t);
+  const { feed, heard } = makeFeed(file, { corrections: [{ from: 'subscribe now', to: '' }] });
+  writeFileSync(file, 'subscribe now\nreal speech here\n');
+  feed.pollFile();
+  assert.deepEqual(heard, ['real speech here']);
 });
 
 // textSource mode must drive the exact same onSpeech path as file mode — the

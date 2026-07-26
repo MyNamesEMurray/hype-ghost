@@ -49,7 +49,7 @@ if (!gotLock) {
 // Dev (npm start): the project folder, so hacking on it stays simple.
 const defaultDataDir = app.isPackaged ? app.getPath('userData') : packageRoot;
 const { dir: dataDir, custom: customDataDir } = resolveDataDir(defaultDataDir);
-const { configPath, notesPath, sessionPath, profilePath, logPath, skipPath } = dataFilePaths(dataDir);
+const { configPath, notesPath, sessionPath, profilePath, gameInfoPath, micCheckPath, logPath, skipPath } = dataFilePaths(dataDir);
 
 // A tray-resident app has no visible console — keep a rotating file log next
 // to the data for bug reports. Packaged only: dev has a real terminal.
@@ -182,6 +182,8 @@ if (gotLock) app.whenReady().then(() => {
       notesPath,
       sessionPath,
       profilePath,
+      gameInfoPath,
+      micCheckPath,
       publicDir: path.join(packageRoot, 'public'),
       // Settings → About → Storage: shows where the data lives and moves it.
       // Files are copied (originals stay as a fallback), the pointer is

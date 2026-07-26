@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { POINTER_FILE, dataFilePaths, resolveDataDir, setDataDir, migrateDataFiles } from '../src/storage.js';
+import { POINTER_FILE, DATA_FILES, dataFilePaths, resolveDataDir, setDataDir, migrateDataFiles } from '../src/storage.js';
 import { FileLog } from '../src/logfile.js';
 
 const tmp = () => mkdtempSync(path.join(os.tmpdir(), 'hg-storage-'));
@@ -69,6 +69,8 @@ test('dataFilePaths covers every file factory reset must delete', () => {
     notesPath: 'session-notes.txt',
     sessionPath: 'session.json',
     profilePath: 'profile.md',
+    gameInfoPath: 'game-notes.json',
+    micCheckPath: 'miccheck.json',
     logPath: 'hype-ghost.log',
     skipPath: 'update-skip.json',
   };
@@ -94,4 +96,14 @@ test('FileLog never throws on unwritable targets', () => {
   const log = new FileLog(path.join(tmp(), 'dir-as-file'));
   mkdirSync(log.file, { recursive: true }); // appendFileSync will fail: target is a directory
   assert.doesNotThrow(() => log.append('error', ['lost line']));
+});
+
+// "Move data folder…" copies exactly DATA_FILES, while the hosts hand
+// startServer the paths from dataFilePaths(). If the two drift, a moved folder
+// silently loses whatever was missing — the learned game guides and mic-check
+// history are the newest way to hit that.
+test('dataFilePaths and DATA_FILES cover the same files', () => {
+  const paths = dataFilePaths('/data');
+  const named = Object.values(paths).map((p) => path.basename(p)).sort();
+  assert.deepEqual(named, [...DATA_FILES].sort());
 });

@@ -289,6 +289,15 @@ export class GhostLoop {
       const updateNotes = memory.enabled && (this.botMessageCount + 1) % memory.updateEvery === 0;
       const updateProfile =
         memory.enabled && (this.botMessageCount + 1) % (memory.profileEvery ?? 12) === 0;
+      // The visual primer only makes sense once we know what game this is, and
+      // only off a fresh frame — refreshing it from a stale screenshot would
+      // have the model describe a screen it can't currently see.
+      const gameInfo = this.hooks.getGameInfo ? this.hooks.getGameInfo() : '';
+      const updateGameInfo =
+        memory.enabled &&
+        Boolean(screenshot) &&
+        this.hooks.canLearnGame?.() &&
+        (this.botMessageCount + 1) % (memory.gameInfoEvery ?? 8) === 0;
       const allowExchange = this.lastStreamerActivityAt > this.lastExchangeAt;
       // Moment flags only make sense on a fresh frame, and no faster than once
       // every 45s so a single big play doesn't spam the highlight reel.
@@ -325,6 +334,8 @@ export class GhostLoop {
         streamInfo: this.hooks.getStreamInfo ? this.hooks.getStreamInfo() : undefined,
         talkingPoint,
         allowExchange,
+        gameInfo: gameInfo || undefined,
+        updateGameInfo,
       });
 
       if (result.usage) this.hooks.addUsage(result.usage);
@@ -345,6 +356,7 @@ export class GhostLoop {
       }
       if (result.notes) this.hooks.setNotes(result.notes);
       if (result.profile) this.hooks.setProfile(result.profile);
+      if (result.gameInfo && this.hooks.setGameInfo) this.hooks.setGameInfo(result.gameInfo);
       if (result.moment && this.hooks.onMoment) {
         this.lastMomentAt = Date.now();
         this.hooks.onMoment(result.moment);

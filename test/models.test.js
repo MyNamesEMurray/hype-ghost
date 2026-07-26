@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MODELS, messageCost } from '../src/models.js';
+import { MODELS, messageCost, isKnownModel } from '../src/models.js';
 
 test('plain input/output tokens bill at the listed rates', () => {
   // Sonnet: $3/MTok in, $15/MTok out
@@ -31,4 +31,24 @@ test('every catalog entry has the fields the UI and cost meter need', () => {
     assert.equal(typeof m.inRate, 'number');
     assert.equal(typeof m.outRate, 'number');
   }
+});
+
+// No catalog id may be a prefix of another, or messageCost's prefix match would
+// bill a custom/dated id at the wrong model's rates.
+test('catalog ids do not shadow each other by prefix', () => {
+  for (const a of MODELS) {
+    for (const b of MODELS) {
+      if (a !== b) assert.ok(!a.id.startsWith(b.id), `${a.id} shadowed by ${b.id}`);
+    }
+  }
+});
+
+// Drives the "Custom model ID…" hint: it warns the deck can't show a dollar
+// figure only when the id really has no rates.
+test('isKnownModel tracks what the cost meter can price', () => {
+  assert.equal(isKnownModel('claude-sonnet-5'), true);
+  assert.equal(isKnownModel('claude-opus-5-20260101'), true); // dated snapshot
+  assert.equal(isKnownModel('claude-opus-4-7'), false);
+  assert.equal(isKnownModel(''), false);
+  assert.equal(isKnownModel(undefined), false);
 });

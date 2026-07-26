@@ -127,6 +127,14 @@
   .heard.party { align-self: flex-start; }
   .heard .ic { font-style: normal; flex: none; }
   .heard .txt { overflow-wrap: anywhere; min-width: 0; }
+  /* Clickable because a mishear is fixable in place — see editHeard(). */
+  .heard { cursor: text; }
+  .heard:hover .txt { color: var(--dim); text-decoration: underline dotted; text-underline-offset: 3px; }
+  .heard .heardfix {
+    font: inherit; font-style: normal; flex: 1; min-width: 0; margin: 0;
+    padding: 2px 8px; border-radius: var(--r-sm);
+    border: 1px solid var(--accent-line); background: var(--glass-2); color: var(--text);
+  }
   .heard .tm { font-style: normal; font-size: var(--fs-xs); flex: none; }
   .moment-card { align-self: center; display: flex; align-items: center; gap: 10px; padding: 7px 15px; border-radius: var(--r-full); background: var(--glass); border: 1px solid var(--accent-line); font-size: var(--fs-sm); animation: pop .4s cubic-bezier(.2,1.3,.5,1); }
   @keyframes pop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: none; } }
@@ -269,7 +277,8 @@
       micOff:'off', micQuiet:'quiet', micWait:'waiting', party:'Party', partyQuiet:'quiet', partyWait:'waiting', chatQuiet:'quiet', chatActive:'active', lost:'Connection lost — reconnecting…',
       msgs:'msgs', watching:'watching', idle:'idle', noMoments:'No moments yet — the cast flags clip-worthy plays here.',
       previewBody:'Preview mode — your cast has no brain yet, so the room stays quiet.', previewCta:'Connect one in Settings',
-      heardTip:'What voice awareness transcribed — the cast may be reacting to this. If it misheard you, that explains their reaction. (Deck only — never shown on stream.)' },
+      heardTip:'What voice awareness transcribed — the cast may be reacting to this. If it misheard you, that explains their reaction. Click to fix a mishear: the words you change are corrected from now on. (Deck only — never shown on stream.)',
+      fixSaved:'Learned:', fixNone:'Nothing changed — no correction saved.' },
     es: { brain:'Cerebro', viewers:'Espectadores', mic:'Micro', chat:'Chat', cast:'El elenco', energy:'Energía',
       chill:'Tranqui', balanced:'Normal', hype:'Máx', room:'Sala', modeAuto:'Auto', modeSolo:'Solo', modeViewers:'Público',
       say:'Di algo', pause:'Pausar', resume:'Reanudar', moments:'Momentos', recap:'Exportar', send:'Enviar', you:'Tú',
@@ -279,7 +288,8 @@
       micOff:'apagado', micQuiet:'silencio', micWait:'esperando', party:'Grupo', partyQuiet:'silencio', partyWait:'esperando', chatQuiet:'tranquilo', chatActive:'activo', lost:'Conexión perdida — reconectando…',
       msgs:'msjs', watching:'mirando', idle:'inactivo', noMoments:'Aún no hay momentos — el elenco marcará jugadas destacadas aquí.',
       previewBody:'Modo vista previa — tu elenco aún no tiene cerebro, así que la sala sigue en silencio.', previewCta:'Conéctalo en Ajustes',
-      heardTip:'Lo que la escucha de voz transcribió — el elenco puede estar reaccionando a esto. Si te entendió mal, eso explica su reacción. (Solo en la consola — nunca en el stream.)' },
+      heardTip:'Lo que la escucha de voz transcribió — el elenco puede estar reaccionando a esto. Si te entendió mal, eso explica su reacción. Haz clic para corregir: las palabras que cambies se corregirán a partir de ahora. (Solo en la consola — nunca en el stream.)',
+      fixSaved:'Aprendido:', fixNone:'Sin cambios — no se guardó ninguna corrección.' },
   };
   let L = STR.en;
   const T = (k) => (L[k] ?? STR.en[k] ?? k);
@@ -416,16 +426,66 @@
     div.title = T('heardTip');
     const time = new Date(h.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     div.innerHTML = `<span class="ic">${h.channel === 'party' ? '🎧' : '🎙️'}</span><span class="txt"></span><span class="tm">${time}</span>`;
-    div.querySelector('.txt').textContent = (h.channel === 'party' && h.label ? h.label + ' · ' : '') + '“' + h.text + '”';
+    setHeardText(div, h, h.text);
+    div.onclick = () => editHeard(div, h);
     feed.appendChild(div);
     feed.scrollTop = feed.scrollHeight;
   }
 
-  function addSystem(text) {
+  function setHeardText(div, h, text) {
+    const span = document.createElement('span');
+    span.className = 'txt';
+    span.textContent = (h.channel === 'party' && h.label ? h.label + ' · ' : '') + '“' + text + '”';
+    (div.querySelector('.txt') || div.querySelector('.heardfix')).replaceWith(span);
+  }
+
+  // Click a mishear, retype what you actually said, press Enter. The words that
+  // changed become permanent corrections and apply to the very next line — no
+  // save, no restart. This is how the correction map grows during a real
+  // stream, where the mishears are ones no setup script could predict.
+  function editHeard(div, h) {
+    if (div.querySelector('.heardfix')) return;
+    const input = document.createElement('input');
+    input.className = 'heardfix';
+    input.value = h.text;
+    div.querySelector('.txt').replaceWith(input);
+    input.focus();
+    input.select();
+
+    let settled = false;
+    const cancel = () => { if (!settled) { settled = true; setHeardText(div, h, h.text); } };
+    const commit = async () => {
+      if (settled) return;
+      const corrected = input.value.trim();
+      if (!corrected || corrected === h.text) return cancel();
+      settled = true;
+      const heard = h.text;
+      h.text = corrected;
+      setHeardText(div, h, corrected);
+      const r = await fetch('/api/speech/correct', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ heard, corrected }),
+      }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
+      if (!r.ok) addSystem(r.error);
+      else if (!r.added.length) addSystem(T('fixNone'));
+      else addSystem(T('fixSaved') + ' ' + r.added.map((f) => `“${f.from}” → “${f.to}”`).join(', '), '✓');
+    };
+    input.onkeydown = (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') commit();
+      else if (e.key === 'Escape') cancel();
+    };
+    input.onblur = cancel;
+    input.onclick = (e) => e.stopPropagation();
+  }
+
+  // ⚠ is the warning icon (DESIGN.md); a confirmed action passes ✓ instead so
+  // a success doesn't read as a problem.
+  function addSystem(text, icon = '⚠') {
     clearEmpty();
     const div = document.createElement('div');
     div.className = 'sys';
-    div.textContent = '⚠ ' + text;
+    div.textContent = icon + ' ' + text;
     feed.appendChild(div);
     feed.scrollTop = feed.scrollHeight;
   }

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseDecapiValue, parseDecapiViewers, DecApi } from '../src/twitch.js';
+import { parseDecapiValue, parseDecapiViewers, DecApi, isGameCategory } from '../src/twitch.js';
 
 // DecAPI speaks plain text and returns errors as sentences with HTTP 200,
 // so these parsers are the whole correctness story for the keyless path.
@@ -40,4 +40,34 @@ test('DecApi is inert without a channel or when disabled', () => {
   assert.equal(new DecApi({ channel: 'shroud', enabled: false }).configured(), false);
   assert.equal(new DecApi({ channel: '#Shroud' }).channel, 'shroud');
   assert.equal(new DecApi({ channel: 'shroud' }).configured(), true);
+});
+
+// The per-game screen guide is keyed by category name, so a category that
+// isn't one game ("Just Chatting") would accumulate a guide blending every
+// game played beneath it — describing none of them.
+test('isGameCategory rejects non-game categories, case and space insensitively', () => {
+  const skip = ['Just Chatting', 'Science & Technology'];
+  assert.equal(isGameCategory('Hollow Knight', skip), true);
+  assert.equal(isGameCategory('Just Chatting', skip), false);
+  assert.equal(isGameCategory('  just chatting  ', skip), false, 'trimmed + case-folded');
+  assert.equal(isGameCategory('SCIENCE & TECHNOLOGY', skip), false);
+});
+
+test('isGameCategory treats a missing category as not learnable', () => {
+  assert.equal(isGameCategory('', ['Just Chatting']), false);
+  assert.equal(isGameCategory(null, []), false);
+  assert.equal(isGameCategory('   ', []), false);
+});
+
+// A partial match must not fire: these are real, distinct game categories.
+test('isGameCategory only matches whole category names', () => {
+  const skip = ['Music', 'Art'];
+  assert.equal(isGameCategory('Music Racer', skip), true);
+  assert.equal(isGameCategory('Art of Rally', skip), true);
+});
+
+test('isGameCategory copes with a missing or malformed skip list', () => {
+  assert.equal(isGameCategory('Hades'), true);
+  assert.equal(isGameCategory('Hades', null), true);
+  assert.equal(isGameCategory('Hades', 'nonsense'), true);
 });

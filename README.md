@@ -77,6 +77,15 @@ Quit Hype Ghost.
 - **Settings → About** shows the app version, the honesty/privacy rules at a glance, where
   your data lives, and **Reset to factory defaults** — wipes all settings and memory, then
   re-runs the setup wizard.
+- **Game screen guide:** the cast learns how to *read* each game it watches — where the
+  health bar is, what a death or menu screen looks like, where your webcam and alerts sit —
+  and reuses it on later streams of that game. It writes this itself from screenshots it is
+  already being shown, so it costs no extra API calls, and it sits in the cached part of the
+  prompt. The point is reacting to game **state** ("your health is gone") rather than just
+  appearance. It's plain text at **Settings → Stream → Screen guide**: read it, and edit it
+  if it gets something wrong, because it's treated as truth on every message. Nothing is
+  learned under a category that isn't one game (`Just Chatting`, `Music`, …) — see
+  `memory.gameInfoSkip`.
 - **Data folder:** settings, session memory, the cross-stream profile, and the app log
   (`hype-ghost.log`, rotating) live in `%APPDATA%\Hype Ghost` by default. **Settings →
   About → Move data folder…** relocates all of it to any folder you like (another drive, a
@@ -90,6 +99,33 @@ Quit Hype Ghost.
   out loud *is* replying. Everything it hears also shows up as faint 🎙 lines in the deck
   feed (toggle in Settings → Voice), so when the cast reacts oddly you can see exactly what
   the transcription thought you said.
+- **Getting transcription accurate:** run **Settings → Voice → Mic check**. It hands you a
+  short script built from your ghosts' names, your channel, and anything in
+  `speech.vocabulary`; you read it out loud, and Hype Ghost lines it up against what
+  LocalVocal actually heard. You get your real word error rate and one-click **word fixes**
+  for the names it got wrong, applied to every transcript line from then on (live, no
+  restart). It is a measurement, not training — nothing is uploaded and no model is
+  modified. Tuning that helps *before* you get there, in order of impact:
+  - **Use a bigger, English-only model.** LocalVocal defaults to `tiny.en`. Moving to
+    `small.en` (or `medium.en` on a strong PC) is the single biggest accuracy win, and at
+    equal size the `.en` models beat the multilingual ones for English.
+  - **Trade latency for accuracy.** Most LocalVocal guides tune for snappy on-screen
+    captions; that's the wrong target here. The cast speaks on a cadence of *minutes*, so a
+    longer processing buffer costs you nothing and gives Whisper more context per chunk.
+  - **Turn partial transcriptions off.** They write half-finished duplicate lines into the
+    file Hype Ghost tails.
+  - **Fix the audio first.** Noise suppression *before* the Transcription filter in the
+    chain, and no game or music audio bleeding into the mic track — no model recovers from
+    a dirty input.
+  - **Fix mishears as they happen.** Click any 🎙 line in the deck feed, retype what you
+    actually said, press Enter — the words that changed become permanent corrections and
+    apply to the very next line, no save or restart. This is where the correction map
+    really grows: the mic check covers names you can predict up front, this covers whatever
+    a real stream throws at it. Re-running the mic check shows your past scores, so a
+    LocalVocal change can be judged by a number instead of a feeling.
+  - Note the trade-off with the OBS crash below: the CPU backend is the safe one, and it's
+    also what limits how big a model you can run. Move up model sizes until OBS starts
+    struggling, then step back one.
 - **Party / co-op audio (second channel):** streaming alongside friends? Route their audio
   (Discord/TeamSpeak/party chat) to a separate OBS source, add a *second* LocalVocal
   Transcription filter to it, output to a **different** file/text source than your mic, and
@@ -118,7 +154,7 @@ Quit Hype Ghost.
 | `stream.gameFromObs` | Fallback: guess the game from an OBS **Game/Window Capture** source's captured window when Twitch has no category (default true). |
 | `talkingPoints` | Topics you want covered; the cast works one in occasionally when it fits naturally. |
 | `anthropic.apiKey` | Anthropic API key (console.anthropic.com), or set `ANTHROPIC_API_KEY` env var. |
-| `anthropic.model` | `claude-sonnet-5` is the sweet spot; `claude-haiku-4-5` ~3x cheaper, `claude-opus-4-8` ~3x pricier and chattiest. |
+| `anthropic.model` | `claude-sonnet-5` is the sweet spot; `claude-haiku-4-5` ~3x cheaper, `claude-opus-5` ~1.7x pricier and chattiest. Any other model ID your key can reach also works — Settings → Brain → **Custom model ID…** (or just set it here), so a new release isn't gated behind an app update. It must be **vision-capable**, and the cost meter only prices the listed models: on anything else the deck shows a message count with no dollar figure. |
 | `bot.name` / `bot.personality` | Legacy single-ghost fields, kept in sync with `cast[0]` for backward compatibility. |
 | `obs.url` / `obs.password` | OBS WebSocket (default port 4455). |
 | `obs.screenshotWidth` | Screenshot width in px (default 800). Image tokens scale with pixels (w×h÷750) — JPEG quality has no effect on tokens. |
@@ -128,6 +164,11 @@ Quit Hype Ghost.
 | `transcript.mode` | `off`, `file` (tail LocalVocal's .txt/.srt output), or `textSource` (poll a text source over OBS WebSocket). |
 | `transcript.showInFeed` | Echo what voice awareness hears into the deck feed as faint 🎙 lines (party audio as 🎧) so you can spot mishears the cast might be reacting to (default true). Deck only — never in the cast's chat history, the recap, or the on-stream overlay. |
 | `transcript2.*` | *(Optional)* A **second** transcription channel for party/co-op audio (a separate audio device with its own LocalVocal filter). Same `mode`/`file`/`textSource`/`pollSeconds` as `transcript`, plus `label` — how the cast refers to those people (e.g. "my co-op squad"). Treated as *other people*, never as the streamer. |
+| `speech.dropHallucinations` | Discard speech-to-text filler — "Thank you.", "Thanks for watching!", "please subscribe", words stuck on repeat (default true). Whisper invents these during near-silence, which is most of a mic-only track: the pauses between sentences, breaths, keyboard, room tone. Matched whole-line only, so a real sentence containing those words survives. Applies to both channels. |
+| `speech.corrections` | Word fixes applied to every transcript line before the cast sees it: `[{ "from": "bacon", "to": "Beacon" }]`. Whole words only, case-insensitive; a blank `to` deletes the phrase. Build this from **Settings → Voice → Mic check**, or by hand. Applies live on save. |
+| `memory.gameInfoEvery` | How often (in cast messages) the cast refreshes its **screen guide** for the current game — what the HUD means, what a death screen looks like, where your overlay sits (default 8). Written as a tail section on generations that are already happening, so it costs no extra API calls. Stored per game in `game-notes.json` and reused on later streams; view and edit it at Settings → Stream. |
+| `memory.gameInfoSkip` | Categories that aren't a single game — `Just Chatting`, `Music`, `IRL` and friends, pre-filled with the common Twitch ones. No screen guide is learned, stored, or read under these, because one keyed to "Just Chatting" would blend every game played beneath it and describe none of them. Whole-name match, case- and space-insensitive (so `Music` skips but `Music Racer` doesn't). Add your own if a Window Capture reports something like a browser as the "game". |
+| `speech.vocabulary` | Extra proper nouns worth getting right — the game, in-jokes, regulars' names. Your ghosts' names and `twitch.channel` are included automatically. Used to build the mic-check script, and told to the cast so it reads a near-miss as the real word. |
 | `cadence.soloSeconds` / `quietSeconds` | Average gap between messages when alone / when real viewers are present. |
 | `cadence.jitter`, `burstChance`, `lullChance` | Natural rhythm: ±jitter on normal gaps, occasional quick bursts (0.3–0.6x) and long lulls (1.6–3x). |
 | `cadence.minScreenshotGapSeconds` | Skip re-screenshotting on quick follow-ups (default 25). |
@@ -141,6 +182,13 @@ history/transcript/notes). At a 90s solo cadence that's ~40 messages/hour ≈ **
 The dashboard's cost pill shows the real number live, and if OBS disappears for 10 minutes
 the ghost **auto-pauses** so a forgotten tray app can't burn money overnight — it resumes
 by itself when OBS is back (Settings → App).
+
+Current-generation models think by default, and thinking tokens bill at output rates — on a
+one-line chat message that is mostly waste, so the app pins **`effort: low`** for models that
+accept it (the 5-series and Opus 4.8). It doesn't turn thinking off: a single generation can
+also be merging session notes or the screen guide, and disabling it risks reasoning leaking
+into text that goes on the stream overlay. A **custom model ID** never receives the setting —
+there is no way to know whether an unknown model accepts it, so it may cost more per message.
 
 ## Privacy & security
 
