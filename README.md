@@ -183,6 +183,13 @@ The dashboard's cost pill shows the real number live, and if OBS disappears for 
 the ghost **auto-pauses** so a forgotten tray app can't burn money overnight — it resumes
 by itself when OBS is back (Settings → App).
 
+Current-generation models think by default, and thinking tokens bill at output rates — on a
+one-line chat message that is mostly waste, so the app pins **`effort: low`** for models that
+accept it (the 5-series and Opus 4.8). It doesn't turn thinking off: a single generation can
+also be merging session notes or the screen guide, and disabling it risks reasoning leaking
+into text that goes on the stream overlay. A **custom model ID** never receives the setting —
+there is no way to know whether an unknown model accepts it, so it may cost more per message.
+
 ## Privacy & security
 
 Screenshots of your stream and (if enabled) your mic transcript go to the Anthropic API to

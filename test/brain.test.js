@@ -26,6 +26,27 @@ function makeBrain(raw, opts = {}) {
 
 const baseArgs = { history: [], energy: 55, mode: 'solo', trigger: 'timer' };
 
+// Stubs one layer lower — the SDK client itself — so the real callAnthropic
+// runs and the outgoing request body can be asserted.
+function makeWiredBrain(model) {
+  const brain = new Brain({
+    brain: { provider: 'anthropic' },
+    anthropic: { apiKey: 'sk-test', model },
+    personas: PERSONAS,
+    language: 'English',
+  });
+  const sent = [];
+  brain.client = {
+    messages: {
+      create: async (params) => {
+        sent.push(params);
+        return { content: [{ type: 'text', text: 'Beacon: hi' }], usage: {} };
+      },
+    },
+  };
+  return { brain, sent };
+}
+
 test('parses NAME: lines and every piggybacked tail section', async () => {
   const { brain } = makeBrain(
     [
@@ -104,4 +125,48 @@ test('vocabulary terms are named in the byte-stable system prompt', () => {
   assert.match(prompt, /Beacon, emurray, Hollow Knight/);
   const { brain: bare } = makeBrain('');
   assert.ok(!/near-miss/.test(bare.buildSystemPrompt()));
+});
+
+// Thinking shares max_tokens with the visible text on current-generation
+// models, so a budget sized for a one-line message truncates it away.
+test('every generation reserves output budget for thinking', async () => {
+  const { brain, sent } = makeWiredBrain('claude-sonnet-5');
+  await brain.generate({ ...baseArgs });
+  assert.ok(sent[0].max_tokens >= 600, `plain message budget too tight: ${sent[0].max_tokens}`);
+  await brain.generate({ ...baseArgs, updateNotes: true, updateProfile: true, updateGameInfo: true, streamInfo: { game: 'Hades' } });
+  assert.ok(sent[1].max_tokens > sent[0].max_tokens, 'tail sections still add their own room');
+});
+
+// effort is GA on the 5-series but errors on Haiku 4.5, so it can only go to
+// models known to accept it — and never to a custom id we know nothing about.
+test('effort is capped only for models that accept the parameter', async () => {
+  for (const model of ['claude-sonnet-5', 'claude-opus-5', 'claude-opus-4-8']) {
+    const { brain, sent } = makeWiredBrain(model);
+    await brain.generate({ ...baseArgs });
+    assert.deepEqual(sent[0].output_config, { effort: 'low' }, model);
+  }
+  for (const model of ['claude-haiku-4-5', 'claude-some-future-model', 'my-local-thing']) {
+    const { brain, sent } = makeWiredBrain(model);
+    await brain.generate({ ...baseArgs });
+    assert.equal('output_config' in sent[0], false, `${model} must not receive output_config`);
+  }
+});
+
+// Removed on the current generation: sending either is a 400 on every call.
+test('no sampling or explicit thinking parameters are ever sent', async () => {
+  const { brain, sent } = makeWiredBrain('claude-opus-5');
+  await brain.generate({ ...baseArgs });
+  for (const banned of ['temperature', 'top_p', 'top_k', 'thinking']) {
+    assert.equal(banned in sent[0], false, `${banned} must not be sent`);
+  }
+});
+
+// The 1h TTL is what makes caching pay off at this app's 8-minute cadence.
+test('both cache breakpoints carry the 1h TTL', async () => {
+  const { brain, sent } = makeWiredBrain('claude-sonnet-5');
+  await brain.generate({ ...baseArgs, streamContext: 'variety streamer' });
+  assert.equal(sent[0].system.length, 2);
+  for (const part of sent[0].system) {
+    assert.deepEqual(part.cache_control, { type: 'ephemeral', ttl: '1h' });
+  }
 });

@@ -1,4 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { supportsEffort } from './models.js';
+
+// Output budget reserved for thinking, on top of the room each response
+// section needs. See the maxTokens comment in generate().
+const THINKING_HEADROOM = 600;
 
 // Real chat is mostly low-effort reactions, not questions. Each message rolls
 // a style from this weighted pool so variety is enforced by code, not vibes.
@@ -262,7 +267,13 @@ export class Brain {
     const context = this.buildContextBlock({ streamContext, profile, gameInfo, gameInfoLabel: streamInfo?.game });
     if (context) systemParts.push(context);
 
+    // Current-generation models run adaptive thinking when `thinking` is
+    // omitted, and max_tokens caps thinking AND visible text together — so a
+    // budget sized for a one-line chat message gets spent on reasoning and the
+    // message truncates. Headroom is free when unused (a ceiling, not an
+    // allocation), and models that don't think simply never reach it.
     const maxTokens =
+      THINKING_HEADROOM +
       200 + (updateNotes ? 250 : 0) + (updateProfile ? 300 : 0) + (flagMoments ? 20 : 0) + (updateGameInfo ? 250 : 0);
     const { raw, usage } =
       this.provider === 'anthropic'
@@ -314,6 +325,14 @@ export class Brain {
     const response = await this.client.messages.create({
       model: this.model,
       max_tokens: maxTokens,
+      // "React to a screenshot in one line" is not a reasoning task, and effort
+      // defaults to `high` — on every message that is real money and real
+      // latency, and the voice reply has a 6s target to hit. Thinking stays
+      // *on* (a plain generation can still be a memory merge, and disabling it
+      // risks reasoning leaking into text that goes on the stream overlay);
+      // this only caps how deep it goes. Held constant rather than varied per
+      // call so the cached prefix stays byte-stable.
+      ...(supportsEffort(this.model) ? { output_config: { effort: 'low' } } : {}),
       // Two cache breakpoints: the byte-stable rules prefix, then the slow-
       // moving context (stream context + viewer profile + game primer). Inert
       // below the model's minimum cacheable prefix; engages automatically once

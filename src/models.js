@@ -3,16 +3,29 @@
  * $/MTok rates for the cost meter. The wizard and Settings build their
  * dropdowns from this via GET /api/config, so adding a model is one edit.
  */
+// `effort` records whether the model accepts output_config.effort — it is GA on
+// the 5-series and Opus 4.6+, but errors on Haiku 4.5 and older, so it can only
+// be sent to models known to take it.
 export const MODELS = [
-  { id: 'claude-sonnet-5', label: 'Sonnet — recommended (~$0.20/hr)', inRate: 3, outRate: 15 },
-  { id: 'claude-haiku-4-5', label: 'Haiku — budget (~$0.07/hr)', inRate: 1, outRate: 5 },
-  { id: 'claude-opus-5', label: 'Opus — premium (~$0.33/hr)', inRate: 5, outRate: 25 },
-  { id: 'claude-opus-4-8', label: 'Opus 4.8 — previous premium (~$0.33/hr)', inRate: 5, outRate: 25 },
+  { id: 'claude-sonnet-5', label: 'Sonnet — recommended (~$0.20/hr)', inRate: 3, outRate: 15, effort: true },
+  { id: 'claude-haiku-4-5', label: 'Haiku — budget (~$0.07/hr)', inRate: 1, outRate: 5, effort: false },
+  { id: 'claude-opus-5', label: 'Opus — premium (~$0.33/hr)', inRate: 5, outRate: 25, effort: true },
+  { id: 'claude-opus-4-8', label: 'Opus 4.8 — previous premium (~$0.33/hr)', inRate: 5, outRate: 25, effort: true },
 ];
 
 /** True when the cost meter has published rates for this model id. */
 export function isKnownModel(modelId) {
   return MODELS.some((m) => modelId && modelId.startsWith(m.id));
+}
+
+/**
+ * Whether output_config.effort can be sent to this model. Unknown ids — the
+ * "Custom model ID…" path — deliberately answer false: sending a parameter an
+ * unknown model rejects would 400 every generation, and being wrong in that
+ * direction costs a little money rather than the whole feature.
+ */
+export function supportsEffort(modelId) {
+  return MODELS.find((m) => modelId && modelId.startsWith(m.id))?.effort === true;
 }
 
 /**
