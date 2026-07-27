@@ -31,12 +31,16 @@ the last beta. Leaving the channel is deliberate: Settings → App → *Which bu
 to* → **Stable only** (`app.updateChannel`), which is also the only path allowed to step the
 version down.
 
-> The beta build must pass `-c.publish.channel=beta` to electron-builder. Its output channel
-> comes from `publish.channel` (default `latest`) and is **not** derived from the version's
-> prerelease tag — even though electron-updater derives its *read* channel exactly that way.
-> Both workflows assert their channel file exists before publishing, because the upload
-> action only warns on a glob that matches nothing: `v3.8.1-beta.1` shipped as a green run
-> with no update feed at all.
+> The beta build sets `build.publish.channel` via `npm pkg set`, not on the electron-builder
+> command line: the CLI's dotted-override form doesn't survive the PowerShell GitHub uses for
+> `run:` on windows, where `-c.publish.channel=beta` is parsed as the `-c` *config file* alias
+> and the build dies on ENOENT. The channel must be named at all because electron-builder
+> takes it from `publish.channel` (default `latest`) and does **not** derive it from the
+> version's prerelease tag — even though electron-updater derives its *read* channel exactly
+> that way. Both workflows assert their channel file exists before publishing, because the
+> upload action only warns on a glob that matches nothing: `v3.8.1-beta.1` shipped as a green
+> run with no update feed at all. Tagging happens *after* the build, so a failed run doesn't
+> burn a version number.
 
 > Beta tags are excluded wherever the next stable version is computed. They sort *above*
 > the release they precede, and `3.8.0-beta.1` split on `.` puts `0-beta.1` where a number

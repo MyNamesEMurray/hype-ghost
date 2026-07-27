@@ -104,26 +104,31 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
 
-      # The tag is the version authority, exactly as on the stable line.
-      - name: Stamp version and tag the build
+      # Both values go into package.json rather than onto the electron-builder
+      # command line. The CLI's dotted-override form does not survive the
+      # PowerShell that GitHub uses for `run:` on windows — `-c.publish.channel=beta`
+      # was parsed as the `-c` (config file) alias with a path of
+      # ".publish.channel=beta", and the build died on ENOENT. npm pkg set is
+      # shell-agnostic and is already how the version is stamped.
+      #
+      # The channel has to be named at all because electron-builder takes it
+      # from publish.channel (default "latest") and does NOT derive it from the
+      # version's prerelease tag — even though electron-updater derives its
+      # *read* channel exactly that way. Without it the build writes latest.yml,
+      # no beta feed exists, and beta installs have nothing to update from.
+      # (v3.8.1-beta.1 shipped that way.)
+      - name: Stamp version and update channel
         shell: bash
         env:
-          TAG: ${{ steps.version.outputs.tag }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
           npm pkg set version="$VERSION"
-          git tag "$TAG"
-          git push origin "$TAG"
+          npm pkg set build.publish.channel=beta
+          node -e "const b=require('./package.json');console.log('version:',b.version,'| channel:',b.build.publish.channel)"
 
-      # The channel must be named explicitly. electron-builder takes its output
-      # channel from publish.channel (default "latest") and does NOT derive it
-      # from the version's prerelease tag — even though electron-updater derives
-      # its *read* channel exactly that way. Without this the build writes
-      # latest.yml, no beta feed is ever produced, and beta installs have
-      # nothing to update from. (v3.8.1-beta.1 shipped that way.)
       - name: Build the Windows installer
-        run: npx electron-builder --win --publish never -c.publish.channel=beta
+        run: npx electron-builder --win --publish never
 
       # The upload action only *warns* on a glob that matches nothing, so the
       # first beta published as a green run with no update feed at all. A
@@ -137,6 +142,18 @@ jobs:
             exit 1
           fi
           echo "beta.yml:"; cat dist/beta.yml
+
+      # Tagged only once there is something worth tagging. Tagging before the
+      # build meant a failed run still pushed its tag, so the number was burned
+      # with no release behind it (v3.8.1-beta.2 is one of those).
+      - name: Tag the build
+        shell: bash
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git tag "$TAG"
+          git push origin "$TAG"
 
       - name: Publish the prerelease
         uses: softprops/action-gh-release@v3
