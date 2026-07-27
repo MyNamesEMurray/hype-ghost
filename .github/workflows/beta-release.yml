@@ -116,10 +116,27 @@ jobs:
           git tag "$TAG"
           git push origin "$TAG"
 
-      # The `-beta.N` suffix is what makes electron-builder emit beta.yml
-      # rather than latest.yml — the whole isolation guarantee rests on it.
+      # The channel must be named explicitly. electron-builder takes its output
+      # channel from publish.channel (default "latest") and does NOT derive it
+      # from the version's prerelease tag — even though electron-updater derives
+      # its *read* channel exactly that way. Without this the build writes
+      # latest.yml, no beta feed is ever produced, and beta installs have
+      # nothing to update from. (v3.8.1-beta.1 shipped that way.)
       - name: Build the Windows installer
-        run: npx electron-builder --win --publish never
+        run: npx electron-builder --win --publish never -c.publish.channel=beta
+
+      # The upload action only *warns* on a glob that matches nothing, so the
+      # first beta published as a green run with no update feed at all. A
+      # release missing its channel file is broken — fail loudly instead.
+      - name: Verify the beta update feed was generated
+        shell: bash
+        run: |
+          if [ ! -f dist/beta.yml ]; then
+            echo "::error::dist/beta.yml was not generated — beta installs would have no update feed."
+            echo "dist/ contains:"; ls -la dist/
+            exit 1
+          fi
+          echo "beta.yml:"; cat dist/beta.yml
 
       - name: Publish the prerelease
         uses: softprops/action-gh-release@v3

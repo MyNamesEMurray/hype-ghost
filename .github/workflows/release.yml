@@ -67,6 +67,19 @@ jobs:
       - name: Build the Windows installer
         run: npx electron-builder --win --publish never
 
+      # The upload action only warns on a glob that matches nothing, so a
+      # release missing latest.yml would publish as a green run and silently
+      # strand every existing install on its current version. Fail loudly.
+      - name: Verify the update feed was generated
+        shell: bash
+        run: |
+          if [ ! -f dist/latest.yml ]; then
+            echo "::error::dist/latest.yml was not generated — existing installs would never see this release."
+            echo "dist/ contains:"; ls -la dist/
+            exit 1
+          fi
+          echo "latest.yml:"; cat dist/latest.yml
+
       # The install header stays ABOVE the generated notes (the API
       # prepends `body`); the "What's Changed" changelog below it is
       # shaped by .github/release.yml.
