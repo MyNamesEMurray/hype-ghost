@@ -95,7 +95,7 @@
     <div class="eyebrow count" id="stepCount">Step 1 of 6</div>
   </div>
   <h1 class="page-title" style="margin-top:4px">Let's build your room</h1>
-  <p class="sub">Your practice chat, configured in a minute. Everything is changeable later in Settings.</p>
+  <p class="sub" id="lede">Your practice chat, configured in a minute. Everything is changeable later in Settings.</p>
   <ol id="bar"></ol>
 
   <!-- Step 1: goal -->
@@ -106,13 +106,13 @@
       <div class="choice" tabindex="0" role="radio" aria-checked="false" data-goal="company"><span class="mark" aria-hidden="true">✓</span><span class="txt"><b>Company on quiet streams</b><small>A chattier room so streaming to zero never feels like streaming to zero.</small></span></div>
       <div class="choice" tabindex="0" role="radio" aria-checked="false" data-goal="vod"><span class="mark" aria-hidden="true">✓</span><span class="txt"><b>Better VODs</b><small>Occasional prompts that give your VODs conversational structure — a bit more hands-off.</small></span></div>
     </div>
-    <p class="hint" id="goalHint">Pick one — it just sets a sensible starting energy. You can change everything later.</p>
+    <p class="hint" id="goalHint">Pick one — it sets the starting energy.</p>
   </div>
 
   <!-- Step 2: first ghost -->
   <div class="step" data-step="1">
     <b id="h-1">Meet your first ghost.</b>
-    <p class="hint">Pick a vibe (you can add more of the cast later), then name them.</p>
+    <p class="hint">Pick a vibe (more of the cast comes later), then name them.</p>
     <div class="arche-grid" id="arches" role="radiogroup" aria-labelledby="h-1"></div>
     <label for="botName">Name</label>
     <input type="text" id="botName" maxlength="24" placeholder="Beacon">
@@ -129,12 +129,12 @@
     <div id="anthFields">
       <label for="apiKey">Anthropic API key</label>
       <input type="password" id="apiKey" placeholder="sk-ant-…">
-      <p class="hint">From <a href="https://console.anthropic.com" target="_blank" rel="noreferrer">console.anthropic.com</a> · about $0.20 an hour of streaming.</p>
+      <p class="hint">From <a href="https://console.anthropic.com" target="_blank" rel="noreferrer">console.anthropic.com</a>.</p>
       <label for="model">Model</label>
       <select id="model"></select>
       <details class="why">
         <summary>What does this cost me?</summary>
-        <p>You pay Anthropic directly for what the cast says — roughly $0.20 per hour of streaming on the recommended model, and nothing while the app is paused. The deck shows a live running total for the session.</p>
+        <p>You pay Anthropic directly for what the cast says — roughly $0.20 per hour of streaming on the recommended model, and nothing while the app is paused. The deck shows a running total.</p>
       </details>
     </div>
     <div id="oaiFields" style="display:none">
@@ -146,11 +146,11 @@
       <input type="password" id="oaiKey">
       <details class="why">
         <summary>How do I run this for free?</summary>
-        <p>The private/$0 route: install <a href="https://ollama.com" target="_blank" rel="noreferrer">Ollama</a>, run <code>ollama pull qwen2.5vl:7b</code>, done — nothing leaves your PC. Use a <b>vision-capable</b> model so the cast can see your stream.</p>
+        <p>Install <a href="https://ollama.com" target="_blank" rel="noreferrer">Ollama</a> and run <code>ollama pull qwen2.5vl:7b</code>: nothing leaves your PC, but the model shares your GPU with the game. Use a <b>vision-capable</b> model so the cast can see your stream.</p>
       </details>
     </div>
     <div class="test"><button id="testKey">Test brain</button><span class="result" id="keyResult" role="status" aria-live="polite"></span></div>
-    <p class="hint" style="margin-top:16px">Just looking? <a href="#" id="skipBrain">Skip this step</a> — the app opens in preview mode ($0, no messages). Add a brain any time in Settings → Brain.</p>
+    <p class="hint" style="margin-top:16px"><a href="#" id="skipBrain">Skip this step</a> to look around in preview mode — $0, and the cast stays quiet.</p>
   </div>
 
   <!-- Step 4: OBS -->
@@ -163,16 +163,16 @@
     </div>
     <details class="why">
       <summary>Why does Hype Ghost need OBS?</summary>
-      <p>It takes a small screenshot of your live scene every so often, so the cast reacts to what is actually on screen instead of talking into the void. The screenshots go to your brain provider and nowhere else, and Hype Ghost never changes anything in OBS on its own.</p>
+      <p>It takes a small screenshot of your live scene every so often, so the cast reacts to what is actually on screen instead of talking into the void. The screenshots go to your brain provider and nowhere else.</p>
     </details>
     <div class="test"><button id="testObs">Test connection</button><span class="result" id="obsResult" role="status" aria-live="polite"></span></div>
-    <p class="hint">OBS not running right now? You can skip this — it reconnects automatically.</p>
+    <p class="hint">OBS closed right now? Skip it — the connection retries on its own.</p>
   </div>
 
   <!-- Step 5: energy -->
   <div class="step" data-step="4">
     <b>Set the room's energy.</b>
-    <p class="hint">One dial for how lively the room feels — it scales how often the cast talks and their whole mood. You can nudge it live on the deck any time.</p>
+    <p class="hint">One dial for how often the cast talks and what mood they're in. It's on the deck too, live.</p>
     <div style="text-align:center;margin-top:18px"><span id="energyName">Balanced</span> <span style="color:var(--faint)">· <b id="energyNum">55</b></span></div>
     <input type="range" class="dial" id="energy" min="0" max="100" value="55" aria-label="Room energy">
     <div class="energy-lbls"><span>🌙 Chill</span><span>⚖️ Balanced</span><span>🔥 Hype</span></div>
@@ -181,13 +181,12 @@
   <!-- Step 6: extras -->
   <div class="step" data-step="5">
     <b>Optional extras</b>
-    <p class="hint">Both are off by default and can be set up later in Settings.</p>
     <details class="extra">
       <summary>🎙️ Voice awareness — the cast hears what you say (recommended)</summary>
-      <p class="hint">Needs the free LocalVocal OBS plugin. Speech-to-text runs 100% locally.</p>
+      <p class="hint">Needs the free LocalVocal OBS plugin; speech-to-text runs locally.</p>
       <details class="why">
         <summary>How do I set LocalVocal up?</summary>
-        <p>Install <a href="https://obsproject.com/forum/resources/localvocal-local-live-captions-translation-on-the-go.1769/" target="_blank" rel="noreferrer">LocalVocal</a>, add its filter to your mic, and point it at a file or an OBS text source — then name that file or source below. Keep LocalVocal updated to match your OBS version: an outdated build can crash OBS on newer OBS releases (it's third-party, not part of Hype Ghost). Leave the mode Off to reply by typing instead.</p>
+        <p>Install <a href="https://obsproject.com/forum/resources/localvocal-local-live-captions-translation-on-the-go.1769/" target="_blank" rel="noreferrer">LocalVocal</a>, add its filter to your mic, and point it at a file or an OBS text source — then name that file or source below. Keep the plugin updated to match your OBS version: an outdated build can crash OBS.</p>
       </details>
       <label for="trMode">Mode</label>
       <select id="trMode"><option value="off">Off</option><option value="file">File — tail LocalVocal's .txt/.srt output</option><option value="textSource">Text source — read via OBS WebSocket</option></select>
@@ -196,16 +195,16 @@
     </details>
     <details class="extra">
       <summary>📺 Twitch — auto-quiet when real people arrive</summary>
-      <p class="hint">Read-only, never touches your chat or metrics. Your channel name is all it needs.</p>
+      <p class="hint">Read-only — it never touches your chat or metrics.</p>
       <details class="why">
         <summary>What does the channel name unlock?</summary>
-        <p>Viewer detection, chat awareness, and live game/title context — keyless, via the community-run <a href="https://decapi.me" target="_blank" rel="noreferrer">DecAPI</a>. Power users can add app credentials from <a href="https://dev.twitch.tv/console" target="_blank" rel="noreferrer">dev.twitch.tv/console</a> to use the official API directly. Entirely optional, and read-only either way.</p>
+        <p>Viewer detection, chat awareness, and live game/title context — keyless, via the community-run <a href="https://decapi.me" target="_blank" rel="noreferrer">DecAPI</a>. Power users can add app credentials from <a href="https://dev.twitch.tv/console" target="_blank" rel="noreferrer">dev.twitch.tv/console</a> to use the official API directly.</p>
       </details>
       <label for="twChannel">Channel name</label>
       <input type="text" id="twChannel">
       <div class="row"><div><label for="twId">Client ID (optional)</label><input type="text" id="twId"></div><div><label for="twSecret">Client secret (optional)</label><input type="password" id="twSecret"></div></div>
     </details>
-    <p class="hint" style="margin-top:16px">After setup: open Settings → Stream and click <b>Add overlay to OBS</b> to put the chat on your stream and VODs.</p>
+    <p class="hint" style="margin-top:16px">To put the chat on your stream and VODs: Settings → Stream → <b>Add overlay to OBS</b>.</p>
   </div>
 
   <div id="done">
@@ -251,9 +250,10 @@
     $('back').style.visibility = step === 0 ? 'hidden' : 'visible';
     const last = step === STEPS - 1;
     $('next').textContent = last ? 'Finish setup' : NEXT_LABEL[step];
-    $('commitNote').textContent = last
-      ? 'Finishing saves and opens the deck.'
-      : 'Nothing is saved until you finish.';
+    $('commitNote').textContent = last ? '' : 'Nothing is saved until you finish.';
+    // The pitch is for the doorway. Once they're walking through it, the step
+    // rail says where they are and this is just a line they've already read.
+    $('lede').hidden = step > 0;
   }
 
   fetch('/api/config').then((r) => r.json()).then((data) => {
@@ -270,7 +270,7 @@
     // default selection: first archetype, name from config
     chooseArche(document.querySelector('.arche-card'));
     $('botName').value = (data.cast && data.cast[0] && data.cast[0].name) || cfg.bot.name;
-    $('apiKey').placeholder = apiKeySaved ? 'saved ✓ — leave blank to keep the current key' : 'sk-ant-…';
+    $('apiKey').placeholder = apiKeySaved ? 'saved ✓ — leave blank to keep' : 'sk-ant-…';
     if (data.openaiKeySaved) $('oaiKey').placeholder = 'saved ✓ — leave blank to keep';
     if (data.twitchSecretSaved) $('twSecret').placeholder = 'saved ✓ — leave blank to keep';
     // A model set in Settings → Brain → "Custom model ID…" isn't in the catalog.
@@ -301,9 +301,9 @@
   }
 
   // goal -> energy default
-  const GOAL = { practice: { e: 55, hint: 'Good pick — a steady conversational pace with the occasional question you can answer out loud.' },
-    company: { e: 78, hint: 'The room will lean lively. Tune it exactly on the next steps.' },
-    vod: { e: 38, hint: 'The cast will hang back a bit and prioritize messages that give segments structure.' } };
+  const GOAL = { practice: { e: 55, hint: 'A steady conversational pace, with the occasional question you can answer out loud.' },
+    company: { e: 78, hint: 'The room will lean lively.' },
+    vod: { e: 38, hint: 'The cast hangs back and favors messages that give segments structure.' } };
   function chooseGoal(c) {
     select(c, '#goal .choice');
     const p = GOAL[c.dataset.goal]; setEnergy(p.e); $('goalHint').textContent = p.hint;
@@ -372,7 +372,7 @@
     const r = await fetch('/api/test-obs', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url: $('obsUrl').value.trim(), password: $('obsPassword').value }) }).then((x)=>x.json()).catch((e)=>({ok:false,error:e.message}));
     if (r.ok) setResult(el, 'ok', `✓ Connected — current scene: "${r.scene}"`);
     else setResult(el, 'err', '✗ ' + readable(r.error),
-      'Is OBS open, with Tools → WebSocket Server Settings enabled? You can also skip this and come back later.');
+      'Is OBS open, with Tools → WebSocket Server Settings enabled?');
   };
 
   // "Just looking" escape hatch on the brain step: advance without a key so
@@ -385,11 +385,11 @@
       const oai = $('provider').value === 'openai';
       const el = $('keyResult');
       if (!oai && !$('apiKey').value.trim() && !apiKeySaved) {
-        setResult(el, 'err', '✗ An API key is required — the cast has no brain without it.', 'Or use "Skip this step" below to explore in preview mode.');
+        setResult(el, 'err', '✗ An API key is required.', 'Or use "Skip this step" below to look around in preview mode.');
         el.scrollIntoView({ block: 'nearest' }); return;
       }
       if (oai && !$('oaiModel').value.trim()) {
-        setResult(el, 'err', '✗ A model name is required (e.g. qwen2.5vl:7b).', 'Or use "Skip this step" below to explore in preview mode.');
+        setResult(el, 'err', '✗ A model name is required (e.g. qwen2.5vl:7b).', 'Or use "Skip this step" below to look around in preview mode.');
         el.scrollIntoView({ block: 'nearest' }); return;
       }
     }
@@ -419,7 +419,7 @@
     const brainConfigured = $('provider').value === 'openai'
       ? Boolean($('oaiModel').value.trim())
       : Boolean($('apiKey').value.trim() || apiKeySaved);
-    const preview = brainConfigured ? '' : " You're in preview mode — the cast stays quiet until you add a brain in Settings.";
+    const preview = brainConfigured ? '' : ' Preview mode — the cast stays quiet until you add a brain in Settings.';
     $('doneMsg').textContent = (r.restarting ? 'Saving and restarting Hype Ghost…'
       : r.applied ? 'Saved — your room is live.'
       : 'Saved — restart the server to apply your settings.') + preview;

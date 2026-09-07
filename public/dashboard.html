@@ -239,13 +239,13 @@
       <span class="orb" id="o-chat" style="display:none"><span class="dot"></span><span class="lbl" data-i18n="chat">Chat</span></span>
     </div>
     <div class="head-tools">
-      <button class="iconbtn ghostbtn" id="palBtn" title="Command palette">Commands<span class="kbd">⌘K</span></button>
+      <button class="iconbtn ghostbtn" id="palBtn">Commands<span class="kbd">⌘K</span></button>
       <button class="iconbtn ghostbtn" onclick="location.href='/settings'" title="Settings">⚙</button>
     </div>
   </header>
 
   <div id="previewBar" style="display:none">
-    <span>👻 <span data-i18n="previewBody">Preview mode — your cast has no brain yet, so the room stays quiet.</span></span>
+    <span>👻 <span data-i18n="previewBody">Preview mode — no brain yet, so the cast stays quiet.</span></span>
     <a href="/settings" data-i18n="previewCta">Connect one in Settings</a>
   </div>
 
@@ -296,7 +296,7 @@
         <div id="empty" class="empty-state">
           <div class="icon">👻</div>
           <div class="title" data-i18n="emptyTitle">The stage is set.</div>
-          <p data-i18n="emptyBody">Your cast is warming up — the first message lands in a moment. Say something to get the room going.</p>
+          <p data-i18n="emptyBody">The first message lands in a moment — or say something to get the room going.</p>
         </div>
       </div>
       <div class="typing" id="typing" style="display:none"><span class="dots"><span></span><span></span><span></span></span><span data-i18n="typing">the cast is typing…</span></div>
@@ -331,25 +331,25 @@
     en: { brain:'Brain', viewers:'Viewers', mic:'Mic', chat:'Chat', cast:'The cast', energy:'Energy',
       chill:'Chill', balanced:'Balanced', hype:'Hype', room:'Room', modeAuto:'Auto', modeSolo:'Solo', modeViewers:'Viewers',
       say:'Say something', pause:'Pause', resume:'Resume', moments:'Moments', recap:'Export recap', send:'Send', you:'You',
-      emptyTitle:'The stage is set.', emptyBody:'Your cast is warming up — the first message lands in a moment. Say something to get the room going.',
-      typing:'the cast is typing…', placeholder:'Talk to your chat… they will answer', paused:'paused', autoPaused:'paused · no OBS',
+      emptyTitle:'The stage is set.', emptyBody:'The first message lands in a moment — or say something to get the room going.',
+      typing:'the cast is typing…', placeholder:'Talk to your chat…', paused:'paused', autoPaused:'paused · no OBS',
       next:'up next', obsOk:'OBS connected', obsNo:'OBS offline', brainOk:'Brain ready', brainNo:'No brain', viewersManual:'manual',
       micOff:'off', micQuiet:'quiet', micWait:'waiting', party:'Party', partyQuiet:'quiet', partyWait:'waiting', chatQuiet:'quiet', chatActive:'active', lost:'Connection lost — reconnecting…',
       msgs:'msgs', watching:'watching', idle:'idle', spoke:'just spoke', typingShort:'typing', noMoments:'No moments yet — the cast flags clip-worthy plays here.',
-      previewBody:'Preview mode — your cast has no brain yet, so the room stays quiet.', previewCta:'Connect one in Settings',
-      heardTip:'What voice awareness transcribed — the cast may be reacting to this. If it misheard you, that explains their reaction. Click to fix a mishear: the words you change are corrected from now on. (Deck only — never shown on stream.)',
-      fixSaved:'Learned:', fixNone:'Nothing changed — no correction saved.' },
+      previewBody:'Preview mode — no brain yet, so the cast stays quiet.', previewCta:'Connect one in Settings',
+      heardTip:'What voice awareness transcribed — the cast is reacting to this. Click to fix a mishear: the words you change are corrected from now on. Deck only, never on stream.',
+      fixSaved:'Learned:', fixNone:'Nothing changed.' },
     es: { brain:'Cerebro', viewers:'Espectadores', mic:'Micro', chat:'Chat', cast:'El elenco', energy:'Energía',
       chill:'Tranqui', balanced:'Normal', hype:'Máx', room:'Sala', modeAuto:'Auto', modeSolo:'Solo', modeViewers:'Público',
       say:'Di algo', pause:'Pausar', resume:'Reanudar', moments:'Momentos', recap:'Exportar', send:'Enviar', you:'Tú',
-      emptyTitle:'Todo listo.', emptyBody:'Tu elenco se prepara — el primer mensaje llega enseguida. Di algo para animar la sala.',
-      typing:'el elenco escribe…', placeholder:'Habla con tu chat… te responderán', paused:'en pausa', autoPaused:'en pausa · sin OBS',
+      emptyTitle:'Todo listo.', emptyBody:'El primer mensaje llega enseguida — o di algo para animar la sala.',
+      typing:'el elenco escribe…', placeholder:'Habla con tu chat…', paused:'en pausa', autoPaused:'en pausa · sin OBS',
       next:'siguiente', obsOk:'OBS conectado', obsNo:'OBS desconectado', brainOk:'Cerebro listo', brainNo:'Sin cerebro', viewersManual:'manual',
       micOff:'apagado', micQuiet:'silencio', micWait:'esperando', party:'Grupo', partyQuiet:'silencio', partyWait:'esperando', chatQuiet:'tranquilo', chatActive:'activo', lost:'Conexión perdida — reconectando…',
       msgs:'msjs', watching:'mirando', idle:'inactivo', spoke:'acaba de hablar', typingShort:'escribiendo', noMoments:'Aún no hay momentos — el elenco marcará jugadas destacadas aquí.',
-      previewBody:'Modo vista previa — tu elenco aún no tiene cerebro, así que la sala sigue en silencio.', previewCta:'Conéctalo en Ajustes',
-      heardTip:'Lo que la escucha de voz transcribió — el elenco puede estar reaccionando a esto. Si te entendió mal, eso explica su reacción. Haz clic para corregir: las palabras que cambies se corregirán a partir de ahora. (Solo en la consola — nunca en el stream.)',
-      fixSaved:'Aprendido:', fixNone:'Sin cambios — no se guardó ninguna corrección.' },
+      previewBody:'Modo vista previa — aún no hay cerebro, así que el elenco sigue en silencio.', previewCta:'Conéctalo en Ajustes',
+      heardTip:'Lo que la escucha de voz transcribió — el elenco está reaccionando a esto. Haz clic para corregir: las palabras que cambies se corregirán a partir de ahora. Solo en la consola, nunca en el stream.',
+      fixSaved:'Aprendido:', fixNone:'Sin cambios.' },
   };
   let L = STR.en;
   const T = (k) => (L[k] ?? STR.en[k] ?? k);
@@ -766,8 +766,8 @@
 
   // ---------- command palette ----------
   const COMMANDS = [
-    { ic:'🗣', label:'Say something', sub:'poke the cast', run: () => sendCmd({ type:'nudge' }) },
-    { ic:'⏯', label:'Pause / resume', sub:'toggle', run: () => sendCmd({ type: state.paused ? 'resume':'pause' }) },
+    { ic:'🗣', label:'Say something', run: () => sendCmd({ type:'nudge' }) },
+    { ic:'⏯', label:'Pause / resume', run: () => sendCmd({ type: state.paused ? 'resume':'pause' }) },
     { ic:'🌙', label:'Energy: Chill', run: () => setEnergyCmd(20) },
     { ic:'⚖️', label:'Energy: Balanced', run: () => setEnergyCmd(55) },
     { ic:'🔥', label:'Energy: Hype', run: () => setEnergyCmd(88) },
