@@ -120,6 +120,7 @@ button {
   font-size: var(--fs-sm);
   font-weight: 550;
   cursor: pointer;
+  white-space: nowrap;          /* a wrapped button label reads as a bug, not a line break */
   transition: border-color .15s, background .15s, transform .06s;
 }
 button:hover { border-color: var(--border-strong); background: rgba(255,255,255,.05); }
@@ -236,4 +237,84 @@ input:focus:not(:focus-visible), textarea:focus:not(:focus-visible), select:focu
 
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
+}
+
+/* ---------- shared components (added in the 3.1 polish pass) ---------- */
+
+/* A card's title row: emoji + name on the left, anything else pushed right.
+   Every page had its own version of this; there is one now. */
+.card-head {
+  display: flex; align-items: baseline; gap: 10px;
+  margin-bottom: 4px;
+}
+.card-head h2 { flex: 1; }
+.card-head .pill { align-self: center; }
+
+/* Section rule inside a long card — cheaper than nesting another card, and it
+   keeps a settings tab reading as one page instead of a stack of boxes. */
+.section {
+  margin-top: 26px; padding-top: 22px;
+  border-top: 1px solid var(--border);
+}
+.section:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+
+/* One settings control: a short label, a one-line hint, and the control.
+   The long explanation lives in `.why` below, folded away. The rule this
+   replaces was a checkbox with a whole paragraph as its <label>, which is
+   documentation wearing a UI's clothes. */
+.setting { padding: 13px 0; border-bottom: 1px solid var(--border); }
+.setting:last-child { border-bottom: 0; }
+.setting > .lbl {
+  display: flex; align-items: center; gap: 10px;
+  font-size: var(--fs-sm); font-weight: 600; color: var(--text);
+}
+.setting > .lbl input[type=checkbox] { width: auto; flex: none; margin: 0; }
+.setting > .lbl > span { flex: 1; }
+.setting .hint { margin-top: 3px; }
+.setting.on-off > .lbl { cursor: pointer; }
+
+/* "Why?" disclosure — the paragraph that used to shout from the label.
+   Closed by default: a streamer setting up mid-stream reads labels, not essays. */
+.why { margin-top: 6px; }
+/* Legible enough to find on purpose, quiet enough that a page of them still
+   reads as one page. At --faint it looked like leftover markup. */
+.why > summary {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: var(--fs-xs); color: var(--dim);
+  cursor: pointer; list-style: none; width: max-content;
+  border-bottom: 1px dotted var(--border-strong);
+}
+.why > summary::-webkit-details-marker { display: none; }
+.why > summary:hover { color: var(--text); border-bottom-color: var(--accent-line); }
+.why[open] > summary { color: var(--text); margin-bottom: 6px; }
+.why > p {
+  margin: 0; font-size: var(--fs-xs); color: var(--dim); line-height: 1.6;
+  border-left: 2px solid var(--border-strong); padding-left: 11px;
+}
+
+/* Segmented control (deck room mode, settings simple/advanced). Was two
+   near-identical private implementations. */
+.seg { display: flex; gap: 2px; padding: 3px; background: var(--glass-2); border: 1px solid var(--border); border-radius: var(--r-full); }
+.seg button {
+  flex: 1; border: 0; background: transparent; border-radius: var(--r-full);
+  padding: 7px 14px; color: var(--dim); font-size: var(--fs-sm); font-weight: 550;
+}
+.seg button:hover { background: rgba(255,255,255,.04); color: var(--text); }
+.seg button.on { background: var(--accent-soft); color: var(--text); box-shadow: inset 0 0 0 1px var(--accent-line); }
+
+/* Empty states. One treatment, so "nothing here yet" always looks deliberate. */
+.empty-state { text-align: center; color: var(--dim); padding: 34px 20px; }
+.empty-state .icon { font-size: var(--fs-2xl); opacity: .55; margin-bottom: 10px; }
+.empty-state .title { font-weight: 600; color: var(--text); }
+.empty-state p { margin: 6px auto 0; max-width: 44ch; font-size: var(--fs-sm); color: var(--faint); line-height: 1.6; }
+
+/* Toolbar: a row of controls that stays readable when it runs out of room. */
+.toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.spacer { flex: 1; }
+
+/* Keyboard hint, used in the palette affordance and shortcuts. */
+.kbd {
+  font: 600 calc(11px * var(--font-scale))/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: 3px 5px; border-radius: var(--r-sm);
+  border: 1px solid var(--border-strong); color: var(--dim); background: var(--glass-2);
 }

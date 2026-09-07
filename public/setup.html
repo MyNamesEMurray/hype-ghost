@@ -10,34 +10,79 @@
   body { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
   #card { width: 660px; max-width: 94vw; margin: 24px 0; padding: 30px 34px; }
   .eyebrow { font-size: var(--fs-xs); letter-spacing: .16em; text-transform: uppercase; color: var(--faint); font-weight: 700; }
-  .sub { color: var(--dim); margin: 4px 0 22px; font-size: var(--fs-sm); }
-  #bar { display: flex; gap: 6px; margin-bottom: 24px; }
-  #bar span { height: 5px; flex: 1; border-radius: 3px; background: var(--border); transition: background .3s; }
-  #bar span.on { background: var(--aurora); }
+  .topline { display: flex; align-items: baseline; gap: 12px; }
+  .topline .count { margin-left: auto; }
+  .sub { color: var(--dim); margin: 4px 0 0; font-size: var(--fs-sm); }
+
+  /* progress rail — a named map of the wizard, not a row of anonymous dashes */
+  #bar { display: flex; gap: 8px; margin: 22px 0 24px; padding: 0; list-style: none; }
+  #bar li { flex: 1; min-width: 0; }
+  #bar .tick { display: block; height: 5px; border-radius: 3px; background: var(--border); transition: background .3s; }
+  #bar .lbl { display: block; margin-top: 7px; font-size: var(--fs-xs); color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #bar li.done .tick { background: var(--accent-line); }
+  #bar li.done .lbl { color: var(--dim); }
+  #bar li.done .lbl::before { content: "✓ "; color: var(--good); }
+  #bar li.now .tick { background: var(--aurora); }
+  #bar li.now .lbl { color: var(--text); font-weight: 700; }
+
   .step { display: none; }
   .step.active { display: block; animation: fade .25s ease; }
   @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
   .step > b { font-size: var(--fs-lg); font-weight: 700; letter-spacing: -.01em; display: block; margin-bottom: 4px; }
+
+  /* choice + archetype cards: a radio group that looks like cards. The mark on
+     the right is the selected state — the tint alone was only a color. */
   .choices { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
-  .choice { border: 1px solid var(--border); border-radius: var(--r-lg); padding: 14px 16px; cursor: pointer; background: var(--glass-2); transition: border-color .15s, background .15s; }
+  .choice { display: flex; align-items: flex-start; gap: 13px; border: 1px solid var(--border); border-radius: var(--r-lg); padding: 14px 16px; cursor: pointer; background: var(--glass-2); transition: border-color .15s, background .15s; }
   .choice:hover { border-color: var(--accent-line); }
   .choice.selected { border-color: var(--accent); background: var(--accent-soft); }
   .choice b { display: block; margin-bottom: 2px; }
   .choice small { color: var(--dim); }
+  .choice .txt { flex: 1; min-width: 0; }
+
+  .mark {
+    flex: none; width: 20px; height: 20px; border-radius: var(--r-full);
+    border: 2px solid var(--border-strong); background: transparent;
+    display: grid; place-items: center; margin-top: 2px;
+    font-size: calc(11px * var(--font-scale)); font-weight: 800; color: transparent;
+    transition: border-color .15s, background .15s;
+  }
+  .choice.selected .mark { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
+  .arche-card.selected .mark { border-color: var(--gc); background: var(--gc); color: #0b0b12; }
+
   .arche-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
-  .arche-card { border: 1px solid var(--border); border-radius: var(--r-lg); padding: 12px 14px; cursor: pointer; background: var(--glass-2); display: flex; gap: 10px; align-items: center; }
+  .arche-card { border: 1px solid var(--border); border-radius: var(--r-lg); padding: 12px 14px; cursor: pointer; background: var(--glass-2); display: flex; gap: 10px; align-items: center; transition: border-color .15s, background .15s; }
+  .arche-card:hover { border-color: var(--border-strong); }
   .arche-card.selected { border-color: var(--gc); background: color-mix(in srgb, var(--gc) 12%, transparent); }
   .arche-card .em { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 16px; background: var(--gc); flex: none; }
+  .arche-card .who { flex: 1; min-width: 0; }
   .arche-card .al { font-weight: 650; font-size: var(--fs-sm); }
   .arche-card .ap { font-size: var(--fs-xs); color: var(--faint); }
-  .test { margin-top: 12px; display: flex; align-items: center; gap: 12px; }
-  nav { display: flex; justify-content: space-between; margin-top: 28px; }
-  details { margin-top: 14px; border: 1px solid var(--border); border-radius: var(--r-lg); padding: 12px 16px; }
-  summary { cursor: pointer; color: var(--dim); }
+
+  /* test result: a block callout, not a scrap of red text beside a button */
+  .test { margin-top: 14px; }
+  .result {
+    display: block; margin-top: 10px; padding: 9px 13px;
+    border: 1px solid var(--border); border-radius: var(--r-md);
+    background: var(--glass-2); line-height: 1.5; overflow-wrap: anywhere;
+  }
+  .result:empty { display: none; }
+  .result.ok  { border-color: rgba(110, 231, 168, .38); background: rgba(110, 231, 168, .10); }
+  .result.err { border-color: rgba(255, 143, 143, .45); background: rgba(255, 143, 143, .10); }
+  .result .fix { display: block; color: var(--dim); font-size: var(--fs-xs); margin-top: 4px; }
+
+  details.extra { margin-top: 12px; border: 1px solid var(--border); border-radius: var(--r-lg); padding: 12px 16px; background: var(--glass-2); }
+  details.extra > summary { cursor: pointer; color: var(--text); font-size: var(--fs-sm); font-weight: 600; }
+  details.extra[open] > summary { margin-bottom: 8px; }
+
   #done { text-align: center; padding: 32px 0; display: none; }
   #done .ghost { font-size: 56px; }
+
+  nav { display: flex; align-items: center; gap: 14px; margin-top: 28px; }
+  nav .commit { flex: 1; font-size: var(--fs-xs); color: var(--faint); }
+
   /* energy dial */
-  input[type=range].dial { -webkit-appearance: none; appearance: none; width: 100%; height: 8px; border-radius: 999px; background: var(--aurora); outline: none; cursor: pointer; margin-top: 16px; }
+  input[type=range].dial { -webkit-appearance: none; appearance: none; width: 100%; height: 8px; border-radius: 999px; background: var(--aurora); outline-offset: 4px; cursor: pointer; margin-top: 16px; }
   input[type=range].dial::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 3px solid var(--bg); box-shadow: 0 2px 8px rgba(0,0,0,.5); }
   .energy-lbls { display: flex; justify-content: space-between; font-size: var(--fs-xs); color: var(--faint); margin-top: 8px; }
   #energyName { font-weight: 700; font-size: var(--fs-lg); }
@@ -45,99 +90,121 @@
 </head>
 <body>
 <div id="card" class="card">
-  <div class="eyebrow">👻 Hype Ghost 3.0</div>
+  <div class="topline">
+    <div class="eyebrow">👻 Hype Ghost 3.0</div>
+    <div class="eyebrow count" id="stepCount">Step 1 of 6</div>
+  </div>
   <h1 class="page-title" style="margin-top:4px">Let's build your room</h1>
-  <p class="sub">Your practice chat, configured in a minute. Everything is changeable later in Settings.</p>
-  <div id="bar"></div>
+  <p class="sub" id="lede">Your practice chat, configured in a minute. Everything is changeable later in Settings.</p>
+  <ol id="bar"></ol>
 
   <!-- Step 1: goal -->
   <div class="step" data-step="0">
-    <b>What do you want from Hype Ghost?</b>
-    <div class="choices" id="goal">
-      <div class="choice" tabindex="0" data-goal="practice"><b>Practice talking to chat</b><small>Build the habit of narrating and answering chat out loud, so you're sharp when real viewers show up.</small></div>
-      <div class="choice" tabindex="0" data-goal="company"><b>Company on quiet streams</b><small>A chattier room so streaming to zero never feels like streaming to zero.</small></div>
-      <div class="choice" tabindex="0" data-goal="vod"><b>Better VODs</b><small>Occasional prompts that give your VODs conversational structure — a bit more hands-off.</small></div>
+    <b id="h-0">What do you want from Hype Ghost?</b>
+    <div class="choices" id="goal" role="radiogroup" aria-labelledby="h-0">
+      <div class="choice" tabindex="0" role="radio" aria-checked="false" data-goal="practice"><span class="mark" aria-hidden="true">✓</span><span class="txt"><b>Practice talking to chat</b><small>Build the habit of narrating and answering chat out loud, so you're sharp when real viewers show up.</small></span></div>
+      <div class="choice" tabindex="0" role="radio" aria-checked="false" data-goal="company"><span class="mark" aria-hidden="true">✓</span><span class="txt"><b>Company on quiet streams</b><small>A chattier room so streaming to zero never feels like streaming to zero.</small></span></div>
+      <div class="choice" tabindex="0" role="radio" aria-checked="false" data-goal="vod"><span class="mark" aria-hidden="true">✓</span><span class="txt"><b>Better VODs</b><small>Occasional prompts that give your VODs conversational structure — a bit more hands-off.</small></span></div>
     </div>
-    <p class="hint" id="goalHint"></p>
+    <p class="hint" id="goalHint">Pick one — it sets the starting energy.</p>
   </div>
 
   <!-- Step 2: first ghost -->
   <div class="step" data-step="1">
-    <b>Meet your first ghost.</b>
-    <p class="hint">Pick a vibe (you can add more of the cast later), then name them.</p>
-    <div class="arche-grid" id="arches"></div>
-    <label>Name</label>
+    <b id="h-1">Meet your first ghost.</b>
+    <p class="hint">Pick a vibe (more of the cast comes later), then name them.</p>
+    <div class="arche-grid" id="arches" role="radiogroup" aria-labelledby="h-1"></div>
+    <label for="botName">Name</label>
     <input type="text" id="botName" maxlength="24" placeholder="Beacon">
   </div>
 
   <!-- Step 3: brain -->
   <div class="step" data-step="2">
     <b>Connect the brain.</b>
-    <label>How should the cast think?</label>
+    <label for="provider">How should the cast think?</label>
     <select id="provider">
       <option value="anthropic">Claude API — best banter (paid, ~$0.20/hr)</option>
       <option value="openai">Local / free — Ollama, LM Studio, or any OpenAI-compatible endpoint ($0)</option>
     </select>
     <div id="anthFields">
-      <p class="hint">Get a key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> — typical cost is about $0.20/hour of streaming.</p>
-      <label>Anthropic API key</label>
+      <label for="apiKey">Anthropic API key</label>
       <input type="password" id="apiKey" placeholder="sk-ant-…">
-      <label>Model</label>
+      <p class="hint">From <a href="https://console.anthropic.com" target="_blank" rel="noreferrer">console.anthropic.com</a>.</p>
+      <label for="model">Model</label>
       <select id="model"></select>
+      <details class="why">
+        <summary>What does this cost me?</summary>
+        <p>You pay Anthropic directly for what the cast says — roughly $0.20 per hour of streaming on the recommended model, and nothing while the app is paused. The deck shows a running total.</p>
+      </details>
     </div>
     <div id="oaiFields" style="display:none">
-      <p class="hint">The private/$0 route: install <a href="https://ollama.com" target="_blank">Ollama</a>, run <code>ollama pull qwen2.5vl:7b</code>, done — nothing leaves your PC. Use a <b>vision-capable</b> model so the cast can see your stream.</p>
-      <label>Endpoint URL</label>
+      <label for="oaiBase">Endpoint URL</label>
       <input type="text" id="oaiBase" placeholder="http://localhost:11434/v1">
-      <label>Model</label>
+      <label for="oaiModel">Model</label>
       <input type="text" id="oaiModel" placeholder="qwen2.5vl:7b">
-      <label>API key (only if the endpoint needs one)</label>
+      <label for="oaiKey">API key (only if the endpoint needs one)</label>
       <input type="password" id="oaiKey">
+      <details class="why">
+        <summary>How do I run this for free?</summary>
+        <p>Install <a href="https://ollama.com" target="_blank" rel="noreferrer">Ollama</a> and run <code>ollama pull qwen2.5vl:7b</code>: nothing leaves your PC, but the model shares your GPU with the game. Use a <b>vision-capable</b> model so the cast can see your stream.</p>
+      </details>
     </div>
-    <div class="test"><button id="testKey">Test brain</button><span class="result" id="keyResult"></span></div>
-    <p class="hint" style="margin-top:14px">Just looking? <a href="#" id="skipBrain">Skip this step</a> — the app opens in preview mode ($0, no messages) so you can explore the deck first. Add a brain any time in Settings → Brain.</p>
+    <div class="test"><button id="testKey">Test brain</button><span class="result" id="keyResult" role="status" aria-live="polite"></span></div>
+    <p class="hint" style="margin-top:16px"><a href="#" id="skipBrain">Skip this step</a> to look around in preview mode — $0, and the cast stays quiet.</p>
   </div>
 
   <!-- Step 4: OBS -->
   <div class="step" data-step="3">
     <b>Let the cast see your stream.</b>
-    <p class="hint">In OBS: <b>Tools → WebSocket Server Settings</b> → enable the server, then copy the password here. This is how Hype Ghost screenshots your live scene to react to it.</p>
+    <p class="hint">In OBS: <b>Tools → WebSocket Server Settings</b> → enable the server, then copy the password here.</p>
     <div class="row">
-      <div><label>OBS WebSocket URL</label><input type="text" id="obsUrl" placeholder="ws://127.0.0.1:4455"></div>
-      <div><label>Password</label><input type="password" id="obsPassword"></div>
+      <div><label for="obsUrl">OBS WebSocket URL</label><input type="text" id="obsUrl" placeholder="ws://127.0.0.1:4455"></div>
+      <div><label for="obsPassword">Password</label><input type="password" id="obsPassword"></div>
     </div>
-    <div class="test"><button id="testObs">Test connection</button><span class="result" id="obsResult"></span></div>
-    <p class="hint">OBS not running right now? You can skip this — it reconnects automatically.</p>
+    <details class="why">
+      <summary>Why does Hype Ghost need OBS?</summary>
+      <p>It takes a small screenshot of your live scene every so often, so the cast reacts to what is actually on screen instead of talking into the void. The screenshots go to your brain provider and nowhere else.</p>
+    </details>
+    <div class="test"><button id="testObs">Test connection</button><span class="result" id="obsResult" role="status" aria-live="polite"></span></div>
+    <p class="hint">OBS closed right now? Skip it — the connection retries on its own.</p>
   </div>
 
   <!-- Step 5: energy -->
   <div class="step" data-step="4">
     <b>Set the room's energy.</b>
-    <p class="hint">One dial for how lively the room feels — it scales how often the cast talks and their whole mood. You can nudge it live on the deck any time.</p>
+    <p class="hint">One dial for how often the cast talks and what mood they're in. It's on the deck too, live.</p>
     <div style="text-align:center;margin-top:18px"><span id="energyName">Balanced</span> <span style="color:var(--faint)">· <b id="energyNum">55</b></span></div>
-    <input type="range" class="dial" id="energy" min="0" max="100" value="55">
+    <input type="range" class="dial" id="energy" min="0" max="100" value="55" aria-label="Room energy">
     <div class="energy-lbls"><span>🌙 Chill</span><span>⚖️ Balanced</span><span>🔥 Hype</span></div>
   </div>
 
   <!-- Step 6: extras -->
   <div class="step" data-step="5">
     <b>Optional extras</b>
-    <details>
+    <details class="extra">
       <summary>🎙️ Voice awareness — the cast hears what you say (recommended)</summary>
-      <p class="hint">Install the free <a href="https://obsproject.com/forum/resources/localvocal-local-live-captions-translation-on-the-go.1769/" target="_blank">LocalVocal</a> OBS plugin (speech-to-text runs 100% locally), add its filter to your mic, and point it at a file or text source. Keep LocalVocal updated to match your OBS version — an outdated build can crash OBS on newer OBS releases (it's third-party, not part of Hype Ghost). Voice awareness is optional; leave this Off to reply by typing.</p>
-      <label>Mode</label>
+      <p class="hint">Needs the free LocalVocal OBS plugin; speech-to-text runs locally.</p>
+      <details class="why">
+        <summary>How do I set LocalVocal up?</summary>
+        <p>Install <a href="https://obsproject.com/forum/resources/localvocal-local-live-captions-translation-on-the-go.1769/" target="_blank" rel="noreferrer">LocalVocal</a>, add its filter to your mic, and point it at a file or an OBS text source — then name that file or source below. Keep the plugin updated to match your OBS version: an outdated build can crash OBS.</p>
+      </details>
+      <label for="trMode">Mode</label>
       <select id="trMode"><option value="off">Off</option><option value="file">File — tail LocalVocal's .txt/.srt output</option><option value="textSource">Text source — read via OBS WebSocket</option></select>
-      <label>File path or text source name</label>
+      <label for="trTarget">File path or text source name</label>
       <input type="text" id="trTarget" placeholder="C:/Users/you/captions.srt   or   LocalVocal Captions">
     </details>
-    <details>
+    <details class="extra">
       <summary>📺 Twitch — auto-quiet when real people arrive</summary>
-      <p class="hint">Read-only, never touches your chat or metrics. <b>Just your channel name</b> enables viewer detection, chat awareness, and live game/title context (keyless, via the community-run <a href="https://decapi.me" target="_blank">DecAPI</a>). Power users can add app credentials from <a href="https://dev.twitch.tv/console" target="_blank">dev.twitch.tv/console</a> to use the official API directly — entirely optional.</p>
-      <label>Channel name</label>
+      <p class="hint">Read-only — it never touches your chat or metrics.</p>
+      <details class="why">
+        <summary>What does the channel name unlock?</summary>
+        <p>Viewer detection, chat awareness, and live game/title context — keyless, via the community-run <a href="https://decapi.me" target="_blank" rel="noreferrer">DecAPI</a>. Power users can add app credentials from <a href="https://dev.twitch.tv/console" target="_blank" rel="noreferrer">dev.twitch.tv/console</a> to use the official API directly.</p>
+      </details>
+      <label for="twChannel">Channel name</label>
       <input type="text" id="twChannel">
-      <div class="row"><div><label>Client ID (optional)</label><input type="text" id="twId"></div><div><label>Client secret (optional)</label><input type="password" id="twSecret"></div></div>
+      <div class="row"><div><label for="twId">Client ID (optional)</label><input type="text" id="twId"></div><div><label for="twSecret">Client secret (optional)</label><input type="password" id="twSecret"></div></div>
     </details>
-    <p class="hint" style="margin-top:14px">After setup: open Settings → Stream and click <b>Add overlay to OBS</b> to put the chat on your stream and VODs.</p>
+    <p class="hint" style="margin-top:16px">To put the chat on your stream and VODs: Settings → Stream → <b>Add overlay to OBS</b>.</p>
   </div>
 
   <div id="done">
@@ -148,24 +215,45 @@
 
   <nav>
     <button id="back" class="ghostbtn">Back</button>
+    <span class="commit" id="commitNote">Nothing is saved until you finish.</span>
     <button id="next" class="primary">Next</button>
   </nav>
 </div>
 
 <script>
   const STEPS = 6;
+  // Names double as the progress rail's labels and as the "Next: …" promise on
+  // the primary button, so the map of the wizard is written down exactly once.
+  const STEP_NAMES = ['Goal', 'Ghost', 'Brain', 'Stream', 'Energy', 'Extras'];
+  const NEXT_LABEL = ['Next: your ghost', 'Next: the brain', 'Next: your stream', 'Next: the energy', 'Next: extras'];
   let step = 0, cfg = null, apiKeySaved = false, canRestart = false;
   let archetypes = [], palette = {}, chosenArche = null;
   const $ = (id) => document.getElementById(id);
 
   const bar = $('bar');
-  for (let i = 0; i < STEPS; i++) bar.appendChild(document.createElement('span'));
+  for (let i = 0; i < STEPS; i++) {
+    const li = document.createElement('li');
+    li.innerHTML = '<span class="tick"></span><span class="lbl"></span>';
+    li.querySelector('.lbl').textContent = STEP_NAMES[i];
+    li.title = `Step ${i + 1} of ${STEPS} — ${STEP_NAMES[i]}`;
+    bar.appendChild(li);
+  }
 
   function show() {
     document.querySelectorAll('.step').forEach((el) => el.classList.toggle('active', Number(el.dataset.step) === step));
-    [...bar.children].forEach((d, i) => d.classList.toggle('on', i <= step));
+    [...bar.children].forEach((li, i) => {
+      li.classList.toggle('done', i < step);
+      li.classList.toggle('now', i === step);
+      if (i === step) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
+    });
+    $('stepCount').textContent = `Step ${step + 1} of ${STEPS}`;
     $('back').style.visibility = step === 0 ? 'hidden' : 'visible';
-    $('next').textContent = step === STEPS - 1 ? 'Finish setup' : 'Next';
+    const last = step === STEPS - 1;
+    $('next').textContent = last ? 'Finish setup' : NEXT_LABEL[step];
+    $('commitNote').textContent = last ? '' : 'Nothing is saved until you finish.';
+    // The pitch is for the doorway. Once they're walking through it, the step
+    // rail says where they are and this is just a line they've already read.
+    $('lede').hidden = step > 0;
   }
 
   fetch('/api/config').then((r) => r.json()).then((data) => {
@@ -176,13 +264,13 @@
     // archetype cards
     $('arches').innerHTML = archetypes.map((a) => {
       const hex = (palette[a.color] || {}).hex || '#5ad1ff';
-      return `<div class="arche-card" tabindex="0" data-id="${a.id}" style="--gc:${hex}"><div class="em">${a.emoji}</div><div><div class="al">${a.label}</div><div class="ap">${a.personality.split(';')[0]}</div></div></div>`;
+      return `<div class="arche-card" tabindex="0" role="radio" aria-checked="false" data-id="${a.id}" style="--gc:${hex}"><div class="em">${a.emoji}</div><div class="who"><div class="al">${a.label}</div><div class="ap">${a.personality.split(';')[0]}</div></div><span class="mark" aria-hidden="true">✓</span></div>`;
     }).join('');
     document.querySelectorAll('.arche-card').forEach((c) => c.onclick = () => chooseArche(c));
     // default selection: first archetype, name from config
     chooseArche(document.querySelector('.arche-card'));
     $('botName').value = (data.cast && data.cast[0] && data.cast[0].name) || cfg.bot.name;
-    $('apiKey').placeholder = apiKeySaved ? 'saved ✓ — leave blank to keep the current key' : 'sk-ant-…';
+    $('apiKey').placeholder = apiKeySaved ? 'saved ✓ — leave blank to keep' : 'sk-ant-…';
     if (data.openaiKeySaved) $('oaiKey').placeholder = 'saved ✓ — leave blank to keep';
     if (data.twitchSecretSaved) $('twSecret').placeholder = 'saved ✓ — leave blank to keep';
     // A model set in Settings → Brain → "Custom model ID…" isn't in the catalog.
@@ -202,20 +290,22 @@
     $('twChannel').value = cfg.twitch.channel; $('twId').value = cfg.twitch.clientId; $('twSecret').value = cfg.twitch.clientSecret;
   });
 
+  function select(card, group) {
+    document.querySelectorAll(group).forEach((c) => { c.classList.remove('selected'); c.setAttribute('aria-checked', 'false'); });
+    card.classList.add('selected'); card.setAttribute('aria-checked', 'true');
+  }
   function chooseArche(card) {
-    document.querySelectorAll('.arche-card').forEach((c) => c.classList.remove('selected'));
-    card.classList.add('selected');
+    if (!card) return;
+    select(card, '.arche-card');
     chosenArche = archetypes.find((a) => a.id === card.dataset.id);
   }
-  document.querySelectorAll('.arche-card, .choice').forEach; // noop guard
 
   // goal -> energy default
-  const GOAL = { practice: { e: 55, hint: 'Good pick — a steady conversational pace with the occasional question you can answer out loud.' },
-    company: { e: 78, hint: 'The room will lean lively. Tune it exactly on the next steps.' },
-    vod: { e: 38, hint: 'The cast will hang back a bit and prioritize messages that give segments structure.' } };
+  const GOAL = { practice: { e: 55, hint: 'A steady conversational pace, with the occasional question you can answer out loud.' },
+    company: { e: 78, hint: 'The room will lean lively.' },
+    vod: { e: 38, hint: 'The cast hangs back and favors messages that give segments structure.' } };
   function chooseGoal(c) {
-    document.querySelectorAll('#goal .choice').forEach((x) => x.classList.remove('selected'));
-    c.classList.add('selected');
+    select(c, '#goal .choice');
     const p = GOAL[c.dataset.goal]; setEnergy(p.e); $('goalHint').textContent = p.hint;
   }
   $('goal').addEventListener('click', (e) => { const c = e.target.closest('.choice'); if (c) chooseGoal(c); });
@@ -225,39 +315,83 @@
   function setEnergy(v) { $('energy').value = v; $('energyNum').textContent = v; $('energyName').textContent = energyName(v); }
   $('energy').addEventListener('input', (e) => setEnergy(Number(e.target.value)));
 
-  // keyboard on cards
+  // Card groups behave like radio groups: Enter/Space picks, arrows move.
   document.addEventListener('keydown', (e) => {
-    if ((e.key === 'Enter' || e.key === ' ') && document.activeElement.classList?.contains('arche-card')) { e.preventDefault(); document.activeElement.click(); }
-    if ((e.key === 'Enter' || e.key === ' ') && document.activeElement.classList?.contains('choice')) { e.preventDefault(); document.activeElement.click(); }
+    const el = document.activeElement;
+    const group = el?.classList?.contains('arche-card') ? '.arche-card' : el?.classList?.contains('choice') ? '#goal .choice' : null;
+    if (!group) return;
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); return; }
+    const dir = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : 0;
+    if (!dir) return;
+    e.preventDefault();
+    const all = [...document.querySelectorAll(group)];
+    const nextEl = all[(all.indexOf(el) + dir + all.length) % all.length];
+    nextEl.focus(); nextEl.click();
   });
 
-  function toggleProvider() { const oai = $('provider').value === 'openai'; $('anthFields').style.display = oai ? 'none':''; $('oaiFields').style.display = oai ? '':'none'; }
+  function toggleProvider() {
+    const oai = $('provider').value === 'openai';
+    $('anthFields').style.display = oai ? 'none':''; $('oaiFields').style.display = oai ? '':'none';
+    // A result from the other provider is answering a question nobody asked.
+    setResult($('keyResult'), '', '');
+  }
   $('provider').onchange = toggleProvider;
 
+  // Providers answer with raw JSON bodies. Show the sentence a human can act on
+  // and keep the rest out of the way — an error is a prompt, not a stack trace.
+  function readable(err) {
+    let s = String(err || 'failed');
+    const m = s.match(/"message"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    if (m) { try { s = JSON.parse(`"${m[1]}"`); } catch { s = m[1]; } }
+    s = s.replace(/\s+/g, ' ').trim();
+    // Node's socket errors are accurate and unreadable. Say the same thing in words.
+    if (/ECONNREFUSED/i.test(s)) s = "Nothing answered at that address — is the server running?";
+    else if (/ENOTFOUND|EAI_AGAIN|getaddrinfo/i.test(s)) s = "That address couldn't be found.";
+    else if (/ETIMEDOUT|timeout/i.test(s)) s = "The connection timed out.";
+    return s.length > 220 ? s.slice(0, 219) + '…' : s;
+  }
+  function setResult(el, cls, text, fix) {
+    el.className = 'result' + (cls ? ' ' + cls : '');
+    el.textContent = text;
+    if (fix) { const s = document.createElement('span'); s.className = 'fix'; s.textContent = fix; el.appendChild(s); }
+  }
+
   $('testKey').onclick = async () => {
-    const el = $('keyResult'); el.className = 'result'; el.textContent = 'testing…';
+    const el = $('keyResult'); setResult(el, '', 'Testing…');
     const body = $('provider').value === 'openai'
       ? { provider:'openai', baseUrl: $('oaiBase').value.trim(), model: $('oaiModel').value.trim(), apiKey: $('oaiKey').value.trim() }
       : { apiKey: $('apiKey').value.trim(), model: $('model').value };
     const r = await fetch('/api/test-key', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }).then((x)=>x.json()).catch((e)=>({ok:false,error:e.message}));
-    el.className = 'result ' + (r.ok ? 'ok':'err'); el.textContent = r.ok ? '✓ works' + (r.note ? ' — '+r.note : '') : '✗ ' + (r.error || 'failed');
+    if (r.ok) setResult(el, 'ok', '✓ Works' + (r.note ? ' — ' + r.note : ''));
+    else setResult(el, 'err', '✗ ' + readable(r.error), $('provider').value === 'openai'
+      ? 'Check the endpoint is running and the model name matches one it has pulled.'
+      : 'Check the key was pasted whole, and that it has credit on console.anthropic.com.');
   };
   $('testObs').onclick = async () => {
-    const el = $('obsResult'); el.className = 'result'; el.textContent = 'testing…';
+    const el = $('obsResult'); setResult(el, '', 'Testing…');
     const r = await fetch('/api/test-obs', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url: $('obsUrl').value.trim(), password: $('obsPassword').value }) }).then((x)=>x.json()).catch((e)=>({ok:false,error:e.message}));
-    el.className = 'result ' + (r.ok ? 'ok':'err'); el.textContent = r.ok ? `✓ connected — current scene: "${r.scene}"` : '✗ ' + (r.error || 'failed');
+    if (r.ok) setResult(el, 'ok', `✓ Connected — current scene: "${r.scene}"`);
+    else setResult(el, 'err', '✗ ' + readable(r.error),
+      'Is OBS open, with Tools → WebSocket Server Settings enabled?');
   };
 
   // "Just looking" escape hatch on the brain step: advance without a key so
   // the whole app is explorable in preview mode (Next still validates).
-  $('skipBrain').onclick = (e) => { e.preventDefault(); $('keyResult').className = 'result'; $('keyResult').textContent = ''; step++; show(); };
+  $('skipBrain').onclick = (e) => { e.preventDefault(); setResult($('keyResult'), '', ''); step++; show(); };
 
   $('back').onclick = () => { if (step > 0) { step--; show(); } };
   $('next').onclick = async () => {
     if (step === 2) {
       const oai = $('provider').value === 'openai';
-      if (!oai && !$('apiKey').value.trim() && !apiKeySaved) { $('keyResult').className='result err'; $('keyResult').textContent='an API key is required — the cast has no brain without it'; return; }
-      if (oai && !$('oaiModel').value.trim()) { $('keyResult').className='result err'; $('keyResult').textContent='a model name is required (e.g. qwen2.5vl:7b)'; return; }
+      const el = $('keyResult');
+      if (!oai && !$('apiKey').value.trim() && !apiKeySaved) {
+        setResult(el, 'err', '✗ An API key is required.', 'Or use "Skip this step" below to look around in preview mode.');
+        el.scrollIntoView({ block: 'nearest' }); return;
+      }
+      if (oai && !$('oaiModel').value.trim()) {
+        setResult(el, 'err', '✗ A model name is required (e.g. qwen2.5vl:7b).', 'Or use "Skip this step" below to look around in preview mode.');
+        el.scrollIntoView({ block: 'nearest' }); return;
+      }
     }
     if (step < STEPS - 1) { step++; show(); return; }
 
@@ -281,11 +415,11 @@
     const r = await fetch('/api/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cfg) }).then((x)=>x.json()).catch((e)=>({ok:false,error:e.message}));
     if (!r.ok) { $('next').disabled = false; alert('Saving failed: ' + (r.error || 'unknown error')); return; }
     document.querySelectorAll('.step').forEach((el) => el.classList.remove('active'));
-    document.querySelector('nav').style.display = 'none'; bar.style.display = 'none'; $('done').style.display = 'block';
+    document.querySelector('nav').style.display = 'none'; bar.style.display = 'none'; $('stepCount').style.display = 'none'; $('done').style.display = 'block';
     const brainConfigured = $('provider').value === 'openai'
       ? Boolean($('oaiModel').value.trim())
       : Boolean($('apiKey').value.trim() || apiKeySaved);
-    const preview = brainConfigured ? '' : " You're in preview mode — the cast stays quiet until you add a brain in Settings.";
+    const preview = brainConfigured ? '' : ' Preview mode — the cast stays quiet until you add a brain in Settings.';
     $('doneMsg').textContent = (r.restarting ? 'Saving and restarting Hype Ghost…'
       : r.applied ? 'Saved — your room is live.'
       : 'Saved — restart the server to apply your settings.') + preview;
