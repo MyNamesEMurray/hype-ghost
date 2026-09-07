@@ -276,15 +276,17 @@ input:focus:not(:focus-visible), textarea:focus:not(:focus-visible), select:focu
 /* "Why?" disclosure — the paragraph that used to shout from the label.
    Closed by default: a streamer setting up mid-stream reads labels, not essays. */
 .why { margin-top: 6px; }
+/* Legible enough to find on purpose, quiet enough that a page of them still
+   reads as one page. At --faint it looked like leftover markup. */
 .why > summary {
   display: inline-flex; align-items: center; gap: 5px;
-  font-size: var(--fs-xs); color: var(--faint);
+  font-size: var(--fs-xs); color: var(--dim);
   cursor: pointer; list-style: none; width: max-content;
   border-bottom: 1px dotted var(--border-strong);
 }
 .why > summary::-webkit-details-marker { display: none; }
-.why > summary:hover { color: var(--dim); }
-.why[open] > summary { color: var(--dim); margin-bottom: 6px; }
+.why > summary:hover { color: var(--text); border-bottom-color: var(--accent-line); }
+.why[open] > summary { color: var(--text); margin-bottom: 6px; }
 .why > p {
   margin: 0; font-size: var(--fs-xs); color: var(--dim); line-height: 1.6;
   border-left: 2px solid var(--border-strong); padding-left: 11px;
