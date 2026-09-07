@@ -72,10 +72,21 @@ stage presence, and the streamer is the director. The visuals moved with the met
 12. **Nothing in the app is only a color.** Status carries a label as well as a hue (the orbs
     keep their text at every width), because a row of unlabeled dots is decoration, not status.
 
+13. **Paint is not free.** The app runs with hardware acceleration off on purpose — it shares
+    a machine, and a GPU, with OBS and a game — so every pixel is rasterised on the CPU and the
+    cost grows with the window. Effects that force a repaint of a large area on every frame are
+    therefore banned on anything that scrolls or sits over something that scrolls:
+    **no `backdrop-filter`** on cards, feeds or bars, and **no `background-attachment: fixed`**.
+    A non-scrolling background belongs on its own fixed layer (`.studio::before`). Blur is
+    allowed only on a transient overlay that appears above a still page, like the command
+    palette. This is not a micro-optimisation: at fullscreen these two rules were the difference
+    between a 17ms frame and a 220ms one.
+
 ## Tokens ([public/theme.css](public/theme.css))
 
 - **Surfaces:** `--bg` `--bg-2` (base gradient) · `--panel` (solid) · `--glass` `--glass-2`
-  (translucent fills) · `--border` `--border-strong`.
+  (translucent fills) · `--glass-card` (card fill; carries the panel on its own, since nothing
+  blurs behind it) · `--border` `--border-strong`.
 - **Text:** `--text` `--dim` `--faint`.
 - **Accent (the human):** `--accent` `--accent-2` `--on-accent` `--accent-soft`
   `--accent-line`. Themeable at runtime (violet/cyan/emerald/amber/magenta) by overriding these
