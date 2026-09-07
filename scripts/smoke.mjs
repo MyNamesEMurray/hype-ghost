@@ -50,6 +50,16 @@ try {
     if (!good) failed = true;
   }
 
+  // The manual update check must answer even with no host attached: headless
+  // there is no updater, and the endpoint has to say so rather than hang or
+  // 500. (The packaged path — a real check against GitHub Releases — needs
+  // Electron and is out of scope here.)
+  const upd = await fetch(base + '/api/update/check', { method: 'POST' });
+  const updBody = await upd.json().catch(() => ({}));
+  const updOk = upd.status === 200 && updBody.ok === false && typeof updBody.error === 'string';
+  console.log(`${updOk ? 'ok  ' : 'FAIL'} POST /api/update/check -> ${upd.status} ${JSON.stringify(updBody)}`);
+  if (!updOk) failed = true;
+
   // The deck and overlay live on the WebSocket — assert a client gets the
   // init snapshot (state + history) on connect.
   const wsOk = await new Promise((resolve) => {

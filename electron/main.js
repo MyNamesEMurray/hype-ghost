@@ -60,6 +60,8 @@ let tray = null;
 let server = null;
 let quitting = false;
 let updateReady = null; // version string once an update is downloaded
+let checkingByHand = false; // a Settings-initiated check ignores the skip marker
+let checkUpdatesNow = null; // set on packaged builds; powers Settings → App
 let keepRendererAlive = false; // TTS speaks from the renderer, so it must survive close
 
 function installUpdateNow() {
@@ -246,6 +248,14 @@ if (gotLock) app.whenReady().then(() => {
         });
         return r.canceled ? null : r.filePaths[0];
       },
+      // Settings → App → "Check for updates". Only a packaged build can update
+      // itself, so running from source passes no hook and the button never
+      // appears, rather than appearing and failing. checkUpdatesNow is wired
+      // below once the updater is configured; until then there is nothing to
+      // check, which is the honest answer during the first moments of startup.
+      ...(app.isPackaged && !SMOKE
+        ? { checkUpdates: () => (checkUpdatesNow ? checkUpdatesNow() : { state: 'starting' }) }
+        : {}),
     });
   } catch (err) {
     dialog.showErrorBox('Hype Ghost failed to start', String(err.message || err));
@@ -261,8 +271,12 @@ if (gotLock) app.whenReady().then(() => {
   // Auto-update from GitHub Releases (configurable: app.autoUpdate in config.json).
   // A tray-resident app rarely quits, so a downloaded update must be actionable:
   // a real dialog (toasts are unreliable) + a tray menu item, not just install-on-quit.
+  // The listeners below are wired whenever this is a packaged build, even with
+  // automatic updates switched off: "Check for updates" in Settings is an
+  // explicit request, and it would be useless if finding an update led nowhere.
+  // Only the check at launch is what `app.autoUpdate` turns off.
   const autoUpdateEnabled = appCfg.autoUpdate !== false;
-  if (app.isPackaged && !SMOKE && autoUpdateEnabled) {
+  if (app.isPackaged && !SMOKE) {
     const { autoUpdater } = electronUpdater;
     // "Skip this update" memory: a skipped version (or older) is never even
     // downloaded again — the user is asked only when something strictly newer
@@ -293,6 +307,10 @@ if (gotLock) app.whenReady().then(() => {
 
     autoUpdater.autoDownload = false; // decide *before* pulling ~80MB
     autoUpdater.on('update-available', (info) => {
+      // A skipped version stays skipped for automatic checks only. Asking for a
+      // check by hand is asking about that version too, so the marker (there is
+      // only ever one) is dropped rather than silently swallowing the answer.
+      if (checkingByHand) updateSkip.clear();
       if (updateSkip.isSkipped(info.version)) {
         console.log(`[update] v${info.version} is out, but you skipped it — staying quiet until something newer.`);
         return;
@@ -322,7 +340,32 @@ if (gotLock) app.whenReady().then(() => {
         console.log(`[update] v${info.version} skipped — you'll be asked again for the next release.`);
       }
     });
-    autoUpdater.checkForUpdates().catch((err) => console.warn('[update] check failed:', err.message));
+    if (autoUpdateEnabled) {
+      autoUpdater.checkForUpdates().catch((err) => console.warn('[update] check failed:', err.message));
+    } else {
+      console.log('[update] automatic checks are off — Settings → App → Check for updates still works.');
+    }
+
+    // Settings → App → "Check for updates". Reports what happened rather than
+    // going quiet: on a tray app an unanswered button is indistinguishable from
+    // a broken one. The download and the restart prompt are the same path the
+    // automatic check uses, so there is one update flow, not two.
+    checkUpdatesNow = async () => {
+      if (updateReady) return { state: 'downloaded', version: updateReady };
+      checkingByHand = true;
+      try {
+        const result = await autoUpdater.checkForUpdates();
+        const found = result?.updateInfo?.version;
+        // isUpdateAvailable is authoritative where electron-updater provides
+        // it; the version comparison is the fallback, never the other way
+        // round, since a channel switch can legitimately offer an older build.
+        const available = result?.isUpdateAvailable ?? Boolean(found && found !== app.getVersion());
+        if (!available) return { state: 'current', version: app.getVersion() };
+        return { state: 'downloading', version: found };
+      } finally {
+        checkingByHand = false;
+      }
+    };
   }
 
   if (SMOKE) {
