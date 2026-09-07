@@ -94,7 +94,9 @@ stage presence, and the streamer is the director. The visuals moved with the met
 components (`.card` `.pill` `.chip` `.tab` `.result` `.badge-ai` `.orb` layout helpers).
 Shared components as of the 3.1 polish pass: `.card-head` (a card's title row), `.section`
 (a rule inside a long card, so a settings tab reads as one page rather than a stack of boxes),
-`.setting` + `.why` (a labelled control with its explanation folded away), `.seg` (segmented
+`.setting` + `.why` (a labelled control with its explanation folded away behind a small
+circular **i**, level with the label inside a `.setting`; the summary keeps its question as
+text for screen readers, so pages write no markup of their own), `.seg` (segmented
 control), `.empty-state`, `.toolbar` / `.spacer`, and `.kbd`. Each page's `<style>` block
 contains **layout only** — the deck's stage/feed grid, the energy
 dial and cast-tile treatments, the settings nav, the overlay's on-video styling. If a rule
