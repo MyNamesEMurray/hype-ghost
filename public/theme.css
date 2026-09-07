@@ -15,6 +15,7 @@
   --panel: #14141d;          /* solid card fallback */
   --glass: rgba(28, 28, 40, 0.62);   /* translucent card fill */
   --glass-2: rgba(20, 20, 30, 0.5);  /* recessed wells */
+  --glass-card: rgba(26, 26, 37, 0.88); /* card fill: opaque enough to read as a panel with no blur behind it */
   --border: rgba(255, 255, 255, 0.09);
   --border-strong: rgba(255, 255, 255, 0.16);
 
@@ -70,12 +71,33 @@ body {
   margin: 0;
   color: var(--text);
   font: var(--fs-base)/1.55 "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The studio gradient, on its own fixed layer.
+   It used to be a background-attachment: fixed on <body>, which looks the same
+   and scrolls appallingly: a fixed attachment cannot be scrolled as a layer, so
+   the browser repaints the whole viewport's gradient every frame. The app runs
+   with hardware acceleration off on purpose (it shares a GPU with OBS and a
+   game), so that repaint is on the CPU, and its cost grows with the window —
+   which is why it was worst exactly where it hurts, fullscreen.
+
+   Opt-in rather than automatic, and that direction is deliberate: the overlay
+   is a transparent guest on someone's live stream, and a page that forgets
+   this class merely looks flat, where an automatic layer would paint over the
+   broadcast. `background: transparent` on <body> would not save it — a
+   pseudo-element is not the body's background. */
+.studio::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
   background:
     radial-gradient(1100px 620px at 82% -8%, rgba(167, 139, 250, 0.12), transparent 60%),
     radial-gradient(900px 560px at 6% 108%, rgba(90, 209, 255, 0.09), transparent 55%),
     linear-gradient(180deg, var(--bg-2), var(--bg));
-  background-attachment: fixed;
-  -webkit-font-smoothing: antialiased;
 }
 
 /* ---------- typography ---------- */
@@ -146,9 +168,11 @@ input:focus:not(:focus-visible), textarea:focus:not(:focus-visible), select:focu
 
 /* ---------- components ---------- */
 .card {
-  background: var(--glass);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  /* No backdrop blur. Blurring a backdrop means re-reading and re-blurring it
+     every frame the card moves, and on a CPU rasteriser that was the single
+     biggest cause of scroll jank — for an effect that is nearly invisible over
+     a dark, low-contrast gradient. The fill carries the panel instead. */
+  background: var(--glass-card);
   border: 1px solid var(--border);
   border-radius: var(--r-xl);
   padding: 20px 24px;
