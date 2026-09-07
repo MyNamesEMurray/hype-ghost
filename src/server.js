@@ -14,7 +14,8 @@ import { Brain } from './brain.js';
 import { TwitchViewers, DecApi, isGameCategory } from './twitch.js';
 import { TwitchChat } from './twitchchat.js';
 import { TranscriptFeed } from './transcript.js';
-import { collectTerms, buildMicCheckScript, deriveCorrections, wordErrorRate, compileCorrections, applyCorrections } from './speech.js';
+import { collectTerms, buildMicCheckScript, deriveCorrections, wordErrorRate, compileCorrections, applyCorrections, buildInitialPrompt } from './speech.js';
+import { LOCALVOCAL_PRESET } from './localvocal.js';
 import { SapiTts } from './tts.js';
 import { GhostLoop } from './loop.js';
 
@@ -86,10 +87,15 @@ export function startServer(opts = {}) {
   // plus anything the streamer added by hand. The mic check builds its reading
   // script from these, and the brain is told to recover near-misses of them.
   if (!isPlainObject(config.speech)) config.speech = { dropHallucinations: true, vocabulary: [], corrections: [] };
-  const speechTerms = () =>
+  // `game` is optional because this is called at startup (to build the brain's
+  // cached prompt) before the game is known — callers that run later pass it,
+  // so the transcriber and the mic check get the game title too, which is one
+  // of the proper nouns speech-to-text fumbles hardest.
+  const speechTerms = ({ game = '' } = {}) =>
     collectTerms({
       cast: personas,
       twitchChannel: config.twitch?.channel,
+      game,
       vocabulary: config.speech.vocabulary,
     });
   const brain = new Brain({
@@ -289,7 +295,7 @@ export function startServer(opts = {}) {
     // The feeds read config.speech live, so accepting mic-check corrections
     // mid-stream applies to the very next line. (speech.vocabulary is not hot:
     // it is baked into the brain's cached system prompt at startup.)
-    'speech.corrections', 'speech.dropHallucinations',
+    'speech.corrections', 'speech.dropHallucinations', 'speech.matchVocabulary',
     'cadence.soloSeconds', 'cadence.quietSeconds', 'cadence.jitter', 'cadence.burstChance',
     'cadence.lullChance', 'cadence.replyDelaySeconds', 'cadence.minVoiceReplyGapSeconds',
     'cadence.voiceReplyRequiresAddress', 'cadence.voiceReplyDelaySeconds',
@@ -630,6 +636,32 @@ export function startServer(opts = {}) {
     res.json({ ok: true, game, text: gameInfo[gameKey(game)] || '' });
   });
 
+  // ---------- LocalVocal tuning + voice health (Settings → Voice) ----------
+  // We already know the names this install cares about, and Whisper takes an
+  // initial prompt that biases its decoder toward them. Generating it here
+  // means the streamer pastes one line instead of guessing at vocabulary, and
+  // the mic check can then price the difference in word error rate.
+  app.get('/api/voice/tuning', (_req, res) => {
+    const terms = speechTerms({ game: guideGame() });
+    res.json({
+      ok: true,
+      terms,
+      prompt: buildInitialPrompt({ terms, language: config.bot?.language }),
+      preset: LOCALVOCAL_PRESET,
+    });
+  });
+
+  // What the transcript itself says about the setup that produced it. Reported
+  // rather than acted on: every diagnosis is inferential, and silently changing
+  // behaviour on a guess would be worse than naming the setting and stopping.
+  app.get('/api/voice/health', (_req, res) => {
+    if (config.transcript.mode === 'off') {
+      return res.json({ ok: false, error: 'Voice awareness is off — turn it on above (and save) first.' });
+    }
+    const report = transcriptFeed.health.report();
+    res.json({ ok: true, ...report, engine: transcriptFeed.engine?.status() ?? null });
+  });
+
   // ---------- mic check (Settings → Voice) ----------
   // Hand the streamer a short script, listen to what LocalVocal makes of it,
   // and align the two. Because the reference text is known, the result is a
@@ -672,7 +704,7 @@ export function startServer(opts = {}) {
     if (config.transcript.mode === 'off') {
       return res.json({ ok: false, error: 'Turn on voice awareness above (and save) before running a mic check.' });
     }
-    const terms = speechTerms();
+    const terms = speechTerms({ game: guideGame() });
     const { lines, terms: covered } = buildMicCheckScript({ terms });
     micCheck = { script: lines, terms: covered, heard: [], startedAt: Date.now() };
     res.json({ ok: true, script: lines, terms: covered });
@@ -773,6 +805,9 @@ export function startServer(opts = {}) {
     ...config.transcript,
     windowSeconds: config.cadence.transcriptWindowSeconds,
     speech: config.speech,
+    // A function, not a list: the game is detected mid-stream, and it is one of
+    // the proper nouns a transcriber mangles hardest.
+    terms: () => speechTerms({ game: guideGame() }),
     obs,
     onSpeech: (line) => {
       const check = activeMicCheck();
@@ -800,6 +835,7 @@ export function startServer(opts = {}) {
     ...config.transcript2,
     windowSeconds: config.cadence.transcriptWindowSeconds,
     speech: config.speech,
+    terms: () => speechTerms({ game: guideGame() }),
     obs,
     onSpeech: (line) => {
       state.lastHeardParty = { text: line, ts: Date.now() };
@@ -1023,6 +1059,10 @@ export function startServer(opts = {}) {
     const next = title || game ? { title, game, source } : null;
     if (JSON.stringify(next) !== JSON.stringify(state.streamInfo)) {
       state.streamInfo = next;
+      // A new game means new proper nouns, so re-bias the decoder that will be
+      // asked to hear them. Only the local engine can take the hint live; the
+      // plugin modes get theirs from Settings → Voice.
+      transcriptFeed.syncPrompt();
       if (next) console.log(`[stream] ${next.game || '(no game)'}${next.title ? ' — "' + next.title + '"' : ''} (${next.source})`);
       broadcastState();
     }

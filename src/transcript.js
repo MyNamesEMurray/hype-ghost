@@ -1,5 +1,7 @@
 import { openSync, readSync, fstatSync, closeSync, existsSync, statSync } from 'node:fs';
-import { isHallucination, compileCorrections, applyCorrections } from './speech.js';
+import { isHallucination, compileCorrections, applyCorrections, applyVocabularyFixes, buildInitialPrompt } from './speech.js';
+import { VoiceHealth } from './voicehealth.js';
+import { SttEngine } from './sttengine.js';
 
 /**
  * LocalVocal can write plain text or SRT subtitles. In SRT, only every third
@@ -32,10 +34,13 @@ const MAX_CHUNK = 256 * 1024; // safety cap on a single delta read
  * map is applied, before anything reaches the cast or the deck feed.
  */
 export class TranscriptFeed {
-  constructor({ mode, file, textSource, pollSeconds, windowSeconds, obs, onSpeech, speech }) {
+  constructor({ mode, file, textSource, engineUrl, engineMinConfidence, pollSeconds, windowSeconds, obs, onSpeech, speech, terms }) {
     this.mode = mode || 'off';
     this.file = file;
     this.textSource = textSource;
+    this.engineUrl = engineUrl;
+    this.engineMinConfidence = Number.isFinite(Number(engineMinConfidence)) ? Number(engineMinConfidence) : 0;
+    this.engine = null;
     this.pollMs = (pollSeconds ?? 2) * 1000;
     this.windowMs = (windowSeconds ?? 120) * 1000;
     this.obs = obs;
@@ -43,8 +48,16 @@ export class TranscriptFeed {
     // Live reference to config.speech — hot config saves deep-assign into the
     // same object, so corrections apply mid-stream without a relaunch.
     this.speech = speech || {};
+    // Read live too, and as a function: the tracked names change when the cast
+    // or the detected game does, and phonetic matching is only as good as the
+    // list it matches against.
+    this.terms = typeof terms === 'function' ? terms : () => (Array.isArray(terms) ? terms : []);
     this.compiled = null; // corrections compiled once, keyed on array identity
     this.compiledFrom = null;
+    // Most "the transcription is bad" complaints are a LocalVocal setting, and
+    // every symptom is visible in the text we already ingest — so watch it go
+    // past and let the UI name the setting instead of guessing.
+    this.health = new VoiceHealth();
     this.entries = []; // {ts, text}
     this.lastHeardAt = null;
     // file-mode tail state
@@ -71,6 +84,30 @@ export class TranscriptFeed {
       } catch {}
       setInterval(() => this.pollFile(), this.pollMs);
       console.log(`[transcript] tailing LocalVocal output file: ${this.file}`);
+    } else if (this.mode === 'engine') {
+      if (!this.engineUrl) {
+        console.warn('[transcript] mode is "engine" but no engine URL configured (Settings → Voice).');
+        return;
+      }
+      // The one mode where we can bias the decoder ourselves instead of asking
+      // the streamer to paste a prompt into a plugin — and the one that reports
+      // a confidence, so a line the engine half-heard can be dropped rather
+      // than answered out loud.
+      // `ws` is imported lazily so the other three modes — and their tests —
+      // never pull a socket library they have no use for.
+      import('ws')
+        .then(({ default: WebSocket }) => {
+          this.engine = new SttEngine({
+            url: this.engineUrl,
+            initialPrompt: buildInitialPrompt({ terms: this.terms() }),
+            minConfidence: this.engineMinConfidence,
+            WebSocketImpl: WebSocket,
+            onSegment: ({ text }) => this.addLine(text),
+          });
+          this.engine.start();
+          console.log(`[transcript] listening to local speech-to-text engine: ${this.engineUrl}`);
+        })
+        .catch((err) => console.warn('[transcript] engine mode unavailable:', err.message));
     } else if (this.mode === 'textSource') {
       if (!this.textSource) {
         console.warn('[transcript] mode is "textSource" but no source name configured (Settings → Voice).');
@@ -84,6 +121,15 @@ export class TranscriptFeed {
       setInterval(() => this.pollTextSource(), this.pollMs);
       console.log(`[transcript] polling OBS text source: "${this.textSource}"`);
     }
+  }
+
+  /**
+   * Re-bias the engine's decoder after the tracked names change — the game is
+   * detected mid-stream, and the game title is one of the words a transcriber
+   * fumbles hardest. No-op in the modes we don't control.
+   */
+  syncPrompt() {
+    this.engine?.setInitialPrompt(buildInitialPrompt({ terms: this.terms() }));
   }
 
   /** Compiled corrections, rebuilt only when the config array is swapped out. */
@@ -102,9 +148,20 @@ export class TranscriptFeed {
     // Whisper filler invented during the near-silence between sentences would
     // otherwise read as the streamer speaking — and a voice reply to something
     // nobody said is worse than missing a line, so this is on by default.
-    if (this.speech?.dropHallucinations !== false && isHallucination(raw)) return;
-    const cleaned = applyCorrections(raw, this.corrections());
-    if (!cleaned) return; // a correction mapping to "" deletes the line
+    const filler = isHallucination(raw);
+    // Observed either way, and flagged: the *rate* of filler is what says
+    // whether voice activity detection is doing its job upstream.
+    this.health.observe(raw, { dropped: filler });
+    if (this.speech?.dropHallucinations !== false && filler) return;
+    const corrected = applyCorrections(raw, this.corrections());
+    if (!corrected) return; // a correction mapping to "" deletes the line
+    // The streamer's own fixes are authoritative, so they run first and win.
+    // This second pass catches a mangling of a tracked name that the mic check
+    // never happened to trigger — the names are the words the room runs on, and
+    // a mishear of one is the difference between a voice reply and silence.
+    const cleaned =
+      this.speech?.matchVocabulary === false ? corrected : applyVocabularyFixes(corrected, this.terms());
+    if (!cleaned) return;
     this.entries.push({ ts: Date.now(), text: cleaned });
     this.lastHeardAt = Date.now();
     this.prune();

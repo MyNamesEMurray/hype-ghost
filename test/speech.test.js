@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   isHallucination, compileCorrections, applyCorrections, wordErrorRate,
   deriveCorrections, collectTerms, buildMicCheckScript, normalizeForCompare, similarity,
+  buildInitialPrompt, phoneticKey, vocabularyMatches, applyVocabularyFixes,
 } from '../src/speech.js';
 
 // ---- hallucination filtering ----
@@ -162,4 +163,127 @@ test('the mic-check script covers every term and works with none', () => {
   assert.ok(lines.length >= 3);
   // No cast, no channel, no vocabulary — still a readable baseline script.
   assert.ok(buildMicCheckScript({ terms: [] }).lines.length >= 2);
+});
+
+// ---- whisper initial prompt ----
+
+test('the initial prompt is a sentence containing every term verbatim', () => {
+  const prompt = buildInitialPrompt({ terms: ['Beacon', 'Wisp', 'Hollow Knight'] });
+  for (const term of ['Beacon', 'Wisp', 'Hollow Knight']) {
+    assert.ok(prompt.includes(term), `${term} missing from prompt`);
+  }
+  // Whisper copies the prompt's style: sentence case and a full stop, never a
+  // bare word list, or the transcript comes back unpunctuated.
+  assert.ok(/[a-z]/.test(prompt) && prompt.endsWith('.'));
+  assert.ok(prompt.split(' ').length > 4);
+});
+
+test('the initial prompt is deterministic and deduplicates case-insensitively', () => {
+  const a = buildInitialPrompt({ terms: ['Beacon', 'Wisp'] });
+  assert.equal(a, buildInitialPrompt({ terms: ['Beacon', 'Wisp'] }));
+  assert.equal(buildInitialPrompt({ terms: ['Beacon', 'beacon', 'Wisp'] }), a);
+});
+
+test('the initial prompt drops whole terms rather than truncating one', () => {
+  const terms = Array.from({ length: 12 }, (_, i) => `Ghostname${i}Longenough`);
+  const prompt = buildInitialPrompt({ terms });
+  assert.ok(prompt.length <= 200, `too long: ${prompt.length}`);
+  assert.ok(prompt.endsWith('.'));
+  // Some terms had to go, and every mention left in the prompt is a whole
+  // term — a fragment at the tail would teach whisper the fragment.
+  const kept = terms.filter((t) => prompt.includes(t));
+  assert.ok(kept.length > 0 && kept.length < terms.length);
+  assert.equal((prompt.match(/Ghostname/g) ?? []).length, kept.length);
+});
+
+test('the initial prompt is empty when there is nothing to bias toward', () => {
+  assert.equal(buildInitialPrompt(), '');
+  assert.equal(buildInitialPrompt({}), '');
+  assert.equal(buildInitialPrompt({ terms: [] }), '');
+  assert.equal(buildInitialPrompt({ terms: ['', '   ', null] }), '');
+  // Oversized junk is skipped rather than pasted into LocalVocal.
+  assert.equal(buildInitialPrompt({ terms: ['x'.repeat(200)] }), '');
+});
+
+// ---- phonetic keys ----
+
+test('phonetic keys collapse the swaps whisper makes on names', () => {
+  assert.equal(phoneticKey('bacon'), phoneticKey('Beacon'));
+  assert.equal(phoneticKey('night'), phoneticKey('knight'));
+  assert.equal(phoneticKey('whisp'), phoneticKey('wisp'));
+  assert.equal(phoneticKey('fotos'), phoneticKey('photoz'));
+  assert.notEqual(phoneticKey('banana'), phoneticKey('Beacon'));
+  assert.equal(phoneticKey('...'), '');
+  assert.equal(phoneticKey(''), '');
+  assert.equal(phoneticKey(undefined), '');
+});
+
+// ---- phonetic near-miss correction ----
+
+test('repairs a name whisper mangled, preserving casing and punctuation around it', () => {
+  assert.deepEqual(vocabularyMatches('lol, bacon is right!', ['Beacon']), [{ from: 'bacon', to: 'Beacon' }]);
+  assert.equal(applyVocabularyFixes('lol, bacon is right!', ['Beacon']), 'lol, Beacon is right!');
+  assert.equal(applyVocabularyFixes('BACON, chat.', ['Beacon']), 'Beacon, chat.');
+});
+
+test('a two-word name heard as two mangled words is repaired as one unit', () => {
+  assert.deepEqual(
+    vocabularyMatches('i beat hollow night last night', ['Hollow Knight']),
+    [{ from: 'hollow night', to: 'Hollow Knight' }]
+  );
+  assert.equal(
+    applyVocabularyFixes('i beat hollow night last night', ['Hollow Knight']),
+    'i beat Hollow Knight last night'
+  );
+});
+
+test('a correctly spelled term is left exactly as written', () => {
+  assert.deepEqual(vocabularyMatches('Beacon and Hollow Knight are here', ['Beacon', 'Hollow Knight']), []);
+  assert.equal(
+    applyVocabularyFixes('Beacon and Hollow Knight are here', ['Beacon', 'Hollow Knight']),
+    'Beacon and Hollow Knight are here'
+  );
+});
+
+// A silent rewrite of real speech is worse than a missed name, so a shared
+// phonetic key is necessary but not sufficient — "pecan" keys the same as
+// "Beacon" and is held back by the similarity floor.
+test('unrelated speech is never rewritten', () => {
+  assert.equal(applyVocabularyFixes('i love pecan pie', ['Beacon']), 'i love pecan pie');
+  assert.equal(applyVocabularyFixes('the banana bread is done', ['Beacon']), 'the banana bread is done');
+  assert.equal(phoneticKey('pecan'), phoneticKey('Beacon'));
+  assert.ok(similarity('pecan', 'Beacon') < 0.6);
+});
+
+// Short names collide with ordinary words far too often to auto-correct.
+test('terms shorter than four characters are ignored', () => {
+  assert.deepEqual(vocabularyMatches('the ashe of it all', ['Ash']), []);
+  assert.equal(applyVocabularyFixes('as we were saying', ['Ash']), 'as we were saying');
+});
+
+test('vocabulary matching handles empty inputs', () => {
+  assert.deepEqual(vocabularyMatches('', ['Beacon']), []);
+  assert.deepEqual(vocabularyMatches('anything at all', []), []);
+  assert.deepEqual(vocabularyMatches(undefined, undefined), []);
+  assert.equal(applyVocabularyFixes('', []), '');
+  assert.equal(applyVocabularyFixes(undefined, undefined), '');
+  assert.equal(applyVocabularyFixes('hey chat', []), 'hey chat');
+});
+
+// The whole point: a mishear the 20-second mic-check script never provoked
+// still gets repaired.
+test('auto-matching fixes a name the mic check never covered', () => {
+  const terms = collectTerms({ cast: [{ name: 'Beacon' }], vocabulary: ['Hollow Knight'] });
+  const repaired = applyVocabularyFixes('bacon did you see that hollow night boss', terms);
+  assert.equal(repaired, 'Beacon did you see that Hollow Knight boss');
+});
+
+test('a word pair is only fused into a one-word name on a close resemblance', () => {
+  // "back on" is two real words a streamer says all the time, and it shares a
+  // phonetic key with "Beacon" — fusing it would silently rewrite real speech.
+  assert.equal(applyVocabularyFixes('get back on the point', ['Beacon']), 'get back on the point');
+  // A name genuinely split in two by the transcriber still gets put back.
+  assert.equal(applyVocabularyFixes('hey bee con', ['Beacon']), 'hey Beacon');
+  // A two-word term matching two heard words is unaffected by the tighter floor.
+  assert.equal(applyVocabularyFixes('playing hollow night', ['Hollow Knight']), 'playing Hollow Knight');
 });

@@ -118,6 +118,8 @@
     "mode": "off",
     "file": "",
     "textSource": "LocalVocal Captions",
+    "engineUrl": "ws://127.0.0.1:9090",
+    "engineMinConfidence": 0.5,
     "pollSeconds": 2,
     "showInFeed": true
   },
@@ -125,11 +127,14 @@
     "mode": "off",
     "file": "",
     "textSource": "Party Captions",
+    "engineUrl": "ws://127.0.0.1:9091",
+    "engineMinConfidence": 0.5,
     "pollSeconds": 2,
     "label": "the people the streamer is playing with (co-op partners / a Discord or party call)"
   },
   "speech": {
     "dropHallucinations": true,
+    "matchVocabulary": true,
     "vocabulary": [],
     "corrections": []
   },

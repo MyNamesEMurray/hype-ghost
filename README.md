@@ -106,6 +106,15 @@ Quit Hype Ghost.
   for the names it got wrong, applied to every transcript line from then on (live, no
   restart). It is a measurement, not training — nothing is uploaded and no model is
   modified. Tuning that helps *before* you get there, in order of impact:
+  - **Paste in an initial prompt.** Whisper conditions its decoder on one, and proper nouns
+    are exactly what it fumbles. **Settings → Voice → LocalVocal tuning → Show my settings**
+    writes the prompt for you from your ghosts, your channel, the current game and
+    `speech.vocabulary`; copy it into the Transcription filter's **Initial prompt** box.
+    Costs nothing, needs no bigger model, and the mic check will show it in the number.
+  - **Let it check its own setup.** **Settings → Voice → Voice health** reads the last stretch
+    of transcript and names the LocalVocal setting behind what it sees — stuttering duplicate
+    lines mean partial transcription is on, one- and two-word fragments mean the buffer is
+    too short, filler in the silences means VAD is off.
   - **Use a bigger, English-only model.** LocalVocal defaults to `tiny.en`. Moving to
     `small.en` (or `medium.en` on a strong PC) is the single biggest accuracy win, and at
     equal size the `.en` models beat the multilingual ones for English.
@@ -123,6 +132,14 @@ Quit Hype Ghost.
     really grows: the mic check covers names you can predict up front, this covers whatever
     a real stream throws at it. Re-running the mic check shows your past scores, so a
     LocalVocal change can be judged by a number instead of a feeling.
+  - **Run a real speech-to-text engine instead** (`transcript.mode: "engine"`). Point Hype
+    Ghost at a speech-to-text server running on your own PC (whisper.cpp's `server`,
+    faster-whisper-server, WhisperLive) and it gets what LocalVocal cannot give it: voice
+    activity detection, so silence never reaches the decoder to be hallucinated into filler;
+    a per-line **confidence** score, so a line the engine isn't sure about is dropped rather
+    than answered; and the initial prompt above wired in automatically instead of pasted.
+    Loopback addresses only — audio still never leaves your machine. LocalVocal stays the
+    default and nothing about the other modes changes.
   - Note the trade-off with the OBS crash below: the CPU backend is the safe one, and it's
     also what limits how big a model you can run. Move up model sizes until OBS starts
     struggling, then step back one.
@@ -162,10 +179,13 @@ Quit Hype Ghost.
 | `twitch.channel` | *(Optional)* Your channel name — on its own it enables **read-only** viewer detection, chat awareness, and live game/title context, no developer app needed. Without it, use the dashboard's manual mode toggle. |
 | `twitch.decapi` | Fetch viewer count + stream info keylessly via [DecAPI](https://decapi.me), a community-run Twitch API proxy (default true). Only your public channel name is sent to it. Set false to opt out. |
 | `twitch.clientId` / `clientSecret` | *(Optional, power users)* App credentials from dev.twitch.tv — when set, the official Helix API is used directly instead of DecAPI. |
-| `transcript.mode` | `off`, `file` (tail LocalVocal's .txt/.srt output), or `textSource` (poll a text source over OBS WebSocket). |
+| `transcript.mode` | `off`, `file` (tail LocalVocal's .txt/.srt output), `textSource` (poll a text source over OBS WebSocket), or `engine` (connect to a local speech-to-text server you run — see `transcript.engineUrl`). |
 | `transcript.showInFeed` | Echo what voice awareness hears into the deck feed as faint 🎙 lines (party audio as 🎧) so you can spot mishears the cast might be reacting to (default true). Deck only — never in the cast's chat history, the recap, or the on-stream overlay. |
 | `transcript2.*` | *(Optional)* A **second** transcription channel for party/co-op audio (a separate audio device with its own LocalVocal filter). Same `mode`/`file`/`textSource`/`pollSeconds` as `transcript`, plus `label` — how the cast refers to those people (e.g. "my co-op squad"). Treated as *other people*, never as the streamer. |
 | `speech.dropHallucinations` | Discard speech-to-text filler — "Thank you.", "Thanks for watching!", "please subscribe", words stuck on repeat (default true). Whisper invents these during near-silence, which is most of a mic-only track: the pauses between sentences, breaths, keyboard, room tone. Matched whole-line only, so a real sentence containing those words survives. Applies to both channels. |
+| `transcript.engineUrl` | Engine mode only: the loopback WebSocket URL of a local speech-to-text server (default `ws://127.0.0.1:9090`). Non-loopback URLs are refused — the audio-never-leaves-your-PC promise is not negotiable. |
+| `transcript.engineMinConfidence` | Engine mode only: drop a line the engine reports below this confidence, 0–1 (default 0.5). A line with no confidence reported is always kept, since unknown is not the same as bad. 0 keeps everything. |
+| `speech.matchVocabulary` | Rewrite a transcript word that *sounds* like a tracked name (ghosts, channel, game, `speech.vocabulary`) to that name, even when the mic check never saw that mangling (default true). Names of four letters or more only, and only on a genuine phonetic match, so ordinary speech is untouched. `speech.corrections` is applied first and always wins. |
 | `speech.corrections` | Word fixes applied to every transcript line before the cast sees it: `[{ "from": "bacon", "to": "Beacon" }]`. Whole words only, case-insensitive; a blank `to` deletes the phrase. Build this from **Settings → Voice → Mic check**, or by hand. Applies live on save. |
 | `memory.gameInfoEvery` | How often (in cast messages) the cast refreshes its **screen guide** for the current game — what the HUD means, what a death screen looks like, where your overlay sits (default 8). Written as a tail section on generations that are already happening, so it costs no extra API calls. Stored per game in `game-notes.json` and reused on later streams; view and edit it at Settings → Stream. |
 | `memory.gameInfoSkip` | Categories that aren't a single game — `Just Chatting`, `Music`, `IRL` and friends, pre-filled with the common Twitch ones. No screen guide is learned, stored, or read under these, because one keyed to "Just Chatting" would blend every game played beneath it and describe none of them. Whole-name match, case- and space-insensitive (so `Music` skips but `Music Racer` doesn't). Add your own if a Window Capture reports something like a browser as the "game". |
