@@ -73,7 +73,9 @@ Quit Hype Ghost.
   Settings → App). When an update is ready you choose: **Restart now**, **Later** (from the
   tray menu, or it installs when you quit), or **Skip this update** — a skipped version is
   never offered again (not even downloaded); you're only asked again when something newer
-  is released.
+  is released. **Settings → App → Check for updates** looks right now, whether or not
+  automatic checks are on — and because asking by hand is asking about the version you
+  skipped too, it clears a skip rather than staying quiet about it.
 - **Settings → About** shows the app version, the honesty/privacy rules at a glance, where
   your data lives, and **Reset to factory defaults** — wipes all settings and memory, then
   re-runs the setup wizard.
@@ -161,7 +163,7 @@ Quit Hype Ghost.
 | `theme.accent` | Your (the human's) accent color on the deck: `violet cyan emerald amber magenta` (default violet). |
 | `overlay.theme` / `overlay.reactions` | Overlay style (`cards` or `compact`) and whether a ✨ moment pop shows on the overlay. |
 | `app.updateChannel` | Which builds the auto-updater follows: `auto` (default — matches the build you're running, the long-standing behaviour), `stable`, or `beta` (early test builds). Beta builds are published as GitHub prereleases and stable installs never see them. Note a beta install won't return to stable by itself — a stable release only publishes to the stable feed — so `stable` is the deliberate way back, and the only case allowed to step the version down. |
-| `app.autoUpdate` | Check GitHub for new versions at launch and update automatically (default true). |
+| `app.autoUpdate` | Check GitHub for new versions at launch and update automatically (default true). Off still leaves **Settings → App → Check for updates** working, so you can look when you choose to. |
 | `app.setupComplete` | Set by the setup wizard when you finish it (even via the brain step's "skip"). Once true, `/` opens the dashboard — without a brain that's **preview mode**: everything explorable, cast quiet, $0. |
 | `app.costMeter` | Show the live session cost readout in the deck's top bar (default true). |
 | `app.fontScale` | UI text size for the deck/settings/wizard: `1` default, `1.1` large, `1.25` extra large (Settings → App, applies live). Never shrinks below default, and the on-stream overlay is unaffected. |

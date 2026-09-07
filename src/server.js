@@ -42,6 +42,8 @@ const appVersion = (() => {
  * @param {() => void} [opts.onPauseChanged]  pause state changed (host should refresh tray)
  * @param {(err: Error) => void} [opts.onFatal]  unrecoverable server error (e.g. port in use)
  * @param {() => Promise<string|null>} [opts.pickFile]  native file dialog (desktop app only)
+ * @param {() => Promise<{state: string, version?: string}>} [opts.checkUpdates]
+ *   ask the host to check for a new release now (packaged desktop app only)
  * @param {{info: () => Object, pickFolder: () => Promise<string|null>, setDir: (dir: string|null) => string[]}} [opts.storage]
  *   data-folder card (desktop app only): current location, native folder dialog, migrate + repoint
  * @param {string[]} [opts.resetPaths]   extra files factory reset must delete (storage pointer, log, stale default-dir copies)
@@ -282,6 +284,9 @@ export function startServer(opts = {}) {
       archetypes: ARCHETYPES,
       accents: ACCENT_COLORS,
       canRestart: Boolean(opts.onConfigSaved),
+      // Absent when the app can't update itself (headless, or running from
+      // source), so the button is hidden rather than offered and then refused.
+      canCheckUpdates: Boolean(opts.checkUpdates),
     });
   });
 
@@ -550,6 +555,25 @@ export function startServer(opts = {}) {
         ok: false,
         error: 'Could not reach OBS — is it running with the WebSocket server enabled? (' + err.message + ')',
       });
+    }
+  });
+
+  // ---------- check for updates now (Settings → App) ----------
+  // The host owns the updater; the server only relays the answer, so there is
+  // no second update path to keep in step with the automatic one. States:
+  // "downloaded" (waiting on a restart), "downloading", "current",
+  // "starting" (updater not wired yet), or an error message.
+  app.post('/api/update/check', async (_req, res) => {
+    if (!opts.checkUpdates) {
+      return res.json({ ok: false, error: 'Updates apply to the installed app — this one is running from source.' });
+    }
+    try {
+      const result = (await opts.checkUpdates()) || {};
+      res.json({ ok: true, state: result.state || 'current', version: result.version || null });
+    } catch (err) {
+      // A failed check is usually no network or a GitHub hiccup, and it must
+      // not look like "you're up to date".
+      res.json({ ok: false, error: err.message });
     }
   });
 

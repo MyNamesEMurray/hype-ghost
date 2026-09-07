@@ -596,6 +596,15 @@
             <p class="hint">Checks GitHub for new versions at launch.</p>
           </div>
 
+          <div class="setting" id="updCheckRow" hidden>
+            <label class="lbl"><span>Check for updates</span></label>
+            <p class="hint">Looks now, whether or not automatic updates are on.</p>
+            <div class="test">
+              <button id="updCheck">Check now</button>
+              <span class="result" id="updResult"></span>
+            </div>
+          </div>
+
           <div class="setting adv">
             <label class="lbl" for="updChannel"><span>Which builds to update to</span></label>
             <p class="hint">Takes effect on the next launch.</p>
@@ -878,6 +887,7 @@
       else if (v !== undefined && v !== null) f.value = v;
     }
     $('aboutVersion').textContent = 'v' + (data.version || '?');
+    $('updCheckRow').hidden = !data.canCheckUpdates;
     $('aboutConfigPath').textContent = data.configPath || '';
     initStorage();
     applyFontScale(cfg.app && cfg.app.fontScale);
@@ -903,6 +913,29 @@
     initTts();
     loadGameInfo();
   });
+
+  // ---- check for updates ----
+  // Only the packaged app can update itself, so the row stays hidden unless the
+  // server says a host is listening (see canCheckUpdates in /api/config).
+  $('updCheck').onclick = async () => {
+    const out = $('updResult');
+    $('updCheck').disabled = true;
+    out.className = 'result'; out.textContent = 'checking…';
+    const r = await fetch('/api/update/check', { method: 'POST' }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
+    $('updCheck').disabled = false;
+    if (!r.ok) { out.className = 'result err'; out.textContent = '✗ ' + r.error; return; }
+    if (r.state === 'downloaded') {
+      out.className = 'result ok';
+      out.textContent = `✓ v${r.version} is downloaded — restart to install it (tray menu, or on your way out).`;
+    } else if (r.state === 'downloading') {
+      out.className = 'result ok';
+      out.textContent = `✓ v${r.version} found — downloading now. You'll be asked to restart when it's ready.`;
+    } else if (r.state === 'starting') {
+      out.textContent = 'The updater is still starting up — try again in a moment.';
+    } else {
+      out.textContent = `You're on the latest version${r.version ? ' (v' + r.version + ')' : ''}.`;
+    }
+  };
 
   // ---- LocalVocal tuning ----
   // Whisper conditions its decoder on an initial prompt, so handing it the
