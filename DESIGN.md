@@ -57,6 +57,14 @@ stage presence, and the streamer is the director. The visuals moved with the met
    | ⚠ | warnings & system notices |
    | ✓ / ✗ | test results |
 
+10. **Labels, not essays.** A control says what it does in a few words; the reasoning folds
+    away behind a "why?" disclosure (`.why`). The long paragraph explaining a setting is real
+    and worth keeping — a streamer configuring this mid-stream just isn't reading it, and a
+    wall of prose makes the one control they came for hard to find. Depth on demand, never
+    depth by default.
+11. **Nothing in the app is only a color.** Status carries a label as well as a hue (the orbs
+    keep their text at every width), because a row of unlabeled dots is decoration, not status.
+
 ## Tokens ([public/theme.css](public/theme.css))
 
 - **Surfaces:** `--bg` `--bg-2` (base gradient) · `--panel` (solid) · `--glass` `--glass-2`
@@ -77,6 +85,10 @@ stage presence, and the streamer is the director. The visuals moved with the met
 
 `theme.css` owns tokens, base elements (buttons, inputs, selects, headings), and shared
 components (`.card` `.pill` `.chip` `.tab` `.result` `.badge-ai` `.orb` layout helpers).
-Each page's `<style>` block contains **layout only** — the deck's stage/feed grid, the energy
+Shared components as of the 3.1 polish pass: `.card-head` (a card's title row), `.section`
+(a rule inside a long card, so a settings tab reads as one page rather than a stack of boxes),
+`.setting` + `.why` (a labelled control with its explanation folded away), `.seg` (segmented
+control), `.empty-state`, `.toolbar` / `.spacer`, and `.kbd`. Each page's `<style>` block
+contains **layout only** — the deck's stage/feed grid, the energy
 dial and cast-tile treatments, the settings nav, the overlay's on-video styling. If a rule
 would be useful on a second page, it belongs in theme.css.
