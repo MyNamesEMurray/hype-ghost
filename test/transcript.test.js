@@ -170,3 +170,74 @@ test('textSource mode fires onSpeech on changed captions, same as file mode', as
   assert.deepEqual(heard, ['did you see that dragon']);
   assert.equal(feed.getWindow(), 'did you see that dragon');
 });
+
+// ---------------------------------------------------------------------------
+// Vocabulary matching, health observation, and engine mode — the wiring that
+// joins the speech layer, the diagnostics and the local engine to the feed.
+// ---------------------------------------------------------------------------
+
+function makeVocabFeed({ speech = {}, terms = [] } = {}) {
+  const heard = [];
+  const feed = new TranscriptFeed({
+    mode: 'off',
+    speech,
+    terms: () => terms,
+    onSpeech: (line) => heard.push(line),
+  });
+  return { feed, heard };
+}
+
+test('a mangled tracked name is recovered, and ordinary speech is left alone', () => {
+  const { feed, heard } = makeVocabFeed({ terms: ['Beacon', 'Hollow Knight'] });
+  feed.addLine('hey bacon did you see that');
+  feed.addLine('back on hollow night again');
+  feed.addLine('i had pecan pie'); // sounds close, looks nothing like it
+  assert.deepEqual(heard, [
+    'hey Beacon did you see that',
+    'back on Hollow Knight again',
+    'i had pecan pie',
+  ]);
+});
+
+test("the streamer's own fixes run first and win", () => {
+  // A correction is the streamer telling us, not guessing, so it must not be
+  // second-guessed by the phonetic pass afterwards.
+  const { feed, heard } = makeVocabFeed({
+    speech: { corrections: [{ from: 'wasp', to: 'Wisp' }] },
+    terms: ['Wisp', 'Wasteland'],
+  });
+  feed.addLine('wasp is asking again');
+  assert.deepEqual(heard, ['Wisp is asking again']);
+});
+
+test('matchVocabulary: false leaves the transcript exactly as heard', () => {
+  const { feed, heard } = makeVocabFeed({ speech: { matchVocabulary: false }, terms: ['Beacon'] });
+  feed.addLine('hey bacon');
+  assert.deepEqual(heard, ['hey bacon']);
+});
+
+test('health observes every line, flagging the ones dropped as filler', () => {
+  const { feed, heard } = makeVocabFeed();
+  feed.addLine('that was a clutch play');
+  feed.addLine('Thank you.'); // whisper filler invented during silence
+  const { stats } = feed.health.report();
+  assert.deepEqual(heard, ['that was a clutch play']);
+  assert.equal(stats.observed, 2, 'a dropped line is still evidence about VAD');
+  assert.equal(stats.dropped, 1);
+});
+
+test('engine mode refuses a non-loopback URL instead of dialing out', async () => {
+  // The audio-never-leaves-your-PC promise is a product claim, so a remote
+  // engine URL must fail closed rather than connect.
+  const feed = new TranscriptFeed({ mode: 'engine', engineUrl: 'ws://example.com:9090', onSpeech: () => {} });
+  feed.start();
+  await sleep(50); // `ws` is imported lazily, so the engine appears a tick later
+  assert.equal(feed.engine.status().connected, false);
+  feed.engine.stop();
+});
+
+test('engine mode with no URL configured never constructs an engine', () => {
+  const feed = new TranscriptFeed({ mode: 'engine', onSpeech: () => {} });
+  feed.start();
+  assert.equal(feed.engine, null);
+});

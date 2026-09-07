@@ -439,3 +439,248 @@ export function deriveCorrections(reference, heard, terms = [], options = {}) {
   }
   return suggestions.slice(0, 12);
 }
+
+// ---------------------------------------------------------------------------
+// 4. Whisper initial prompt
+// ---------------------------------------------------------------------------
+
+// Whisper truncates initial_prompt to n_ctx/2 tokens and quietly ignores the
+// rest; 200 characters keeps us far below that on every model size, and short
+// enough that the streamer can eyeball it in LocalVocal's settings box.
+const MAX_PROMPT_CHARS = 200;
+const MAX_PROMPT_TERMS = 12;
+
+/** "a", "a and b", "a, b, and c" — deterministic, no locale formatter. */
+function joinTerms(list) {
+  if (list.length === 1) return list[0];
+  if (list.length === 2) return `${list[0]} and ${list[1]}`;
+  return `${list.slice(0, -1).join(', ')}, and ${list[list.length - 1]}`;
+}
+
+/**
+ * The text to paste into LocalVocal's "Initial prompt" box. Whisper conditions
+ * its decoder on this, which is the only biasing lever we have — and we already
+ * know the names it will mangle (see collectTerms).
+ *
+ * It is a sentence, not a word list, on purpose. Whisper copies the *style* of
+ * the prompt as much as its vocabulary: an all-caps or punctuation-free prompt
+ * comes back as an all-caps or punctuation-free transcript. So the carrier text
+ * is ordinary sentence case with a full stop, and each term appears verbatim in
+ * the casing we want echoed back.
+ *
+ * Overflow drops whole terms from the end rather than cutting the string: a
+ * prompt ending mid-name teaches Whisper the fragment.
+ *
+ * Deterministic by contract — the streamer pastes this in and compares mic-check
+ * runs before and after, so the same terms must always give the same prompt.
+ */
+export function buildInitialPrompt({ terms = [], language } = {}) {
+  const list = [];
+  const seen = new Set();
+  for (const value of Array.isArray(terms) ? terms : []) {
+    const term = String(value ?? '').trim().replace(/\s+/g, ' ');
+    if (!term || term.length > 40) continue;
+    const key = term.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    list.push(term);
+    if (list.length >= MAX_PROMPT_TERMS) break;
+  }
+  if (!list.length) return '';
+
+  // The carrier sentence is English. Prefixing a non-English transcription with
+  // an English sentence pushes the decoder toward English, which costs more than
+  // the biasing gains — so those installs get the names alone, still punctuated.
+  const lang = String(language ?? '').trim().toLowerCase();
+  const english = !lang || lang === 'auto' || lang === 'english' || lang === 'en' || lang.startsWith('en-') || lang.startsWith('en_');
+
+  for (let n = list.length; n > 0; n--) {
+    const head = list.slice(0, n);
+    const text = english
+      ? `On stream tonight we talk about ${joinTerms(head)}.`
+      : `${head.join(', ')}.`;
+    if (text.length <= MAX_PROMPT_CHARS) return text;
+  }
+  return '';
+}
+
+// ---------------------------------------------------------------------------
+// 5. Phonetic near-miss correction
+// ---------------------------------------------------------------------------
+
+// Consonants that Whisper swaps freely on proper nouns collapse to one letter.
+const CONSONANT_CLASS = {
+  c: 'k', k: 'k', q: 'k',
+  s: 's', z: 's',
+  f: 'f', v: 'f',
+  g: 'j', j: 'j',
+  d: 't', t: 't',
+  b: 'p', p: 'p',
+};
+
+/**
+ * A compact consonant skeleton — metaphone in spirit, a fraction of the size.
+ * Two spellings of the same sound land on the same key: "bacon"/"Beacon" both
+ * give "pkn", "night"/"Knight" both give "nt".
+ *
+ * The rules are exactly the mangles Whisper makes on names: vowels past the
+ * first carry no information (it guesses them from the acoustic model's
+ * language prior), doubled letters are a spelling convention rather than a
+ * sound, silent h and the w-glide vanish, and the digraph rewrites below fix
+ * the handful of English spellings where a letter is not the sound.
+ * Returns '' for a word with no usable letters.
+ */
+export function phoneticKey(word) {
+  const s = String(word ?? '')
+    .toLowerCase()
+    .replace(/[^a-z]/g, '')
+    .replace(/kn/g, 'n')   // knight -> night
+    .replace(/gh/g, '')    // silent: night, thought
+    .replace(/ph/g, 'f')
+    .replace(/wh/g, 'w')
+    .replace(/ck/g, 'k')
+    .replace(/x/g, 'ks');
+  let out = '';
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (i > 0 && (ch === 'h' || ch === 'w')) continue; // silent h, w-glide
+    if ('aeiouy'.includes(ch)) {
+      // Only the first sound keeps its vowel, and which vowel it was is the
+      // least reliable thing Whisper reports — so record "starts with a vowel".
+      if (i === 0) out += 'a';
+      continue;
+    }
+    out += CONSONANT_CLASS[ch] ?? ch;
+  }
+  return out.replace(/(.)\1+/g, '$1');
+}
+
+// A name shorter than this collides with ordinary words far too often ("Wisp"
+// is fine to *look up*, "Ash" would rewrite "as" all stream).
+const MIN_VOCAB_TERM_LEN = 4;
+// Phonetic equality alone is not enough: "pecan" and "Beacon" share a key and
+// are different words. Set above deriveCorrections' 0.45 because that gate runs
+// on a known script where the streamer told us what they said, while this one
+// fires on arbitrary speech with no reference — so it must be the stricter of
+// the two. 0.6 still admits every real mishear we have seen ("bacon"/"Beacon"
+// 0.83, "hollow night"/"Hollow Knight" 0.92).
+const VOCAB_MIN_SIMILARITY = 0.6;
+// Fusing two spoken words into one name is the riskiest rewrite this makes:
+// ordinary speech is full of word pairs that sound like a name ("back on" for
+// "Beacon"), and unlike a single mangled token they are perfectly good words
+// the streamer really said. So a one-word term earns a two-word span only on a
+// much closer resemblance. A genuinely split name ("bee con") still clears it.
+const VOCAB_MIN_SIMILARITY_FUSED = 0.8;
+const MAX_VOCAB_TERMS = 40;
+const MAX_VOCAB_FIXES = 12;
+
+/** Tracked terms as {term, key}, filtered and capped. */
+function vocabularyKeys(terms) {
+  const out = [];
+  const seen = new Set();
+  for (const value of Array.isArray(terms) ? terms : []) {
+    const term = String(value ?? '').trim().replace(/\s+/g, ' ');
+    if (term.length < MIN_VOCAB_TERM_LEN || term.length > MAX_FROM_LEN) continue;
+    const norm = normalizeForCompare(term);
+    if (!norm) continue;
+    if (seen.has(norm)) continue;
+    seen.add(norm);
+    const key = phoneticKey(norm.replace(/\s+/g, ''));
+    if (!key) continue;
+    out.push({ term, norm, key });
+    if (out.length >= MAX_VOCAB_TERMS) break;
+  }
+  return out;
+}
+
+/** The best term for one heard phrase, or null. Ties broken deterministically. */
+function bestTermFor(heardNorm, keyed) {
+  const key = phoneticKey(heardNorm.replace(/\s+/g, ''));
+  if (!key) return null;
+  const heardWords = heardNorm.split(' ').length;
+  let best = null;
+  let bestScore = 0;
+  for (const entry of keyed) {
+    if (entry.key !== key) continue;
+    if (entry.norm === heardNorm) return null; // already spelled right
+    const score = similarity(heardNorm, entry.norm);
+    const floor =
+      heardWords > entry.norm.split(' ').length ? VOCAB_MIN_SIMILARITY_FUSED : VOCAB_MIN_SIMILARITY;
+    if (score < floor) continue;
+    // Never depend on iteration order: score, then the longer name, then
+    // alphabetical — so two equally-good terms always resolve the same way.
+    if (
+      !best ||
+      score > bestScore ||
+      (score === bestScore && entry.term.length > best.term.length) ||
+      (score === bestScore && entry.term.length === best.term.length && entry.term < best.term)
+    ) {
+      best = entry;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
+/**
+ * Near-miss repairs for a heard line against the tracked terms, as
+ * [{from, to}] in the shape compileCorrections wants.
+ *
+ * The mic check only ever learns the mishears its 20-second script happened to
+ * provoke; this catches the rest, where the name came back mangled in a way
+ * nobody read aloud. Adjacent token pairs are tried first so a two-word name
+ * heard as two mangled words ("hollow night") is repaired as one unit rather
+ * than half-fixed.
+ *
+ * A wrong auto-correction rewrites real speech silently for the whole stream,
+ * so it is deliberately hard to fire: 4+ character terms only, phonetic
+ * equality AND a character-similarity floor, and never a term that is already
+ * spelled correctly.
+ */
+export function vocabularyMatches(text, terms) {
+  const keyed = vocabularyKeys(terms);
+  if (!keyed.length) return [];
+  const tokens = tokenize(text).slice(0, MAX_ALIGN_WORDS);
+  const fixes = [];
+  const seen = new Set();
+  const push = (from, to) => {
+    const key = from.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    fixes.push({ from, to });
+  };
+  for (let i = 0; i < tokens.length && fixes.length < MAX_VOCAB_FIXES; i++) {
+    // Pair first: a two-word name must win over either of its halves.
+    if (i + 1 < tokens.length) {
+      const pair = `${tokens[i].norm} ${tokens[i + 1].norm}`;
+      const match = bestTermFor(pair, keyed);
+      if (match) {
+        push(pair, match.term);
+        i++; // both tokens are spoken for
+        continue;
+      }
+    }
+    const match = bestTermFor(tokens[i].norm, keyed);
+    if (match) push(tokens[i].norm, match.term);
+  }
+  return fixes;
+}
+
+/**
+ * Apply those repairs to a line. Whole-word and case-insensitive, and unlike
+ * applyCorrections it leaves the line's own whitespace alone — this runs on
+ * ordinary transcript lines, not on the output of a deletion rule, so there is
+ * nothing to tidy up and re-spacing the streamer's text would be a change we
+ * were not asked to make.
+ */
+export function applyVocabularyFixes(text, terms) {
+  const line = String(text ?? '');
+  const fixes = vocabularyMatches(line, terms);
+  if (!fixes.length) return line;
+  let out = line;
+  for (const { re, to } of compileCorrections(fixes)) {
+    re.lastIndex = 0;
+    out = out.replace(re, to);
+  }
+  return out;
+}

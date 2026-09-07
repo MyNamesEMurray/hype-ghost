@@ -224,6 +224,7 @@
           <option value="off">Off</option>
           <option value="file">File — tail LocalVocal's .txt/.srt output</option>
           <option value="textSource">Text source — read via OBS WebSocket</option>
+          <option value="engine">Engine — a local speech-to-text server you run</option>
         </select>
         <div class="row">
           <div>
@@ -235,6 +236,18 @@
             <p class="hint">Pick the file LocalVocal writes to, or paste the path — either works.</p>
           </div>
           <div><label>Text source name (text source mode)</label><input type="text" data-path="transcript.textSource"></div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Engine URL (engine mode)</label>
+            <input type="text" data-path="transcript.engineUrl" placeholder="ws://127.0.0.1:9090">
+            <p class="hint">A speech-to-text server running on <b>this PC</b> (whisper.cpp <code>server</code>, faster-whisper-server, WhisperLive). Loopback addresses only — audio never leaves your machine. It gives the cast what LocalVocal can't: voice-activity gating, so silence stops inventing filler, and a confidence score per line.</p>
+          </div>
+          <div>
+            <label>Minimum confidence (engine mode)</label>
+            <input type="number" data-path="transcript.engineMinConfidence" min="0" max="1" step="0.05">
+            <p class="hint">Lines the engine is less sure about than this are dropped instead of being answered. 0 keeps everything. A line with no confidence reported is always kept.</p>
+          </div>
         </div>
         <div class="row adv">
           <div><label>Recent speech window (seconds)</label><input type="number" data-path="cadence.transcriptWindowSeconds" min="30" max="600"></div>
@@ -251,6 +264,39 @@
         <div class="check">
           <input type="checkbox" id="dropHall" data-path="speech.dropHallucinations" data-type="bool">
           <label for="dropHall">Ignore transcription hallucinations — in the quiet between sentences (breaths, keyboard, room tone) speech-to-text invents filler: "Thank you.", "Thanks for watching!", "please subscribe", words stuck on repeat. Left in, the cast replies to things you never said. Only ever drops a line that is <em>entirely</em> filler, so a real sentence is never touched. Applies live on save.</label>
+        </div>
+
+        <div class="check">
+          <input type="checkbox" id="matchVocab" data-path="speech.matchVocabulary" data-type="bool">
+          <label for="matchVocab">Recover near-misses of names automatically — a word that <em>sounds</em> like one of your ghosts, your channel, the game or a protected name is rewritten to it, even if the mic check never caught that particular mangling. Only fires on names of four letters or more that genuinely sound alike, so ordinary speech is left alone. Your own word fixes below always win. Applies live on save.</label>
+        </div>
+
+        <div style="margin-top:24px">
+          <h2>🎛️ LocalVocal tuning</h2>
+          <p class="desc">Whisper guesses proper nouns far better when it is told they are coming. Hype Ghost knows your ghosts, your channel, the game and your protected names, so it can write that hint for you — paste it into LocalVocal's <b>Initial prompt</b> box. The rest of the preset is the handful of settings that decide whether the transcript is usable at all. Run a mic check before and after to see the difference as a number.</p>
+          <div class="test">
+            <button id="tuneLoad">Show my settings</button>
+            <span class="result" id="tuneResult"></span>
+          </div>
+          <div id="tunePanel" class="miccheck" style="display:none">
+            <label>Initial prompt</label>
+            <div class="withbtn">
+              <input type="text" id="tunePrompt" readonly>
+              <button id="tuneCopy">Copy</button>
+            </div>
+            <p class="hint">LocalVocal → your mic's Transcription filter → Advanced → <b>Initial prompt</b>.</p>
+            <ol id="tunePreset"></ol>
+          </div>
+        </div>
+
+        <div style="margin-top:24px">
+          <h2>🩺 Voice health</h2>
+          <p class="desc">What the last stretch of transcript says about your LocalVocal setup. Every one of these is a misconfiguration you can see from the text alone — stuttering duplicate lines, fragments, filler where there should be silence — so this names the setting instead of leaving you to guess.</p>
+          <div class="test">
+            <button id="healthLoad">Check voice health</button>
+            <span class="result" id="healthResult"></span>
+          </div>
+          <div id="healthPanel" class="miccheck" style="display:none"></div>
         </div>
 
         <div style="margin-top:24px">
@@ -653,6 +699,68 @@
     initTts();
     loadGameInfo();
   });
+
+  // ---- LocalVocal tuning ----
+  // Whisper conditions its decoder on an initial prompt, so handing it the
+  // names we already know is the cheapest accuracy we can buy. Built server
+  // side from the live cast/channel/game/vocabulary, never typed by hand.
+  $('tuneLoad').onclick = async () => {
+    $('tuneResult').className = 'result'; $('tuneResult').textContent = 'building…';
+    const r = await fetch('/api/voice/tuning').then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
+    if (!r.ok) { $('tuneResult').className = 'result err'; $('tuneResult').textContent = '✗ ' + r.error; return; }
+    $('tuneResult').textContent = r.prompt ? '' : 'no names to protect yet — add some below';
+    $('tunePrompt').value = r.prompt || '';
+    const list = $('tunePreset');
+    list.innerHTML = '';
+    for (const step of r.preset || []) {
+      const li = document.createElement('li');
+      const b = document.createElement('b'); b.textContent = step.setting;
+      li.appendChild(b);
+      li.appendChild(document.createTextNode(' → ' + step.value + '. ' + step.why));
+      list.appendChild(li);
+    }
+    $('tunePanel').style.display = '';
+  };
+
+  $('tuneCopy').onclick = async () => {
+    const text = $('tunePrompt').value;
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      $('tuneCopy').textContent = 'copied ✓';
+    } catch {
+      // Clipboard permission can be refused; selecting the text is the fallback.
+      $('tunePrompt').select();
+      $('tuneCopy').textContent = 'press Ctrl+C';
+    }
+    setTimeout(() => { $('tuneCopy').textContent = 'Copy'; }, 2000);
+  };
+
+  // ---- voice health ----
+  $('healthLoad').onclick = async () => {
+    $('healthResult').className = 'result'; $('healthResult').textContent = 'reading the transcript…';
+    const r = await fetch('/api/voice/health').then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
+    if (!r.ok) { $('healthResult').className = 'result err'; $('healthResult').textContent = '✗ ' + r.error; return; }
+    const checks = r.checks || [];
+    const warns = checks.filter((c) => c.level === 'warn');
+    $('healthResult').className = 'result' + (warns.length ? ' err' : '');
+    $('healthResult').textContent = warns.length ? warns.length + ' to look at' : 'nothing wrong that I can see';
+    const panel = $('healthPanel');
+    panel.innerHTML = '';
+    const ol = document.createElement('ol');
+    for (const c of checks) {
+      const li = document.createElement('li');
+      const icon = c.level === 'warn' ? '⚠️ ' : c.level === 'ok' ? '✅ ' : '· ';
+      const b = document.createElement('b'); b.textContent = icon + c.title;
+      li.appendChild(b);
+      li.appendChild(document.createElement('br'));
+      const d = document.createElement('span'); d.className = 'heard'; d.textContent = c.detail + (c.level === 'warn' && c.fix ? ' → ' + c.fix : '');
+      li.appendChild(d);
+      ol.appendChild(li);
+    }
+    panel.appendChild(ol);
+    panel.style.display = '';
+  };
 
   // ---- mic check ----
   // The script is read into the *live* LocalVocal path, so the number it
