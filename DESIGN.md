@@ -62,7 +62,14 @@ stage presence, and the streamer is the director. The visuals moved with the met
     and worth keeping — a streamer configuring this mid-stream just isn't reading it, and a
     wall of prose makes the one control they came for hard to find. Depth on demand, never
     depth by default.
-11. **Nothing in the app is only a color.** Status carries a label as well as a hue (the orbs
+11. **Assume a competent adult.** The reader has used a computer, installed OBS, and set up a
+    stream. Explain what is specific to this app or genuinely surprising — that speech-to-text
+    invents filler during silence, that image cost scales with resolution, that Twitch access is
+    read-only — and nothing else. Never explain a file path, what "one per line" means, or that
+    a save button saves. Say a thing once: a hint and its "why?" must not restate each other,
+    and reassurance ("don't worry, a real sentence is never touched") is padding, not
+    information. Where a sentence can be cut without losing a fact, cut it.
+12. **Nothing in the app is only a color.** Status carries a label as well as a hue (the orbs
     keep their text at every width), because a row of unlabeled dots is decoration, not status.
 
 ## Tokens ([public/theme.css](public/theme.css))
