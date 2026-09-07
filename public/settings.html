@@ -140,7 +140,7 @@
           <h2>💬 How they talk</h2>
           <div class="setting">
             <label class="lbl" for="chatLanguage"><span>Chat language</span></label>
-            <p class="hint">The whole cast writes their messages in this language.</p>
+            <p class="hint">The whole cast writes in this language.</p>
             <input type="text" id="chatLanguage" data-path="bot.language" list="langs" placeholder="English">
             <datalist id="langs">
               <option>English</option><option>Spanish</option><option>Portuguese</option>
@@ -152,12 +152,12 @@
             <label class="lbl" for="streamContext"><span>About your stream</span></label>
             <p class="hint">Optional. Standing context the cast always knows — game, format, vibe.</p>
             <textarea id="streamContext" data-path="stream.context" placeholder="e.g. Variety streamer, mostly roguelikes; chill vibes; currently doing a Hades 100% run"></textarea>
-            <details class="why"><summary>Why?</summary><p>Anything here is true on every message, so keep it to what doesn't change: who you are, what you usually play, the format of the show. They also see your current OBS scene name automatically, so you don't have to describe the moment.</p></details>
+            <details class="why"><summary>Why?</summary><p>This goes into every message, so keep it to what doesn't change. The cast already see your current OBS scene name, so you don't have to describe the moment.</p></details>
           </div>
 
           <div class="setting">
             <label class="lbl" for="talkingPoints"><span>Talking points</span></label>
-            <p class="hint">Optional, one per line. The cast works one in occasionally, only when it fits.</p>
+            <p class="hint">Optional, one per line. The cast works one in when it fits.</p>
             <textarea id="talkingPoints" placeholder="ask me about the new PC build&#10;remind viewers about the charity stream Saturday"></textarea>
           </div>
         </div>
@@ -171,7 +171,6 @@
         <div class="section">
           <div class="setting">
             <label class="lbl" for="providerSel"><span>Provider</span></label>
-            <p class="hint">The Claude API is the best writing; a local model is free and private.</p>
             <select data-path="brain.provider" id="providerSel">
               <option value="anthropic">Claude API — best quality (paid, ~$0.20/hr)</option>
               <option value="openai">Local / OpenAI-compatible — Ollama, LM Studio, free tiers ($0)</option>
@@ -192,8 +191,8 @@
               <div id="customModelRow" style="display:none;margin-top:12px">
                 <label for="customModel">Model ID</label>
                 <input type="text" id="customModel" placeholder="claude-opus-4-7" spellcheck="false">
-                <p class="hint">Any model ID your key can reach. <b>Test brain</b> below confirms it before you save. <span id="customModelCost"></span></p>
-                <details class="why"><summary>Why type one in?</summary><p>A newer release, an older one you want to pin, or a dated snapshot — anything your API key can reach, so a model launched after this build isn't gated behind an app update. Use the exact string from <a href="https://platform.claude.com/docs/en/about-claude/models/overview" target="_blank">Anthropic's model list</a>, and remember the cast needs vision to see your stream.</p></details>
+                <p class="hint">Any model ID your key can reach — <b>Test brain</b> confirms it before you save. <span id="customModelCost"></span></p>
+                <details class="why"><summary>Why type one in?</summary><p>So a model released after this build — or an older one you want to pin — isn't gated behind an app update. Use the exact string from <a href="https://platform.claude.com/docs/en/about-claude/models/overview" target="_blank">Anthropic's model list</a>.</p></details>
               </div>
             </div>
           </div>
@@ -201,7 +200,6 @@
           <div id="oaiFields">
             <div class="setting">
               <label class="lbl" for="oaiUrl"><span>Endpoint URL</span></label>
-              <p class="hint">Your local server's OpenAI-compatible address.</p>
               <input type="text" id="oaiUrl" data-path="brain.openaiBaseUrl" placeholder="http://localhost:11434/v1">
             </div>
             <div class="setting">
@@ -211,7 +209,7 @@
                 <div><label for="oaiModel">Model</label><input type="text" id="oaiModel" data-path="brain.openaiModel" placeholder="qwen2.5vl:7b"></div>
                 <div><label for="oaiKey">API key (only if needed)</label><input type="password" id="oaiKey" data-path="brain.openaiApiKey"></div>
               </div>
-              <details class="why"><summary>How do I get one?</summary><p>For Ollama: <code>ollama pull qwen2.5vl:7b</code>, then put that name in Model. Most local servers need no key at all — leave it blank unless yours asks for one.</p></details>
+              <details class="why"><summary>How do I get one?</summary><p>For Ollama: <code>ollama pull qwen2.5vl:7b</code>, then put that name in Model. Most local servers need no key.</p></details>
             </div>
           </div>
 
@@ -251,7 +249,7 @@
 
         <div class="section">
           <h2>👻 On-stream overlay</h2>
-          <p class="desc">The cast's chat as a browser source. Overlay changes apply live when you save — no restart, no browser-source refresh.</p>
+          <p class="desc">The cast's chat as a browser source. Changes apply live on save — no restart, no browser-source refresh.</p>
           <div class="test" style="margin-top:2px"><button id="installOverlay">Add overlay to OBS</button><span class="result" id="overlayResult"></span></div>
           <p class="hint">Creates a "Hype Ghost Overlay" browser source in your current scene. Manual URL: <b><span id="overlayUrl"></span></b>, ~460×620.</p>
           <div class="row" style="margin-top:14px">
@@ -271,7 +269,7 @@
           </div>
           <div class="setting on-off" style="margin-top:10px">
             <label class="lbl" for="ovReactions"><input type="checkbox" id="ovReactions" data-path="overlay.reactions" data-type="bool"><span>Spark on a flagged moment</span></label>
-            <p class="hint">Flashes a ✨ pop on the overlay when the cast flags something clip-worthy.</p>
+            <p class="hint">Flashes a ✨ pop when the cast flags something clip-worthy.</p>
           </div>
         </div>
 
@@ -290,7 +288,7 @@
 
           <div class="setting adv">
             <label class="lbl" for="gameInfo"><span>Screen guide <span id="giGame" style="color:var(--faint);font-weight:450"></span></span></label>
-            <p class="hint">What the cast has learned about reading this game's screen. Saves immediately — separate from the Save changes button.</p>
+            <p class="hint">What the cast has learned about reading this game's screen. Saves on its own button, not with Save changes.</p>
             <select id="giPick" style="display:none;margin-bottom:8px"></select>
             <textarea id="gameInfo" rows="5" placeholder="Nothing learned yet — the cast fills this in as it watches."></textarea>
             <div class="test">
@@ -298,7 +296,7 @@
               <button id="giClear">Clear</button>
               <span class="result" id="giResult"></span>
             </div>
-            <details class="why"><summary>Why?</summary><p>How to <b>read the screen</b> in this game — where the health bar is, what a death screen looks like, where your webcam and alerts sit. The cast writes this itself from screenshots it's already being shown (no extra API calls), and refines it as it watches. It's kept per game and reused on future streams. Edit it if it gets something wrong: it's treated as truth on every message, so a bad line is worse than a blank one.</p></details>
+            <details class="why"><summary>Why?</summary><p>Where the health bar is, what a death screen looks like, where your webcam and alerts sit. The cast writes it from screenshots it's already being shown (no extra API calls), and keeps it per game for future streams. It's treated as truth on every message, so a wrong line is worse than a blank one.</p></details>
           </div>
         </div>
       </section>
@@ -306,7 +304,7 @@
       <!-- ============ VOICE ============ -->
       <section class="card" data-tab="voice">
         <div class="card-head"><h2>🎙️ Voice</h2></div>
-        <p class="desc">Local mic transcription, so answering out loud counts as replying. Leave the mode Off to reply by typing.</p>
+        <p class="desc">Local mic transcription, so answering out loud counts as replying.</p>
 
         <div class="section">
           <h2>🎙️ Where speech comes from</h2>
@@ -319,12 +317,11 @@
               <option value="textSource">Text source — read via OBS WebSocket</option>
               <option value="engine">Engine — a local speech-to-text server you run</option>
             </select>
-            <details class="why"><summary>Why?</summary><p>LocalVocal transcribes your mic entirely on your own PC and writes what it hears to a .txt/.srt file or an OBS text source; Hype Ghost tails that. It's third-party — keep it updated to match your OBS version, since an outdated build can crash OBS (for example when switching Scene Collections). Engine mode is for a speech-to-text server you run yourself instead.</p></details>
+            <details class="why"><summary>Why?</summary><p>LocalVocal transcribes your mic entirely on your own PC. It's third-party — keep it updated to match your OBS version, since an outdated build can crash OBS (for example when switching Scene Collections). Engine mode is for a speech-to-text server you run yourself instead.</p></details>
           </div>
 
           <div class="setting">
             <div class="lbl"><span>Where to read it</span></div>
-            <p class="hint">Fill in the one that matches your mode.</p>
             <div class="row">
               <div>
                 <label for="trFile">File path (file mode)</label>
@@ -349,7 +346,6 @@
 
           <div class="setting adv">
             <div class="lbl"><span>Reading cadence</span></div>
-            <p class="hint">How much recent speech the cast sees, and how often it's checked.</p>
             <div class="row">
               <div><label for="trWindow">Recent speech window (s)</label><input type="number" id="trWindow" data-path="cadence.transcriptWindowSeconds" min="30" max="600"></div>
               <div><label for="trPoll">Check for new speech every (s)</label><input type="number" id="trPoll" data-path="transcript.pollSeconds" min="1" max="30"></div>
@@ -359,36 +355,34 @@
 
         <div class="section">
           <h2>💬 How the cast handles what you say</h2>
-          <p class="desc">All of these apply live on save.</p>
-
           <div class="setting on-off">
             <label class="lbl" for="voiceAddressed"><input type="checkbox" id="voiceAddressed" data-path="cadence.voiceReplyRequiresAddress" data-type="bool"><span>Only answer when actually addressed</span></label>
             <p class="hint">They speak up when you say a ghost's name or answer a question one of them asked.</p>
-            <details class="why"><summary>Why?</summary><p>Most of what you say on stream isn't aimed at them, and replying to all of it spends an API call after nearly every message. Everything you say still reaches them either way: it's in the transcript the next scheduled message reads. Turning this off restores the old "reply to any speech" behaviour, and roughly doubles cost on a talkative stream.</p></details>
+            <details class="why"><summary>Why?</summary><p>Most of what you say isn't aimed at them, and answering all of it spends an API call after nearly every sentence — roughly double the cost on a talkative stream. Either way they read it: unanswered speech is still in the transcript the next scheduled message sees.</p></details>
           </div>
 
           <div class="setting on-off">
             <label class="lbl" for="dropHall"><input type="checkbox" id="dropHall" data-path="speech.dropHallucinations" data-type="bool"><span>Ignore transcription hallucinations</span></label>
             <p class="hint">Drops invented filler like "Thanks for watching!" from the quiet between sentences.</p>
-            <details class="why"><summary>Why?</summary><p>In the quiet between sentences (breaths, keyboard, room tone) speech-to-text invents filler: "Thank you.", "Thanks for watching!", "please subscribe", words stuck on repeat. Left in, the cast replies to things you never said. Only ever drops a line that is <em>entirely</em> filler, so a real sentence is never touched.</p></details>
+            <details class="why"><summary>Why?</summary><p>In the quiet between sentences (breaths, keyboard, room tone) speech-to-text invents filler: "Thank you.", "Thanks for watching!", "please subscribe", words stuck on repeat. Left in, the cast replies to things you never said. Only a line that is <em>entirely</em> filler is dropped.</p></details>
           </div>
 
           <div class="setting on-off">
             <label class="lbl" for="matchVocab"><input type="checkbox" id="matchVocab" data-path="speech.matchVocabulary" data-type="bool"><span>Recover near-misses of names</span></label>
             <p class="hint">A word that <em>sounds</em> like a ghost, your channel or the game is rewritten to it.</p>
-            <details class="why"><summary>Why?</summary><p>The mic check can only fix manglings it has actually seen. This catches the rest: a word that sounds like one of your ghosts, your channel, the game or a protected name is rewritten to it. Only fires on names of four letters or more that genuinely sound alike, so ordinary speech is left alone. Your own word fixes always win.</p></details>
+            <details class="why"><summary>Why?</summary><p>Word fixes only cover manglings you've already seen; this catches the rest. It fires only on names of four letters or more that genuinely sound alike, so ordinary speech is left alone. Your own word fixes always win.</p></details>
           </div>
 
           <div class="setting on-off">
             <label class="lbl" for="showHeard"><input type="checkbox" id="showHeard" data-path="transcript.showInFeed" data-type="bool"><span>Show what it hears in the deck feed</span></label>
             <p class="hint">Faint 🎙 lines of your speech (and 🎧 party audio). Deck only, never on the overlay.</p>
-            <details class="why"><summary>Why?</summary><p>Seeing the transcript as it arrives is how you spot a mishear before the cast reacts to it — and how you find the words worth adding to your fixes below. It never appears on the stream overlay.</p></details>
+            <details class="why"><summary>Why?</summary><p>How you spot a mishear before the cast reacts to it, and how you find the words worth adding to your fixes below.</p></details>
           </div>
         </div>
 
         <div class="section">
           <h2>🎙️ Accuracy</h2>
-          <p class="desc">Transcription garbles <b>names</b> worst, and names are what this room runs on. These tools measure that and fix it.</p>
+          <p class="desc">Transcription garbles <b>names</b> worst, and names are what this room runs on.</p>
 
           <div class="setting">
             <div class="lbl"><span>Mic check</span></div>
@@ -399,7 +393,7 @@
             </div>
             <p class="hint" id="micHistory"></p>
             <div id="micPanel" class="miccheck" style="display:none">
-              <p class="hint">Read these out loud at your normal streaming volume — one line at a time, then press Finish.</p>
+              <p class="hint">Read these at your normal streaming volume.</p>
               <ol id="micScript"></ol>
               <p class="heard">Heard so far: <span id="micHeard">…</span></p>
               <div class="test">
@@ -408,26 +402,26 @@
               </div>
             </div>
             <div id="micReport" class="miccheck" style="display:none"></div>
-            <details class="why"><summary>Why?</summary><p>Hype Ghost lines the script up against what LocalVocal actually heard, so you get your error rate on <em>your</em> mic and one-click fixes for the words it got wrong. Nothing is uploaded and no model is trained — this builds a find-and-replace list applied to the transcript before the cast ever sees it.</p></details>
+            <details class="why"><summary>Why?</summary><p>The score is measured through your live LocalVocal setup, so it's the accuracy the cast actually get. Nothing is uploaded and no model is trained — the result is a find-and-replace list applied to the transcript before the cast see it.</p></details>
           </div>
 
           <div class="setting">
             <label class="lbl" for="corrections"><span>Word fixes</span></label>
-            <p class="hint">One per line, <b>what it hears</b> = <b>what you meant</b>. Applies live on save.</p>
+            <p class="hint">One per line: <b>what it hears</b> = <b>what you meant</b>. Live from the next line you speak.</p>
             <textarea id="corrections" rows="4" placeholder="bacon = Beacon"></textarea>
-            <details class="why"><summary>Why?</summary><p>Applied to every transcript line before the cast sees it — whole words only, case-insensitive. Leave the right side blank to drop a phrase entirely. The mic check above fills this in for you.</p></details>
+            <details class="why"><summary>Why?</summary><p>Whole words only, case-insensitive. Leave the right side blank to drop a phrase entirely.</p></details>
           </div>
 
           <div class="setting adv">
             <label class="lbl" for="vocabulary"><span>Names to protect</span></label>
-            <p class="hint">One per line — the game, in-jokes, regulars' names. Changing these restarts the app.</p>
-            <textarea id="vocabulary" rows="2" placeholder="one per line — e.g. Hollow Knight, Steamboat, Kyleigh"></textarea>
-            <details class="why"><summary>Why?</summary><p>Extra proper nouns worth getting right. Your ghosts' names and Twitch channel are already included. These go into the mic-check script, and the cast is told to read a near-miss of one as the real word.</p></details>
+            <p class="hint">The game, in-jokes, regulars' names — one per line. Changing these restarts the app.</p>
+            <textarea id="vocabulary" rows="2" placeholder="Hollow Knight&#10;Steamboat&#10;Kyleigh"></textarea>
+            <details class="why"><summary>Why?</summary><p>Your ghosts' names and Twitch channel are already included. These go into the mic-check script, and the cast is told to read a near-miss of one as the real word.</p></details>
           </div>
 
           <div class="setting">
             <div class="lbl"><span>LocalVocal preset</span></div>
-            <p class="hint">The settings to copy into LocalVocal, including an initial prompt built from your names.</p>
+            <p class="hint">The settings to copy into LocalVocal, plus an initial prompt built from your names.</p>
             <div class="test">
               <button id="tuneLoad">Show my settings</button>
               <span class="result" id="tuneResult"></span>
@@ -441,18 +435,18 @@
               <p class="hint">LocalVocal → your mic's Transcription filter → Advanced → <b>Initial prompt</b>.</p>
               <ol id="tunePreset"></ol>
             </div>
-            <details class="why"><summary>Why?</summary><p>Whisper guesses proper nouns far better when it is told they are coming. Hype Ghost knows your ghosts, your channel, the game and your protected names, so it can write that hint for you — paste it into LocalVocal's <b>Initial prompt</b> box. The rest of the preset is the handful of settings that decide whether the transcript is usable at all. Run a mic check before and after to see the difference as a number.</p></details>
+            <details class="why"><summary>Why?</summary><p>Whisper guesses proper nouns far better when it is told they are coming, and the rest of the preset is the handful of settings that decide whether the transcript is usable at all. Run a mic check before and after to see the difference as a number.</p></details>
           </div>
 
           <div class="setting">
             <div class="lbl"><span>Voice health</span></div>
-            <p class="hint">Reads the last stretch of transcript and names any LocalVocal setting that looks wrong.</p>
+            <p class="hint">Names any LocalVocal setting that looks wrong, from the last stretch of transcript.</p>
             <div class="test">
               <button id="healthLoad">Check voice health</button>
               <span class="result" id="healthResult"></span>
             </div>
             <div id="healthPanel" class="miccheck" style="display:none"></div>
-            <details class="why"><summary>Why?</summary><p>Every problem it looks for is a misconfiguration you can see from the text alone — stuttering duplicate lines, fragments, filler where there should be silence — so this names the setting instead of leaving you to guess.</p></details>
+            <details class="why"><summary>Why?</summary><p>Stuttering duplicate lines, fragments, filler where there should be silence — every problem it looks for is a misconfiguration visible in the text alone, so it can name the setting rather than the symptom.</p></details>
           </div>
         </div>
 
@@ -500,7 +494,7 @@
           <h2>💬 Energy &amp; cadence</h2>
           <div class="setting">
             <label class="lbl" for="energyDefault"><span>Default energy (0–100)</span></label>
-            <p class="hint">Where the deck's energy dial starts. One dial scales both how often they talk and their mood.</p>
+            <p class="hint">Where the deck's energy dial starts — it scales both how often they talk and their mood.</p>
             <input type="number" id="energyDefault" data-path="energy" min="0" max="100">
           </div>
           <div class="setting adv">
@@ -589,7 +583,7 @@
         <div class="section">
           <div class="setting">
             <label class="lbl" for="fontScale"><span>Font size</span></label>
-            <p class="hint">Scales the deck, settings and wizard. The on-stream overlay is untouched — its size lives on the Stream tab.</p>
+            <p class="hint">Scales the deck, settings and wizard. Overlay text has its own size, on the Stream tab.</p>
             <select data-path="app.fontScale" data-type="num" id="fontScale" style="max-width:220px">
               <option value="1">Default</option>
               <option value="1.1">Large</option>
@@ -604,7 +598,7 @@
 
           <div class="setting adv">
             <label class="lbl" for="updChannel"><span>Which builds to update to</span></label>
-            <p class="hint">"Match this build" is the normal choice. Takes effect on the next launch.</p>
+            <p class="hint">Takes effect on the next launch.</p>
             <select id="updChannel" data-path="app.updateChannel">
               <option value="auto">Match this build — beta stays on beta, stable stays on stable</option>
               <option value="stable">Stable only — releases everyone gets</option>
@@ -616,7 +610,7 @@
           <div class="setting on-off">
             <label class="lbl" for="autoPause"><input type="checkbox" id="autoPause" data-path="app.autoPause" data-type="bool"><span>Auto-pause when OBS is gone</span></label>
             <p class="hint">Stops API spend if you leave the app running in the tray.</p>
-            <details class="why"><summary>Why?</summary><p>The cast resume automatically when OBS comes back. Practicing with OBS open never pauses — only OBS being closed counts.</p></details>
+            <details class="why"><summary>Why?</summary><p>Only OBS being unreachable counts, so a quiet practice session never pauses — and the cast resume on their own when OBS comes back.</p></details>
           </div>
           <div class="setting adv">
             <label class="lbl" for="autoPauseMin"><span>Pause after OBS is unreachable for (minutes)</span></label>
@@ -629,7 +623,7 @@
           <div class="setting on-off">
             <label class="lbl" for="tts"><input type="checkbox" id="tts" data-path="app.tts" data-type="bool"><span>Speak cast messages aloud</span></label>
             <p class="hint">Windows voices, fully local. Point it at your headphones to keep chat off the VOD.</p>
-            <details class="why"><summary>Why?</summary><p>Speech plays from the deck window, which stays loaded in the background while TTS is on. Picking a specific output device keeps chat out of your stream mix and off the VOD — that path speaks with Windows (SAPI) voices. "(system default)" keeps the browser voices and the default device.</p></details>
+            <details class="why"><summary>Why?</summary><p>Speech plays from the deck window, which stays loaded in the background while TTS is on.</p></details>
           </div>
           <div class="setting">
             <div class="lbl"><span>Voice &amp; output</span></div>
@@ -652,12 +646,12 @@
           </div>
           <div class="setting on-off">
             <label class="lbl" for="chatAware"><input type="checkbox" id="chatAware" data-path="twitch.chatAwareness" data-type="bool"><span>Hang back when real chat is active</span></label>
-            <p class="hint">An anonymous read-only listener; needs only the channel name.</p>
+            <p class="hint">An anonymous read-only chat listener.</p>
           </div>
           <div class="setting on-off">
             <label class="lbl" for="decapi"><input type="checkbox" id="decapi" data-path="twitch.decapi" data-type="bool"><span>Keyless viewer count + stream info</span></label>
             <p class="hint">Via <a href="https://decapi.me" target="_blank">DecAPI</a> — only your public channel name is sent to it.</p>
-            <details class="why"><summary>Why?</summary><p>DecAPI is a community-run Twitch proxy, so you get viewer counts and stream info without registering a developer app. Prefer talking to Twitch directly? Set app credentials below and they're used instead.</p></details>
+            <details class="why"><summary>Why?</summary><p>DecAPI is a community-run Twitch proxy, so you get viewer counts and stream info without registering a developer app of your own.</p></details>
           </div>
           <div class="setting adv">
             <div class="lbl"><span>Your own app credentials</span></div>
@@ -675,9 +669,9 @@
           <h2>🔧 Plumbing</h2>
           <div class="setting">
             <label class="lbl" for="portField"><span>Local server port</span></label>
-            <p class="hint">The deck and overlay live here. Changing it means re-adding the overlay in OBS.</p>
+            <p class="hint">The deck and overlay live here.</p>
             <input type="number" id="portField" data-path="port" min="1024" max="65535">
-            <details class="why"><summary>Why?</summary><p>If you change this, update the overlay Browser Source URL in OBS to match — or click "Add overlay to OBS" again after restarting.</p></details>
+            <details class="why"><summary>Why?</summary><p>Change it and the overlay's Browser Source URL in OBS no longer matches — fix the URL by hand, or click "Add overlay to OBS" again after the restart.</p></details>
           </div>
         </div>
       </section>
@@ -708,7 +702,7 @@
               <button id="storageReset" style="display:none">Back to default location</button>
               <span class="result" id="storageResult"></span>
             </div>
-            <p class="hint" id="storageHint" style="display:none">Files are copied to the new folder (the originals stay behind as a backup) and the app restarts. Handy for keeping logs and memory on another drive or in a synced folder.</p>
+            <p class="hint" id="storageHint" style="display:none">Files are copied to the new folder (the originals stay behind as a backup) and the app restarts.</p>
           </div>
         </div>
 
@@ -887,7 +881,7 @@
     $('aboutConfigPath').textContent = data.configPath || '';
     initStorage();
     applyFontScale(cfg.app && cfg.app.fontScale);
-    if (apiKeySaved) $('apiKeyField').placeholder = 'saved ✓ — leave blank to keep the current key';
+    if (apiKeySaved) $('apiKeyField').placeholder = 'saved ✓ — leave blank to keep';
     const saved = 'saved ✓ — leave blank to keep';
     if (data.openaiKeySaved) fields.find((f) => f.dataset.path === 'brain.openaiApiKey').placeholder = saved;
     if (data.twitchSecretSaved) fields.find((f) => f.dataset.path === 'twitch.clientSecret').placeholder = saved;
@@ -1078,10 +1072,10 @@
     const note = document.createElement('p');
     note.className = 'hint';
     note.textContent = r.suggestions.length
-      ? 'Fixes it found for the names it got wrong. Ordinary words are ignored on purpose — a fumbled "the" costs nothing, a fumbled ghost name breaks a reply.'
+      ? 'Only names are worth fixing — a fumbled "the" costs nothing, a fumbled ghost name breaks a reply.'
       : (r.wer > 0.35
         ? 'No name fixes to suggest, but the error rate is high — try a bigger LocalVocal model, a longer buffer, and check for game audio bleeding into your mic (see the README).'
-        : 'Clean run — it got every name right. Nothing to fix.');
+        : 'Clean run — every name right.');
     box.appendChild(note);
 
     for (const fix of r.suggestions) {
