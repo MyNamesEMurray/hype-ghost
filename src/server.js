@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { OBSWebSocket } from 'obs-websocket-js';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'node:http';
-import { readFileSync, writeFileSync, statSync, existsSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, statSync, existsSync, rmSync, renameSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { loadConfig, isPlainObject } from './config.js';
@@ -246,6 +246,22 @@ export function startServer(opts = {}) {
     if (allowedHosts.has(req.headers.host)) return next();
     res.status(403).end('forbidden');
   });
+  // Origin allowlist (shared with the websocket check below): browsers attach
+  // Origin to cross-site POSTs, so a hostile page can't fire "simple" requests
+  // (no JSON body, no preflight) at state-changing endpoints. No Origin
+  // (curl, smoke test, Electron-internal) passes.
+  const allowedOrigins = new Set([`http://127.0.0.1:${port}`, `http://localhost:${port}`]);
+  app.use((req, res, next) => {
+    if (req.method === 'GET' || req.method === 'HEAD') return next();
+    const origin = req.headers.origin;
+    if (!origin || allowedOrigins.has(origin)) return next();
+    res.status(403).end('forbidden');
+  });
+  // Atomic config write: a crash mid-write must never leave truncated JSON (it holds the API key).
+  const writeConfigAtomic = (data) => {
+    writeFileSync(`${configPath}.tmp`, data);
+    renameSync(`${configPath}.tmp`, configPath);
+  };
   app.use(express.static(publicDir));
   // First launch lands on the setup wizard instead of the dashboard — until
   // the wizard has been finished once. Finishing without a brain (the "just
@@ -367,7 +383,7 @@ export function startServer(opts = {}) {
       if (next.twitch && !next.twitch.clientSecret && config.twitch.clientSecret) {
         next.twitch.clientSecret = config.twitch.clientSecret;
       }
-      writeFileSync(configPath, JSON.stringify(next, null, 2) + '\n');
+      writeConfigAtomic(JSON.stringify(next, null, 2) + '\n');
       if (changedPaths(config, next).every(isHotPath)) {
         applyHotConfig(next);
         return res.json({ ok: true, applied: true });
@@ -613,7 +629,7 @@ export function startServer(opts = {}) {
     // cache (keyed on array identity) rebuilds on the next line.
     config.speech.corrections = [...existing, ...added];
     try {
-      writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+      writeConfigAtomic(JSON.stringify(config, null, 2) + '\n');
     } catch (err) {
       return res.status(500).json({ ok: false, error: err.message });
     }
@@ -962,7 +978,7 @@ export function startServer(opts = {}) {
     // blocks any webpage from reading chat/mic-transcript state or injecting
     // messages, while keeping non-browser clients (no Origin) usable.
     const origin = req.headers.origin;
-    const originOk = !origin || origin === `http://127.0.0.1:${port}` || origin === `http://localhost:${port}`;
+    const originOk = !origin || allowedOrigins.has(origin);
     if (!originOk) {
       ws.close();
       return;

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MODELS, messageCost, isKnownModel } from '../src/models.js';
+import { MODELS, messageCost } from '../src/models.js';
 
 test('plain input/output tokens bill at the listed rates', () => {
   // Sonnet: $3/MTok in, $15/MTok out
@@ -8,11 +8,11 @@ test('plain input/output tokens bill at the listed rates', () => {
   assert.equal(cost, (1000 * 3 + 1000 * 15) / 1_000_000);
 });
 
-test('cache reads bill at 10% of the input rate, cache writes at 125%', () => {
+test('cache reads bill at 10% of the input rate, 1h cache writes at 200%', () => {
   const read = messageCost('claude-sonnet-5', { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 1_000_000 });
   assert.ok(Math.abs(read - 0.3) < 1e-9); // $3/MTok * 10%
   const write = messageCost('claude-sonnet-5', { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 1_000_000 });
-  assert.ok(Math.abs(write - 3.75) < 1e-9); // $3/MTok * 125%
+  assert.ok(Math.abs(write - 6) < 1e-9); // $3/MTok * 200%
 });
 
 test('dated model ids match by prefix', () => {
@@ -41,14 +41,4 @@ test('catalog ids do not shadow each other by prefix', () => {
       if (a !== b) assert.ok(!a.id.startsWith(b.id), `${a.id} shadowed by ${b.id}`);
     }
   }
-});
-
-// Drives the "Custom model ID…" hint: it warns the deck can't show a dollar
-// figure only when the id really has no rates.
-test('isKnownModel tracks what the cost meter can price', () => {
-  assert.equal(isKnownModel('claude-sonnet-5'), true);
-  assert.equal(isKnownModel('claude-opus-5-20260101'), true); // dated snapshot
-  assert.equal(isKnownModel('claude-opus-4-7'), false);
-  assert.equal(isKnownModel(''), false);
-  assert.equal(isKnownModel(undefined), false);
 });

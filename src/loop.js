@@ -247,7 +247,8 @@ export class GhostLoop {
     } else {
       factor = 1 + (Math.random() * 2 - 1) * c.jitter; // normal: ± jitter
     }
-    return Math.max(12, base * factor * this.energyMultiplier()) * 1000;
+    const secs = base * factor * this.energyMultiplier();
+    return Math.max(12, Number.isFinite(secs) ? secs : 120) * 1000; // NaN from a bad hand-edited cadence → default
   }
 
   scheduleNext(msOverride, trigger = 'timer') {
