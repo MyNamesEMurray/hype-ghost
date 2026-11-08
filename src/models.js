@@ -13,11 +13,6 @@ export const MODELS = [
   { id: 'claude-opus-4-8', label: 'Opus 4.8 — previous premium (~$0.33/hr)', inRate: 5, outRate: 25, effort: true },
 ];
 
-/** True when the cost meter has published rates for this model id. */
-export function isKnownModel(modelId) {
-  return MODELS.some((m) => modelId && modelId.startsWith(m.id));
-}
-
 /**
  * Whether output_config.effort can be sent to this model. Unknown ids — the
  * "Custom model ID…" path — deliberately answer false: sending a parameter an
@@ -30,8 +25,8 @@ export function supportsEffort(modelId) {
 
 /**
  * Cost of one API response in dollars, or null for models we have no rates
- * for. Cache reads bill at 10% of the input rate, 5-minute cache writes at
- * 125%; usage.input_tokens is the uncached remainder, so no double-counting.
+ * for. Cache reads bill at 10% of the input rate, 1-hour cache writes at
+ * 200% (brain.js requests ttl '1h'); usage.input_tokens is the uncached remainder, so no double-counting.
  */
 export function messageCost(modelId, usage) {
   const model = MODELS.find((m) => modelId && modelId.startsWith(m.id));
@@ -40,7 +35,7 @@ export function messageCost(modelId, usage) {
     ((usage.input_tokens || 0) * model.inRate +
       (usage.output_tokens || 0) * model.outRate +
       (usage.cache_read_input_tokens || 0) * model.inRate * 0.1 +
-      (usage.cache_creation_input_tokens || 0) * model.inRate * 1.25) /
+      (usage.cache_creation_input_tokens || 0) * model.inRate * 2) /
     1_000_000
   );
 }

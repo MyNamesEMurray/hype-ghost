@@ -799,17 +799,20 @@
     if (g.archetype) card.dataset.arche = g.archetype;
     card.innerHTML = `
       <div class="gc-top">
-        <div class="av" style="background:${hex}">${(g.name||'?').charAt(0).toUpperCase()}</div>
-        <div class="gc-name"><input type="text" class="c-name" maxlength="24" value="${(g.name||'').replace(/"/g,'&quot;')}" placeholder="Ghost name"></div>
+        <div class="av" style="background:${hex}"></div>
+        <div class="gc-name"><input type="text" class="c-name" maxlength="24" placeholder="Ghost name"></div>
         ${total > 1 ? '<button class="rm ghostbtn">Remove</button>' : ''}
       </div>
       <div class="swatches">${swatches}</div>
       <label>Personality</label>
-      <textarea class="c-pers" placeholder="how they act in chat">${(g.personality||'').replace(/</g,'&lt;')}</textarea>
+      <textarea class="c-pers" placeholder="how they act in chat"></textarea>
       <div class="arche">${arches}</div>`;
-    // name -> avatar initial live
+    // name/personality set as properties, never parsed as HTML
     const nameInput = card.querySelector('.c-name');
     const av = card.querySelector('.av');
+    nameInput.value = g.name || '';
+    av.textContent = (g.name || '?').charAt(0).toUpperCase();
+    card.querySelector('.c-pers').value = g.personality || '';
     nameInput.addEventListener('input', () => { av.textContent = (nameInput.value || '?').charAt(0).toUpperCase(); });
     // color swatches — stage colors are identities, so no two ghosts share
     // one: picking a color another ghost wears swaps it for this one's
@@ -879,8 +882,9 @@
     // The catalog, plus an escape hatch: any model id the key can reach, so a
     // release newer than this build (or an older one worth pinning) isn't
     // gated behind an app update.
-    $('modelSelect').innerHTML = data.models.map((m) => `<option value="${m.id}">${m.label}</option>`).join('')
-      + `<option value="${CUSTOM_MODEL}">Custom model ID…</option>`;
+    $('modelSelect').replaceChildren(
+      ...data.models.map((m) => new Option(m.label, m.id)),
+      new Option('Custom model ID…', CUSTOM_MODEL));
     for (const f of fields) {
       const v = getPath(cfg, f.dataset.path);
       if (f.dataset.type === 'bool') f.checked = v !== false;
@@ -1159,10 +1163,8 @@
     const pick = $('giPick');
     if (d.games.length > 1 || (d.games.length === 1 && d.games[0] !== giEditing)) {
       pick.style.display = '';
-      pick.innerHTML = d.games.map((g) => `<option${g === giEditing ? ' selected' : ''}>${g}</option>`).join('');
-      if (!d.games.includes(giEditing) && giEditing) {
-        pick.insertAdjacentHTML('afterbegin', `<option selected>${giEditing}</option>`);
-      }
+      const names = !d.games.includes(giEditing) && giEditing ? [giEditing, ...d.games] : d.games;
+      pick.replaceChildren(...names.map((g) => new Option(g, g, false, g === giEditing)));
     } else {
       pick.style.display = 'none';
     }
