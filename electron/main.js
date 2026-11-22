@@ -88,14 +88,21 @@ function createWindow(page = '/') {
   // External links (console.anthropic.com, dev.twitch.tv, …) open in the
   // user's real browser — never in a chrome-less Electron window where they
   // can't verify the URL they're typing credentials into.
+  // Only http(s) is handed to the OS — file:/custom-protocol URLs could launch local handlers.
+  const openExternalSafe = (url) => {
+    try {
+      const { protocol } = new URL(url);
+      if (protocol === 'http:' || protocol === 'https:') shell.openExternal(url);
+    } catch {}
+  };
   win.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    openExternalSafe(url);
     return { action: 'deny' };
   });
   win.webContents.on('will-navigate', (e, url) => {
     if (!url.startsWith(`http://127.0.0.1:${server.port}/`) && !url.startsWith(`http://localhost:${server.port}/`)) {
       e.preventDefault();
-      shell.openExternal(url);
+      openExternalSafe(url);
     }
   });
   win.once('ready-to-show', () => {

@@ -153,3 +153,10 @@ test('being addressed cannot bypass the rate floor or the staleness window', (t)
   stale.loop.onSpeech('beacon are you there');
   assert.equal(stale.loop.voiceReplyTimer, null, 'stale message still wins');
 });
+
+test('intervalMs: non-numeric cadence value stays finite and >= 12s', () => {
+  const { loop } = makeLoop({ ready: true });
+  loop.config.cadence = { soloSeconds: 'abc', quietSeconds: 'abc', burstChance: 0, lullChance: 0, jitter: 0 };
+  const ms = loop.intervalMs();
+  assert.ok(Number.isFinite(ms) && ms >= 12000, `got ${ms}`);
+});

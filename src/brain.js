@@ -31,7 +31,7 @@ function pickStyle() {
 // cadence in the loop; here it colors the room's mood so the same cast feels
 // sleepy at 10 and electric at 95.
 export function energyTone(energy) {
-  const e = Math.max(0, Math.min(100, Number(energy) ?? 55));
+  const e = Math.max(0, Math.min(100, Number.isFinite(Number(energy)) ? Number(energy) : 55));
   if (e < 20) return 'The room is very low-key right now — sleepy late-night hangout energy. Keep messages short, sparse, and calm.';
   if (e < 40) return 'The room is relaxed and easygoing. Warm, unhurried reactions.';
   if (e < 65) return 'Normal, engaged chat energy — present and warm.';
@@ -78,7 +78,8 @@ export class Brain {
     if (this.provider === 'anthropic') {
       const apiKey = anthropic.apiKey || process.env.ANTHROPIC_API_KEY || '';
       this.hasKey = Boolean(apiKey);
-      this.client = new Anthropic(apiKey ? { apiKey } : {});
+      // SDK default is 10 min x 2 retries; a hung call would pin GhostLoop.busy for ~30 min.
+      this.client = new Anthropic(apiKey ? { apiKey, timeout: 60_000 } : { timeout: 60_000 });
       this.model = anthropic.model;
     } else {
       this.baseUrl = (brain.openaiBaseUrl || 'http://localhost:11434/v1').replace(/\/+$/, '');

@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Brain } from '../src/brain.js';
+import { Brain, energyTone } from '../src/brain.js';
+
+test('energyTone falls back to 55 for missing/invalid energy, keeps 0 as sleepy', () => {
+  for (const bad of [undefined, NaN, 'abc']) assert.equal(energyTone(bad), energyTone(55));
+  assert.match(energyTone(0), /sleepy/);
+});
 
 const PERSONAS = [
   { name: 'Beacon', personality: 'curious and goofy' },
